@@ -1,5 +1,4 @@
 # aqita-wd_pm
-aqita-propulsion
 
 The repository contains all the C source files for the AQITA propulsion system. The propulsion system is driven by BLDC motors operating in FOC mode. The BLDC motor control system is sensorless w.r.t. the rotor position and uses a special rotor position estimator. The control algorithms are designed to run on the STM32H743XIHx MCU.
 
@@ -14,12 +13,19 @@ Device Specific
 
 Keil::STM32H7xx_DFP version 2.2.0 (2018-09-04)
 
+
 Generic
 
 ARM::CMSIS version 5.4.0 (2018-08-01)
+
 ARM::CMSIS-Driver version 2.3.0 (2018-06-15)
+
 Keil::ARM_Compiler version 1.6.0 (2018-09-06)
+
 Keil::MDK-Middleware version 7.7.0 (2018-05-25)
+
+
+
 
 Under the menu "Project/Manage/Project Items" and under the tab "Folders/Extension" configure the "Tool Base Folder" to
 
