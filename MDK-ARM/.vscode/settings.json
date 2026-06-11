@@ -1,0 +1,19 @@
+{
+    "files.associations": {
+        "main.h": "c",
+        "uvx_comm_m2m.h": "c",
+        "limits": "c",
+        "memory": "c",
+        "uvx_crc8.h": "c",
+        "uvx_uart.h": "c",
+        "stm32l4xx_hal.h": "c",
+        "stdio.h": "c",
+        "uvx_gpio.h": "c",
+        "uvx_timer.h": "c",
+        "stdlib.h": "c",
+        "uvx_universal_types.h": "c",
+        "string": "c",
+        "stdint.h": "c",
+        "uvx_comm_m2jmb.h": "c"
+    }
+}
