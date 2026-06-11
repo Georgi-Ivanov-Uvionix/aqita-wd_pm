@@ -1,4 +1,5 @@
 # aqita-wd_pm
+aqita-propulsion
 
 The repository contains all the C source files for the AQITA propulsion system. The propulsion system is driven by BLDC motors operating in FOC mode. The BLDC motor control system is sensorless w.r.t. the rotor position and uses a special rotor position estimator. The control algorithms are designed to run on the STM32H743XIHx MCU.
 
