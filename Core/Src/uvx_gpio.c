@@ -46,7 +46,7 @@ UVX_GPIO GPIO_OUTPUT_BQH_I2C_EN         = {.Port = 'B', .Pin =  5, GPIO_OUTPUT_P
 
 // --------------------- APP SETUP GPIO PORT C --------------------------------------------
 UVX_GPIO GPIO_OUTPUT_DOCK_HIGH_CP        = {.Port = 'C', .Pin = 4, GPIO_OUTPUT_PP_PD};  
-UVX_GPIO GPIO_OUTPUT_DOCK_LOW_CP       = {.Port = 'C', .Pin = 5, GPIO_OUTPUT_PP_PD};  
+UVX_GPIO GPIO_OUTPUT_DOCK_LOW_CP        = {.Port = 'C', .Pin = 5, GPIO_OUTPUT_PP_PD};  
 UVX_GPIO GPIO_OUTPUT_DRONE_START_FET_EN = {.Port = 'C', .Pin =  6, GPIO_OUTPUT_PP};
 UVX_GPIO GPIO_OUTPUT_BATT_MEASURE_EN    = {.Port = 'C', .Pin =  7, GPIO_OUTPUT_PP};   
 UVX_GPIO GPIO_OUTPUT_JETSON_EN          = {.Port = 'C', .Pin = 10, GPIO_OUTPUT_PP};
@@ -54,6 +54,8 @@ UVX_GPIO GPIO_OUTPUT_PM_INH_CHG         = {.Port = 'C', .Pin = 11, GPIO_OUTPUT_P
 UVX_GPIO GPIO_INPUT_PG_DRONE_START      = {.Port = 'C', .Pin =  8, GPIO_INPUT_NO_PUPD};
 
 // --------------------- APP SETUP GPIO PORT D --------------------------------------------
+UVX_GPIO GPIO_OUTPUT_5V_EN              = {.Port = 'D', .Pin =  1, GPIO_OUTPUT_PP};
+UVX_GPIO GPIO_OUTPUT_ESC_EN             = {.Port = 'D', .Pin =  2, GPIO_OUTPUT_PP};
 UVX_GPIO GPIO_OUTPUT_ILIM_HIZ           = {.Port = 'D', .Pin =  8, GPIO_OUTPUT_PP};
 UVX_GPIO GPIO_OUTPUT_EN_JETSON_PS       = {.Port = 'D', .Pin = 12, GPIO_OUTPUT_PP};
 UVX_GPIO GPIO_OUTPUT_JMB_PERIPHERIAL_EN = {.Port = 'D', .Pin = 13, GPIO_OUTPUT_PP};

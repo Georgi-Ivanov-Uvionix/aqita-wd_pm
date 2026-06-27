@@ -69,7 +69,7 @@
 #define TIME_FOR_OK_LED_TOGGLE					300		//150
 #define TIME_FOR_ERROR_LED_TOGGLE				500		//250
 
-#define APP_JETSON_PWR_FC
+//#define APP_JETSON_PWR_FC
 //#define APP_NO_BATTERY_MODE
 #define APP_HALL_POWER_ENABLE
 /* USER CODE END PD */
@@ -1057,6 +1057,8 @@ void UVX_APP_Shutdown_JMB(void)
 
 	SHUTDOWN_JETSON;
 	uvx_gpio_set_pin(GPIO_OUTPUT_DRONE_START_FET_EN, GPIO_PIN_RESET); // power off FC
+	uvx_gpio_set_pin(GPIO_OUTPUT_ESC_EN, GPIO_PIN_RESET); // power off FC
+	uvx_gpio_set_pin(GPIO_OUTPUT_5V_EN, GPIO_PIN_RESET); // power off FC
 	drone_status.esc_comm = false;
 	drone_status.pwr_fc = false;
 	comm_m2jmb.Heartbeat = 0; 
@@ -1088,6 +1090,8 @@ void UVX_APP_Comm_m2jmb(void)
 				comm_m2jmb_state.state_next = M2JMB_MODE_TURN_ON;
 				comm_m2jmb_state.state_current = M2JMB_MODE_TURN_ON; 
 				uvx_gpio_set_pin(GPIO_OUTPUT_DRONE_START_FET_EN, GPIO_PIN_SET);
+				uvx_gpio_set_pin(GPIO_OUTPUT_ESC_EN, GPIO_PIN_SET);
+				uvx_gpio_set_pin(GPIO_OUTPUT_5V_EN, GPIO_PIN_SET);
 				drone_state.state_current = DRONE_JETSON_POWERED_ON;
 				comm_m2jmb.Heartbeat = 1; // Reset heartbeat flag
 				#endif
@@ -1127,6 +1131,8 @@ void UVX_APP_Comm_m2jmb(void)
 				comm_m2jmb_state.state_current = M2JMB_MODE_WAIT_RESPONSE; // Wait for response
 				uvx_gpio_set_pin(GPIO_OUTPUT_GREEN_LED, GPIO_PIN_RESET);		
 				uvx_gpio_set_pin(GPIO_OUTPUT_DRONE_START_FET_EN, GPIO_PIN_SET);				
+				uvx_gpio_set_pin(GPIO_OUTPUT_ESC_EN, GPIO_PIN_SET);				
+				uvx_gpio_set_pin(GPIO_OUTPUT_5V_EN, GPIO_PIN_SET);				
 			}
 						
 			led_strip_state.state_next = LED_STRIP_MODE_COMM_FC;
@@ -1141,6 +1147,8 @@ void UVX_APP_Comm_m2jmb(void)
 				comm_m2jmb_state.state_current = M2JMB_MODE_WAIT_RESPONSE; // Wait for response
 				uvx_gpio_set_pin(GPIO_OUTPUT_GREEN_LED, GPIO_PIN_SET);		
 				uvx_gpio_set_pin(GPIO_OUTPUT_DRONE_START_FET_EN, GPIO_PIN_RESET);					
+				uvx_gpio_set_pin(GPIO_OUTPUT_ESC_EN, GPIO_PIN_RESET);					
+				uvx_gpio_set_pin(GPIO_OUTPUT_5V_EN, GPIO_PIN_RESET);					
 			}
 						
 			led_strip_state.state_next = LED_STRIP_MODE_WAITING;
