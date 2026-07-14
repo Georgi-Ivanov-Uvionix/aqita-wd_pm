@@ -68,8 +68,9 @@
 // #define TIME_FOR_DEBOUNCE					50		//25
 #define TIME_FOR_OK_LED_TOGGLE					300		//150
 #define TIME_FOR_ERROR_LED_TOGGLE				500		//250
+#define CLOCK_READY_TIMEOUT						1000000U
 
-//#define APP_JETSON_PWR_FC
+#define APP_JETSON_PWR_FC
 //#define APP_NO_BATTERY_MODE
 #define APP_HALL_POWER_ENABLE
 /* USER CODE END PD */
@@ -123,6 +124,8 @@ uint8_t g_Released_Twice = 0;
 uint8_t g_Time_For_No_Pressed_Buttton = 0;
 uint8_t g_Error_LED = 0;
 volatile uint8_t g_Sleep = 0;
+volatile uint8_t g_Exit_Sleep_Request = 0;
+volatile uint8_t g_Button_EXTI_Request = 0;
 uint8_t g_Toggle_Count = 0;
 uint8_t g_Test = 0;
 uint8_t g_esc_data_started = 0;
@@ -215,6 +218,8 @@ void Config_SysClk_HSE(void);
 void Set_Timers_After_Sleep(void);
 void Start_Button_Pressed_Twice_Timer(void);
 void UVX_APP(void);
+void Process_Sleep_Exit_Request(void);
+void Process_Button_EXTI_Request(void);
 void UVX_APP_Shutdown_JMB(void);
 void UVX_APP_Comm_m2m(void);
 void UVX_APP_Comm_m2jmb(void);
@@ -285,6 +290,8 @@ int main(void)
 	
 	while (1)
 	{ 					
+		Process_Sleep_Exit_Request();
+		Process_Button_EXTI_Request();
 		UVX_APP();
 	}
 }
@@ -465,6 +472,10 @@ void UVX_APP(void)
 					uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_SET);
 					batt_state.state_current = BATT_MODE_STOP;
 					enter_LPSleep();
+					if(g_Exit_Sleep_Request)
+					{
+						Process_Sleep_Exit_Request();
+					}
 				}	
 				else
 				{
@@ -487,6 +498,36 @@ void UVX_APP(void)
 
 	UVX_APP_LED_Strip();
 	UVX_APP_HALL_LAND();
+}
+
+void Process_Sleep_Exit_Request(void)
+{
+	if(g_Exit_Sleep_Request)
+	{
+		g_Exit_Sleep_Request = 0;
+		exit_Sleep();
+	}
+}
+
+void Process_Button_EXTI_Request(void)
+{
+	if(g_Button_EXTI_Request)
+	{
+		g_Button_EXTI_Request = 0;
+		uvx_gpio_set_pin(GPIO_OUT_LED_STRIP_ENABLE, GPIO_PIN_SET);
+		drone_status.btn_state = true;
+		if((drone_state.state_current != DRONE_CHECK_BUTTON_PRESS_ONCE)
+		&& (drone_state.state_current != DRONE_CHECK_BUTTON_PRESS_TWICE)
+		&& (drone_state.state_current != DRONE_CHECK_BUTTON_TIMEOUT))
+		{
+			drone_state.state_current = DRONE_CHECK_BUTTON_PRESS_ONCE;
+		}
+
+		if(batt_state.state_current == BATT_MODE_STOP)
+		{
+			batt_state.state_current = BATT_MODE_READ_BQ_L;
+		}
+	}
 }
 
 void UVX_APP_HALL_LAND(void)
@@ -803,44 +844,61 @@ void         UVX_APP_Batt(void)
 			{
 				uvx_comm_bq_write_mba_register(&comm_bq_h, BQ_MA_FET_CONTROL, NULL, 0);
 			}
-
-			if(batt_data.tc)
-			{
-				uvx_comm_bq_charge_fet(&comm_bq_h, 0);
-				//UVX_APP_PWR_FET(0); // PWR off
-			}
 			else
 			{
-				if((batt_data.adc_pack_v_stable_high) && (drone_status.pwr_fet))
+				if(batt_data.tc)
 				{
-					uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_RESET);
-					if(drone_state.state_current == DRONE_CHECK_BUTTON_PRESS_ONCE)
-					{
-						uvx_gpio_set_pin(GPIO_OUTPUT_PWR_LED, GPIO_PIN_RESET);
-					}
-
-					uvx_comm_bq_charge_fet(&comm_bq_h, 1);
+					uvx_comm_bq_charge_fet(&comm_bq_h, 0);
+				//UVX_APP_PWR_FET(0); // PWR off
 				}
 				else
 				{
-					uvx_comm_bq_charge_fet(&comm_bq_h, 0);
-				}
-			}
+					if((batt_data.adc_pack_v_stable_high) && (drone_status.pwr_fet))
+					{
+						uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_RESET);
+						if(drone_state.state_current == DRONE_CHECK_BUTTON_PRESS_ONCE)
+						{
+							uvx_gpio_set_pin(GPIO_OUTPUT_PWR_LED, GPIO_PIN_RESET);
+						}
 
-			if(!batt_data.cell_ball_h && !batt_data.cell_ball_l)
-			{
-				if((batt_data.payload.voltage_diff_pack > BATT_CELL_VOLTAGE_DIFF) && (batt_data.CHG_fet_stat))
+						uvx_comm_bq_charge_fet(&comm_bq_h, 1);
+					}
+					else
+					{
+						uvx_comm_bq_charge_fet(&comm_bq_h, 0);
+					}		
+				}
+
+				if(!batt_data.cell_ball_h && !batt_data.cell_ball_l)
 				{
-					if(bq_data_h.voltage_per_cell < bq_data_l.voltage_per_cell)
+					if((batt_data.voltage_diff_pack > BATT_CELL_VOLTAGE_DIFF) && (batt_data.CHG_fet_stat))
 					{
-						uvx_comm_bq_force_balance(&comm_bq_l, 1);
-						batt_state.state_next = BATT_MODE_OFF_BALANCE_H;
+						if(bq_data_h.voltage_per_cell < bq_data_l.voltage_per_cell)
+						{
+							uvx_comm_bq_force_balance(&comm_bq_l, 1);
+							batt_state.state_next = BATT_MODE_READ_CHECK_PACK_V;
+						}
+						else if (bq_data_h.voltage_per_cell > bq_data_l.voltage_per_cell)
+						{
+							uvx_comm_bq_force_balance(&comm_bq_h, 1);
+							batt_state.state_next = BATT_MODE_READ_CHECK_PACK_V;
+						}
 					}
-					else if (bq_data_h.voltage_per_cell > bq_data_l.voltage_per_cell)
+					else
 					{
-						uvx_comm_bq_force_balance(&comm_bq_h, 1);
-						batt_state.state_next = BATT_MODE_OFF_BALANCE_L;
-					}
+						if(comm_bq_h.Force_balance)
+						{
+							batt_state.state_next = BATT_MODE_OFF_BALANCE_H;
+						}
+						else if(comm_bq_l.Force_balance)
+						{
+							batt_state.state_next = BATT_MODE_OFF_BALANCE_L;
+						}
+						else
+						{
+							batt_state.state_next = BATT_MODE_READ_CHECK_PACK_V;
+						}					
+					}	
 				}
 				else
 				{
@@ -855,24 +913,9 @@ void         UVX_APP_Batt(void)
 					else
 					{
 						batt_state.state_next = BATT_MODE_READ_CHECK_PACK_V;
-					}					
-				}	
+					}		
+				}
 			}
-			else
-			{
-				if(comm_bq_h.Force_balance)
-				{
-					batt_state.state_next = BATT_MODE_OFF_BALANCE_H;
-				}
-				else if(comm_bq_l.Force_balance)
-				{
-					batt_state.state_next = BATT_MODE_OFF_BALANCE_L;
-				}
-				else
-				{
-					batt_state.state_next = BATT_MODE_READ_CHECK_PACK_V;
-				}		
-			}	
 		
 			batt_state.state_current = BATT_MODE_WAIT_RESPONSE;			
 		break;
@@ -907,34 +950,35 @@ void         UVX_APP_Batt(void)
 		break;
 
 		case BATT_MODE_WAIT_RESPONSE:
-			switch(batt_state.state_next)
+			if((i2c_bq.hal_i2c.RX_Ready) || (batt_data.cnt_no_response > BQ_MAX_NO_RESPONSE))
 			{
-				case BATT_MODE_READ_CHECK_PACK_V:
-					if((comm_bq_l.RX_Ready == 1) || (comm_bq_h.RX_Ready == 1) || (batt_data.cnt_no_response > BQ_MAX_NO_RESPONSE))
-					{
-						batt_data.cnt_no_response = 0;
-						batt_state.state_current = batt_state.state_next;
-						batt_reg_cnt = 0;
-						HAL_Delay(1);
-					}
-					else
-					{
-						batt_state.state_current = batt_state.state_previous;
-						batt_data.cnt_no_response++;
-					}
-				break;
+				switch(batt_state.state_next)
+				{
+					case BATT_MODE_READ_CHECK_PACK_V:
+						if(batt_data.cnt_no_response > BQ_MAX_NO_RESPONSE)
+						{
+							batt_data.cnt_no_response = 0;
+							batt_state.state_current = batt_state.state_next;
+							batt_reg_cnt = 0;
+							HAL_Delay(1);
+						}
+						else
+						{
+							batt_state.state_current = batt_state.state_previous;
+							batt_data.cnt_no_response++;
+						}
+					break;
 
-				case BATT_MODE_INIT_BALANCE_H:
-				case BATT_MODE_OFF_BALANCE_L:
-				case BATT_MODE_READ_ONCE_BQ_L:
-				case BATT_MODE_READ_BQ_L:
-					if((comm_bq_l.RX_Ready == 1)|| (batt_data.cnt_no_response > BQ_MAX_NO_RESPONSE))
-					{
+					case BATT_MODE_INIT_BALANCE_H:
+					case BATT_MODE_OFF_BALANCE_L:
+					case BATT_MODE_READ_ONCE_BQ_L:
+					case BATT_MODE_READ_BQ_L:
 						if(batt_data.cnt_no_response > BQ_MAX_NO_RESPONSE)
 						{
 							bq_data_l.No_response = true;
 							batt_reg_cnt = 0;
 							comm_bq_l.RX_Ready = 1; // Force ready to avoid blocking
+							comm_bq_l.p_hal_i2c->RX_Ready = 1; // Force ready to avoid blocking
 						}						
 						else
 						{
@@ -943,52 +987,45 @@ void         UVX_APP_Batt(void)
 
 						batt_data.cnt_no_response = 0;						
 						batt_state.state_current = batt_state.state_next;
+						comm_bq_l.RX_Ready = 1;
 						
-						if(bq_l_register_list_read[batt_reg_cnt].reg_addr == CBSTATUS)
-						{
-							for_test = 0;
-						}
+						// if(bq_l_register_list_read[batt_reg_cnt].reg_addr == CBSTATUS)
+						// {
+						// 	for_test = 0;
+						// }
 
-						batt_reg_cnt++;
+						batt_reg_cnt++;							
+						HAL_Delay(1);						
+					break;
+					
+					case BATT_MODE_OFF_BALANCE_H:
+					case BATT_MODE_READ_ONCE_BQ_H:
+					case BATT_MODE_READ_BQ_H:
+							if(batt_data.cnt_no_response > BQ_MAX_NO_RESPONSE)
+							{
+								bq_data_h.No_response = true;
+								batt_reg_cnt = 0;
+								comm_bq_h.RX_Ready = 1; // Force ready to avoid blocking
+								comm_bq_h.p_hal_i2c->RX_Ready = 1; // Force ready to avoid blocking
+							}						
+							else
+							{
+								bq_data_h.No_response = false;
+							}				
 
-						
-						HAL_Delay(1);
-					}
-					else
-					{
-						batt_state.state_current = batt_state.state_previous;
-						batt_data.cnt_no_response++;
-					}
-				break;
-				
-				case BATT_MODE_OFF_BALANCE_H:
-				case BATT_MODE_READ_ONCE_BQ_H:
-				case BATT_MODE_READ_BQ_H:
-					if((comm_bq_h.RX_Ready == 1) || (batt_data.cnt_no_response > BQ_MAX_NO_RESPONSE))
-					{
-						if(batt_data.cnt_no_response > BQ_MAX_NO_RESPONSE)
-						{
-							bq_data_h.No_response = true;
-							batt_reg_cnt = 0;
-							comm_bq_h.RX_Ready = 1; // Force ready to avoid blocking
-						}						
-						else
-						{
-							bq_data_h.No_response = false;
-						}				
-
-						batt_data.cnt_no_response = 0;
-						batt_state.state_current = batt_state.state_next;
-						batt_reg_cnt++;
-						HAL_Delay(1);
-					}
-					else
-					{
-						batt_state.state_current = batt_state.state_previous;
-						batt_data.cnt_no_response++;
-						HAL_Delay(1);
-					}
-				break;
+							batt_data.cnt_no_response = 0;
+							batt_state.state_current = batt_state.state_next;
+							comm_bq_h.RX_Ready = 1;
+							batt_reg_cnt++;
+							HAL_Delay(1);
+					break;
+				}			
+			}
+			else
+			{
+				batt_state.state_current = batt_state.state_previous;
+				batt_data.cnt_no_response++;
+				bq_data_l.No_response = false;
 			}	
 		break;
 
@@ -1055,7 +1092,7 @@ void UVX_APP_Shutdown_JMB(void)
 		}
 	}
 
-	SHUTDOWN_JETSON;	
+	SHUTDOWN_JETSON;
 	uvx_gpio_set_pin(GPIO_OUTPUT_DRONE_START_FET_EN, GPIO_PIN_RESET); // power off FC
 	uvx_gpio_set_pin(GPIO_OUTPUT_ESC_EN, GPIO_PIN_RESET); // power off FC
 	uvx_gpio_set_pin(GPIO_OUTPUT_5V_EN, GPIO_PIN_RESET); // power off FC
@@ -1086,7 +1123,7 @@ void UVX_APP_Comm_m2jmb(void)
 				uvx_gpio_set_pin(GPIO_OUTPUT_DRONE_START_FET_EN, GPIO_PIN_SET);
 
 				#ifdef APP_JETSON_PWR_FC
-				comm_m2jmb_state.state_next = M2JMB_MODE_TURN_ON; // Set next state to wait for response
+				comm_m2jmb_state.state_next = M2JMB_MODE_TURN_OFF; // Set next state to wait for response
 				comm_m2jmb_state.state_current = M2JMB_MODE_WAIT_RESPONSE; // Wait for response
 				#else
 				comm_m2jmb_state.state_next = M2JMB_MODE_TURN_ON;
@@ -1111,18 +1148,20 @@ void UVX_APP_Comm_m2jmb(void)
 		case M2JMB_MODE_TURN_OFF:
 			if(timer_app_comm_jmb.Timeout == 0) // If timeout occurs
 			{
-				// #ifdef APP_JETSON_PWR_FC
-				// SHUTDOWN_JETSON; // Power off JMB peripheral
-				// comm_m2jmb.Heartbeat = 0; // Reset heartbeat flag
-				// #else
-				// comm_m2jmb.Heartbeat = 1; // Reset heartbeat flag
-				// #endif
+				#ifdef APP_JETSON_PWR_FC
+				SHUTDOWN_JETSON; // Power off JMB peripheral
+				uvx_gpio_set_pin(GPIO_OUTPUT_DRONE_START_FET_EN, GPIO_PIN_RESET); // power off FC
+				drone_status.pwr_fc = false;
+				comm_m2jmb.Heartbeat = 0; // Reset heartbeat flag
+				#else
+				comm_m2jmb.Heartbeat = 1; // Reset heartbeat flag
+				#endif
 				
-				// comm_m2jmb_state.state_current = M2JMB_MODE_TURN_ON; // Wait for response
-				// timer_app_comm_jmb.Timeout = comm_m2jmb.timeout_power_off; // Reset timeout for power off
-				// timer_app_comm_jmb.Enable = true; 
-				// uvx_gpio_set_pin(GPIO_OUTPUT_RED_LED, GPIO_PIN_SET);
-				// led_strip_state.state_next = LED_STRIP_MODE_STOP;
+				comm_m2jmb_state.state_current = M2JMB_MODE_TURN_ON; // Wait for response
+				timer_app_comm_jmb.Timeout = comm_m2jmb.timeout_power_off; // Reset timeout for power off
+				timer_app_comm_jmb.Enable = true; 
+				uvx_gpio_set_pin(GPIO_OUTPUT_RED_LED, GPIO_PIN_SET);
+				led_strip_state.state_next = LED_STRIP_MODE_STOP;
 			}
 		break;
 
@@ -1144,7 +1183,7 @@ void UVX_APP_Comm_m2jmb(void)
 
 		case M2JMB_MODE_SEND_FC_OFF_ACK:
 			if(uvx_comm_m2jmb_send(CMD_PWR_OFF_FC_ACK, NULL, NULL) == UVX_M2JMB_OK)
-			{
+			{	
 				drone_state.state_current = DRONE_JETSON_POWERED_OFF;
 				drone_status.pwr_fc = false;
 				drone_status.esc_comm = false;
@@ -1167,6 +1206,7 @@ void UVX_APP_Comm_m2jmb(void)
 				{
 					comm_m2jmb.Heartbeat = 1; // Set heartbeat flag
 					timer_app_comm_jmb.Timeout = comm_m2jmb.timeout_heartbeat; // Reset heartbeat timeout
+					timer_app_comm_jmb.Enable = true;
 					HAL_UART_Receive_IT(&uart_2.hal_uart.huart, &uart_2.byte_rx, 1); // Start receiving data
 					uvx_gpio_toggle_pin(GPIO_OUTPUT_RED_LED);
 					uvx_gpio_toggle_pin(GPIO_OUTPUT_PWR_LED);
@@ -1223,6 +1263,8 @@ void UVX_APP_Comm_m2jmb(void)
 				else if(buff_rx_m2jmb[M2JMB_BYTE_CMD] == CMD_PWR_ON_FC)
 				{							
 					comm_m2jmb_state.state_current = M2JMB_MODE_SEND_FC_ON_ACK; // Set next state to send ACK
+					batt_data.adc_pack_v_stable_high = 0;
+					UVX_APP_PWR_FET(0); // power off					
 				}
 				else if(buff_rx_m2jmb[M2JMB_BYTE_CMD] == CMD_PWR_OFF_FC)
 				{					
@@ -1238,7 +1280,9 @@ void UVX_APP_Comm_m2jmb(void)
 			}
 			else
 			{
-				if(timer_app_comm_jmb.Timeout == 0) // If timeout occurs
+				if( (timer_app_comm_jmb.Timeout == 0) &&
+					(!drone_status.esc_psys_arm) &&
+					(batt_data.adc_pack_v_stable_high) )
 				{
 					#ifdef APP_JETSON_PWR_FC					
 					comm_m2jmb.Heartbeat = 0; // Reset heartbeat flag
@@ -1321,6 +1365,16 @@ void UVX_APP_Comm_m2m(void)
 						drone_status.esc_land_complete = ((esc_data_tx[M2M_BYTE_DATA_FLAGS] & M2M_DATA_FLAGS_LAND_COMPLETE) != 0U); // Update drone land complete status from ESC data
 						drone_status.esc_flying = ((esc_data_tx[M2M_BYTE_DATA_FLAGS] & M2M_DATA_FLAGS_FLYING) != 0U); // Update drone flying status from ESC data
 						drone_status.esc_psys_arm = ((esc_data_tx[M2M_BYTE_DATA_FLAGS] & M2M_DATA_FLAGS_PSYS_ARM) != 0U); // Update powered system arm status from ESC data
+
+						if(drone_status.esc_psys_arm_old != drone_status.esc_psys_arm)
+						{
+							drone_status.esc_psys_arm_old = drone_status.esc_psys_arm;
+							if(!drone_status.esc_psys_arm)
+							{
+								timer_app_comm_jmb.Timeout = comm_m2jmb.timeout_heartbeat; // Reset heartbeat timeout
+								timer_app_comm_jmb.Enable = true;		
+							}
+						}
 
 						if(batt_data.size_payload > 0)
 						{
@@ -2109,7 +2163,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 		if(drone_state.state_current == DRONE_SLEEP)
 		{
 			timer_app_batt_pwr_high.Timeout = 0;
-			exit_Sleep();		
+			g_Exit_Sleep_Request = 1;
 		}		
 	}
 }
@@ -2254,7 +2308,7 @@ void enter_LPSleep( void )
 		HAL_SuspendTick();
 		HAL_PWREx_EnableLowPowerRunMode();
 
-		while (g_Sleep)
+		while (g_Sleep && !g_Exit_Sleep_Request)
 		{
 			HAL_PWR_EnterSLEEPMode(PWR_LOWPOWERREGULATOR_ON,PWR_SLEEPENTRY_WFI);
 		}
@@ -2289,15 +2343,30 @@ void exit_Sleep(void)
 
 void Config_SysClk_HSE(void)
 {	
+	uint32_t timeout;
 		
 	//RCC->CFGR |=  RCC_CFGR_HPRE;
 	RCC->CR |= RCC_CR_HSEON | RCC_CR_PLLON;
-	while ( !( RCC->CR & RCC_CR_HSERDY && RCC->CR & RCC_CR_PLLRDY  ) ); // wait until HSE and PLL is ready
+	timeout = CLOCK_READY_TIMEOUT;
+	while ((RCC->CR & (RCC_CR_HSERDY | RCC_CR_PLLRDY)) != (RCC_CR_HSERDY | RCC_CR_PLLRDY))
+	{
+		if(timeout-- == 0U)
+		{
+			Error_Handler();
+		}
+	}
 	
 	/* Switch System Clock */
 	// PLL oscillator used as system clock
 	RCC->CFGR = ( RCC->CFGR & ~RCC_CFGR_SW ) | RCC_CFGR_SW_PLL;
-	while ( ( RCC->CFGR & RCC_CFGR_SWS ) != RCC_CFGR_SWS_PLL ); // wait unit switched
+	timeout = CLOCK_READY_TIMEOUT;
+	while ( ( RCC->CFGR & RCC_CFGR_SWS ) != RCC_CFGR_SWS_PLL )
+	{
+		if(timeout-- == 0U)
+		{
+			Error_Handler();
+		}
+	}
 	
 	
 	/* Disable other clocks (excluding LSE and LSI) */
@@ -2308,17 +2377,33 @@ void Config_SysClk_HSE(void)
 
 void Config_SysClk_MSI_131(void)
 {
+	uint32_t timeout;
+
 	/* Enable an Configure Clock */
 	RCC->CR &= ~RCC_CR_MSION;
 	RCC->CR = ( RCC->CR & ~RCC_CR_MSIRANGE ) | RCC_CR_MSIRANGE_1;
 	RCC->CR |= RCC_CR_MSIRGSEL;
 	RCC->CR |= RCC_CR_MSION;
-	while ( !( RCC->CR & RCC_CR_MSIRDY ) ); // wait until MSI is ready
+	timeout = CLOCK_READY_TIMEOUT;
+	while ( !( RCC->CR & RCC_CR_MSIRDY ) )
+	{
+		if(timeout-- == 0U)
+		{
+			Error_Handler();
+		}
+	}
 	
 	/* Switch System Clock */
 	// MSI oscillator used as system clock
 	RCC->CFGR = ( RCC->CFGR & ~RCC_CFGR_SW ) | RCC_CFGR_SW_MSI;
-	while ( ( RCC->CFGR & RCC_CFGR_SWS ) != RCC_CFGR_SWS_MSI ); // wait unit switched
+	timeout = CLOCK_READY_TIMEOUT;
+	while ( ( RCC->CFGR & RCC_CFGR_SWS ) != RCC_CFGR_SWS_MSI )
+	{
+		if(timeout-- == 0U)
+		{
+			Error_Handler();
+		}
+	}
 	
 	/* Disable other clocks (excluding LSE and LSI) */
 	RCC->CR &= ~( RCC_CR_HSION | RCC_CR_HSEON | RCC_CR_PLLON | RCC_CR_PLLSAI1ON );
@@ -2441,33 +2526,6 @@ void I2C1_EV_IRQHandler(void)
 {
 	uint32_t i2c_state = 0;
 	HAL_I2C_EV_IRQHandler(&i2c_bq.hal_i2c.hi2c);
-	// if( i2c_bq.hal_i2c.hi2c.Instance->ISR & I2C_ISR_TC )
-	// {
-	// 	if(comm_bq.TX_Ready == 0)
-	// 	{
-	// 		comm_bq.TX_Ready = 1;
-	// 	}		
-	// }
-	// else if (i2c_bq.hal_i2c.hi2c.Instance->ISR & I2C_ISR_STOPF)
-	// {
-	// 	/* Clear STOP */
-	// 	i2c_bq.hal_i2c.hi2c.Instance->ICR = I2C_ICR_STOPCF;
-
-	// 	// /* Force HAL back to READY if needed */
-	// 	// i2c_bq.hal_i2c.hi2c.State = HAL_I2C_STATE_READY;
-
-	// 	if(comm_bq.TX_Ready == 0)
-	// 	{
-	// 		comm_bq.TX_Ready = 1;
-	// 	}	
-	// }
-	// else
-	// {
-	// 	if(comm_bq.TX_Ready == 0)
-	// 	{
-	// 		comm_bq.TX_Ready = 0;
-	// 	}	
-	// }
 
 	if( ( i2c_bq.hal_i2c.hi2c.Instance->ISR & I2C_ISR_TXE ) && 
 	  (!( i2c_bq.hal_i2c.hi2c.Instance->ISR & I2C_ISR_RXNE )) && 
@@ -2480,57 +2538,72 @@ void I2C1_EV_IRQHandler(void)
 		
 		if(!( i2c_bq.hal_i2c.hi2c.Instance->ISR & I2C_ISR_BUSY ))
 		{
-			if(comm_bq_l.RX_Ready == 0)
+			// if(comm_bq_l.RX_Ready == 0)
+			// {
+			// 	comm_bq_l.RX_Ready = 1;
+			// }
+
+			// if(comm_bq_h.RX_Ready == 0)
+			// {
+			// 	comm_bq_h.RX_Ready = 1;
+			// }
+
+			if(i2c_bq.hal_i2c.RX_Ready == 0)
 			{
-				comm_bq_l.RX_Ready = 1;
+				i2c_bq.hal_i2c.RX_Ready = 1;
 			}
 
-			if(comm_bq_h.RX_Ready == 0)
+			if(i2c_bq.hal_i2c.TX_Ready == 0)
 			{
-				comm_bq_h.RX_Ready = 1;
+				i2c_bq.hal_i2c.TX_Ready = 1;
 			}
 
-			if(i2c_bq.RX_Ready == 0)
-			{
-				i2c_bq.RX_Ready = 1;
-			}
+			// if(comm_bq_l.TX_Ready == 0)
+			// {
+			// 	comm_bq_l.TX_Ready = 1;
+			// }	
 
-			if(comm_bq_l.TX_Ready == 0)
-			{
-				comm_bq_l.TX_Ready = 1;
-			}	
-
-			if(comm_bq_h.TX_Ready == 0)
-			{
-				comm_bq_h.TX_Ready = 1;
-			}			
+			// if(comm_bq_h.TX_Ready == 0)
+			// {
+			// 	comm_bq_h.TX_Ready = 1;
+			// }			
 		}
 
 	}
 	else if( ( i2c_bq.hal_i2c.hi2c.Instance->ISR & I2C_ISR_TXE ) && 
 	  		 (!( i2c_bq.hal_i2c.hi2c.Instance->ISR & I2C_ISR_STOPF )) )
 	{
-		if(comm_bq_l.TX_Ready == 0)
-		{
-			comm_bq_l.TX_Ready = 1;
-		}	
+		// if(comm_bq_l.TX_Ready == 0)
+		// {
+		// 	comm_bq_l.TX_Ready = 1;
+		// }	
 
-		if(comm_bq_h.TX_Ready == 0)
+		// if(comm_bq_h.TX_Ready == 0)
+		// {
+		// 	comm_bq_h.TX_Ready = 1;
+		// }		
+
+		if(i2c_bq.hal_i2c.TX_Ready == 0)
 		{
-			comm_bq_h.TX_Ready = 1;
-		}		
+			i2c_bq.hal_i2c.TX_Ready = 1;
+		}
 	}
 	else
 	{
-		if(comm_bq_l.TX_Ready == 0)
-		{
-			comm_bq_l.TX_Ready = 0;
-		}	
+		// if(comm_bq_l.TX_Ready == 0)
+		// {
+		// 	comm_bq_l.TX_Ready = 0;
+		// }	
 
-		if(comm_bq_h.TX_Ready == 0)
+		// if(comm_bq_h.TX_Ready == 0)
+		// {
+		// 	comm_bq_h.TX_Ready = 1;
+		// }
+		if(i2c_bq.hal_i2c.TX_Ready == 0)
 		{
-			comm_bq_h.TX_Ready = 1;
+			i2c_bq.hal_i2c.TX_Ready = 1;
 		}
+
 	}
 
 	if( i2c_bq.hal_i2c.hi2c.Instance->ISR & I2C_ISR_NACKF )
@@ -2574,27 +2647,15 @@ void I2C1_EV_IRQHandler(void)
 
 void I2C1_ER_IRQHandler(void)
 {
-	HAL_I2C_ER_IRQHandler(&hi2c1);	
+	HAL_I2C_ER_IRQHandler(&i2c_bq.hal_i2c.hi2c);	
 }
 
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
 	if (PWR_BUTTON_INTERRUPT)
 	{
-		uvx_gpio_set_pin(GPIO_OUT_LED_STRIP_ENABLE, GPIO_PIN_SET);
-		drone_status.btn_state = true;
-		exit_Sleep();
-		if((drone_state.state_current != DRONE_CHECK_BUTTON_PRESS_ONCE) 
-		&& (drone_state.state_current != DRONE_CHECK_BUTTON_PRESS_TWICE)
-		&& (drone_state.state_current != DRONE_CHECK_BUTTON_TIMEOUT))
-		{
-			drone_state.state_current = DRONE_CHECK_BUTTON_PRESS_ONCE;
-		}
-
-		if(batt_state.state_current == BATT_MODE_STOP)
-		{
-			batt_state.state_current = BATT_MODE_READ_BQ_L;
-		}
+		g_Button_EXTI_Request = 1;
+		g_Exit_Sleep_Request = 1;
 	}
 	else
 	{

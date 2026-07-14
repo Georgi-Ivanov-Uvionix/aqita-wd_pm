@@ -262,11 +262,6 @@ UVX_COMM_BQ_STATE uvx_comm_bq_write_register(UVX_COMM_BQ* p_comm_bq, uint16_t re
 		{
 			return UVX_BQ_ERROR;
 		}
-
-		// if(uvx_i2c_send(p_comm_bq->p_hal_i2c, p_comm_bq->addr_i2c, i2c_data, 3) != UVX_I2C_OK)
-		// {
-		// 	return UVX_BQ_ERROR;
-		// }		
 	}
 	else
 	{
@@ -332,9 +327,8 @@ UVX_COMM_BQ_STATE uvx_comm_bq_force_balance(UVX_COMM_BQ* p_comm_bq, uint8_t enab
 	if(p_comm_bq->Force_balance_old != p_comm_bq->Force_balance)
 	{
 		p_comm_bq->Force_balance_old = p_comm_bq->Force_balance;
-		#ifdef APP_ENABLE_FORCE_BALANCE		
 		return uvx_comm_bq_write_register(p_comm_bq, GPIO_WRITE, data, 2);
-		#endif
+
 	}
 	else
 	{

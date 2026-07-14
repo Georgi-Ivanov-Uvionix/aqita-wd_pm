@@ -373,7 +373,10 @@ UVX_BATT_STATE uvx_batt_parse_data(void)
 
 	batt_data.payload.avg_time_to_full_m = uvx_comm_bq_swap_u16_value(batt_data.avg_time_to_full_m);
 
-	if((bq_data_h.gauging_status.reg.bits.TC || bq_data_l.gauging_status.reg.bits.TC)  && (batt_data.voltage_max_cell > BATT_CELL_MAX_VOLTAGE))
+	if( ( (bq_data_h.gauging_status.reg.bits.TC || bq_data_l.gauging_status.reg.bits.TC)  && 
+		  (batt_data.voltage_max_cell > BATT_CELL_MAX_VOLTAGE)) || 
+		(batt_data.batt_max_temp) ||
+		(drone_status.pwr_fc))
 	{
 		//UVX_APP_PWR_FET(0); // power off FC
 		batt_data.tc = 1;
@@ -381,6 +384,19 @@ UVX_BATT_STATE uvx_batt_parse_data(void)
 	else
 	{
 		batt_data.tc = 0;
+	}
+
+	if((batt_data.temperature_cell_h > MAX_HIS_CELL_TEMPERATURE) || (batt_data.temperature_cell_l > MAX_HIS_CELL_TEMPERATURE))
+	{
+		//UVX_APP_PWR_FET(0); // power off FC
+		batt_data.batt_max_temp = 1;
+	}
+	else
+	{
+		if((batt_data.temperature_cell_h < MIN_HIS_CELL_TEMPERATURE) && (batt_data.temperature_cell_l < MIN_HIS_CELL_TEMPERATURE))
+		{
+			batt_data.batt_max_temp = 0;
+		}
 	}
 
 	batt_data.cell_ball_h = bq_data_h.operation_status.reg.bits.CB;
@@ -444,7 +460,7 @@ UVX_BATT_STATE uvx_batt_read_pack_v(void)
 	if(&hadc1 != NULL)
 	{
 		HAL_ADC_Start(&hadc1);
-		HAL_ADC_PollForConversion(&hadc1, HAL_MAX_DELAY);
+		HAL_ADC_PollForConversion(&hadc1, 10);
 		HAL_ADC_Stop(&hadc1);
 
 		batt_data.adc_pack_v = HAL_ADC_GetValue(&hadc1) * PACK_V_GAIN;
@@ -456,9 +472,9 @@ UVX_BATT_STATE uvx_batt_read_pack_v(void)
 			{
 				batt_data.adc_pack_v_stable_high = 1;
 
-				if((drone_status.pwr_fet == 0) &&
-				   (!batt_data.tc))// &&
-				   //(batt_data.adc_pack_v_stable_low))
+				if( (drone_status.pwr_fet == 0) &&
+					(drone_status.pwr_fc == 0) &&
+				    (!batt_data.tc))				   
 				{					
 					UVX_APP_PWR_FET(1); // power on FC
 					batt_data.adc_pack_v_stable_low = 0;
@@ -472,6 +488,16 @@ UVX_BATT_STATE uvx_batt_read_pack_v(void)
 						batt_state.state_current = BATT_MODE_READ_BQ_L;
 					}
 				}				
+				else if(drone_status.pwr_fc == 1)
+				{
+					UVX_APP_PWR_FET(0); // power off FC
+					uvx_gpio_set_pin(GPIO_OUT_LED_STRIP_ENABLE, GPIO_PIN_RESET);
+				}
+			}
+			else
+			{
+				timer_app_comm_jmb.Timeout = comm_m2jmb.timeout_heartbeat; // Reset heartbeat timeout
+				timer_app_comm_jmb.Enable = true;			
 			}
 			
 			batt_data.adc_pack_v_stable_low = 0;
@@ -479,7 +505,7 @@ UVX_BATT_STATE uvx_batt_read_pack_v(void)
 			timer_app_batt_pwr_low.Enable = true;
 		}
 		else
-		{
+		{				
 			if(timer_app_batt_pwr_low.Timeout == 0)
 			{
 				batt_data.adc_pack_v_stable_low = 1;

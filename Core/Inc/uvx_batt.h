@@ -62,6 +62,8 @@
 #define BATT_ERROR_BQ_H_NO_RESPONSE_BIT                1
 
 #define MAX_CELL_TEMPERATURE                        650
+#define MAX_HIS_CELL_TEMPERATURE                    600 //max histeresis cell temperature for power on after high temp cutoff
+#define MIN_HIS_CELL_TEMPERATURE                    500 //min histeresis cell temperature for power on after high temp cutoff
 #define SOC_START_LOW_POWER                         95
 
 #define KELVIN_TO_DEG_C                             2732
@@ -276,6 +278,7 @@ typedef struct
     uint32_t tc       : 1; 
     uint32_t cell_ball_h : 1;
     uint32_t cell_ball_l : 1;
+    uint32_t batt_max_temp : 1;
    
     uint16_t specification_info;       // Specification Information
     uint16_t manufacturer_date;        // Manufacturer Date

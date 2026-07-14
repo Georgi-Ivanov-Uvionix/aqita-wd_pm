@@ -7,6 +7,10 @@
 #include "stm32l4xx_hal.h"
 #include "uvx_gpio.h"
 
+#ifndef UVX_I2C_TX_IT_BUFFER_SIZE
+#define UVX_I2C_TX_IT_BUFFER_SIZE 32U
+#endif
+
 
 typedef enum
 {
@@ -47,6 +51,7 @@ typedef struct UVX_I2C_HAL
     IRQn_Type dma_interrupt_line_rx; // DMA interrupt line
 
     uint32_t error_dma_cnt; // DMA error counter
+    uint8_t tx_it_buffer[UVX_I2C_TX_IT_BUFFER_SIZE];
     //interrupt event line
     uint8_t i2c_interrupt_rx 	    : 1; // Flag to indicate if RX interrupt is enabled
     uint8_t i2c_interrupt_tx 	    : 1; // Flag to indicate if TX interrupt is enabled
@@ -64,6 +69,9 @@ typedef struct UVX_I2C_HAL
     uint8_t dma_interrupt_rx 	    : 1; // Flag to indicate if RX DMA interrupt is enabled
     uint8_t dma_interrupt_tx 	    : 1; // Flag to indicate if TX DMA interrupt is enabled
 
+    uint8_t RX_Ready 	            : 1; // RX byte ready
+    uint8_t TX_Ready 	            : 1; // TX byte ready    
+
 }UVX_I2C_HAL;
 
 typedef struct UVX_I2C
@@ -76,8 +84,8 @@ typedef struct UVX_I2C
     uint8_t Enable 		    : 1; // Flag to indicate if I2C is enabled
     uint8_t is_Initilized 	: 1; // Flag to indicate if HAL timer is initialied
     uint8_t Error 		    : 1; // Error flag
-    uint8_t RX_Ready 	    : 1; // RX byte ready
-    uint8_t TX_Ready 	    : 1; // TX byte ready
+    // uint8_t RX_Ready 	    : 1; // RX byte ready
+    // uint8_t TX_Ready 	    : 1; // TX byte ready
     uint8_t TX_Ready_Buffer : 1; // TX buffer ready
     uint8_t RX_Ready_Buffer : 1; // RX buffer ready        
     uint8_t Reserve 	    : 1; // Reserved for future use

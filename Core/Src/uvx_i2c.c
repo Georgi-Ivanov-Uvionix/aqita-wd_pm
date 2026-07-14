@@ -1,6 +1,7 @@
 /* Define to prevent recursive inclusion -------------------------------------*/
 #include "uvx_i2c.h"
 #include <stdlib.h>
+#include <string.h>
 
 static UVX_I2C_STATE uvx_i2c_hal_init(UVX_I2C_HAL* hal_i2c)
 {
@@ -250,6 +251,8 @@ UVX_I2C_STATE uvx_i2c_init(UVX_I2C* i2c/*, uint8_t* p_buff_tx, uint8_t* p_buff_r
                 // }
 
                 i2c->is_Initilized = 1;
+                i2c->hal_i2c.RX_Ready = 1;
+                i2c->hal_i2c.TX_Ready = 1;
                 res = UVX_I2C_OK;
             }
             else
@@ -286,15 +289,24 @@ UVX_I2C_STATE uvx_i2c_send_mem(UVX_I2C_HAL* p_i2c, uint8_t dev_addr, uint16_t re
                     ( ( p_i2c->hi2c.Instance->ISR & I2C_ISR_TXE ) &&
                       ( p_i2c->hi2c.Instance->ISR & I2C_ISR_TXIS ) ) )
                 {
-                    dev_addr <<= 1; // Shift address            
-                    res = HAL_I2C_Mem_Write_IT(&p_i2c->hi2c, dev_addr, reg_addr, reg_size, data, size);
-                    //res = HAL_I2C_Master_Transmit(&p_i2c->hi2c, dev_addr, data, size, HAL_MAX_DELAY);
-                    if(res != HAL_OK)
+                    if(p_i2c->TX_Ready)
                     {
-                        p_i2c->hi2c.State = HAL_I2C_STATE_READY;                      
-                                    
-                        return UVX_I2C_ERROR; // Return error if transmission fails
-                    }      
+                        p_i2c->TX_Ready = 0;
+                        dev_addr <<= 1; // Shift address            
+                        res = HAL_I2C_Mem_Write_IT(&p_i2c->hi2c, dev_addr, reg_addr, reg_size, data, size);
+                        //res = HAL_I2C_Master_Transmit(&p_i2c->hi2c, dev_addr, data, size, HAL_MAX_DELAY);
+                        if(res != HAL_OK)
+                        {
+                            p_i2c->hi2c.State = HAL_I2C_STATE_READY;                      
+                                        
+                            return UVX_I2C_ERROR; // Return error if transmission fails
+                        }  
+                    }
+                    else
+                    {
+                        return UVX_I2C_BUSY;
+                    }
+    
                 }
                 else
                 {
@@ -331,8 +343,12 @@ UVX_I2C_STATE uvx_i2c_send(UVX_I2C_HAL* p_i2c, uint8_t dev_addr, uint8_t* data, 
     HAL_StatusTypeDef res = HAL_ERROR;
 	#if defined(STM32L4xx_HAL_H)
 		// Check if the I2C handle is initialized
-		if (p_i2c != NULL && p_i2c->hi2c.Instance != NULL)
+		if (p_i2c != NULL && p_i2c->hi2c.Instance != NULL && data != NULL)
 		{
+            if((size == 0U) || (size > UVX_I2C_TX_IT_BUFFER_SIZE))
+            {
+                return UVX_I2C_ERROR;
+            }
             
             if( !( p_i2c->hi2c.Instance->ISR & I2C_ISR_STOPF ) && 
                 !( p_i2c->hi2c.Instance->ISR & I2C_ISR_NACKF ) &&
@@ -342,23 +358,26 @@ UVX_I2C_STATE uvx_i2c_send(UVX_I2C_HAL* p_i2c, uint8_t dev_addr, uint8_t* data, 
                     ( ( p_i2c->hi2c.Instance->ISR & I2C_ISR_TXE ) &&
                       ( p_i2c->hi2c.Instance->ISR & I2C_ISR_TXIS ) ) )
                 {
-                    dev_addr <<= 1; // Shift address            
-                    res = HAL_I2C_Master_Transmit(&p_i2c->hi2c, dev_addr, data, size, HAL_MAX_DELAY);
-                    //if(HAL_I2C_Master_Transmit_IT(&p_i2c->hi2c, dev_addr, data, size) != HAL_OK)
-                    // {
-                    //     p_i2c->hi2c.State = HAL_I2C_STATE_READY;                      
-                                    
-                    //     return UVX_I2C_ERROR; // Return error if transmission fails
-                    // }
-
-                    //res = HAL_I2C_Mem_Write_IT(&p_i2c->hi2c, dev_addr, reg_addr, reg_size, data, size);
-
-                    if(res != HAL_OK)
+                    if(p_i2c->TX_Ready)
                     {
-                        p_i2c->hi2c.State = HAL_I2C_STATE_READY;                      
-                                    
-                        return UVX_I2C_ERROR; // Return error if transmission fails
-                    }      
+                        p_i2c->TX_Ready = 0;
+
+                        dev_addr <<= 1; // Shift address            
+                        //res = HAL_I2C_Mem_Write_IT(&p_i2c->hi2c, dev_addr, reg_addr, reg_size, data, size); 
+                        //res = HAL_I2C_Master_Transmit(&p_i2c->hi2c, dev_addr, data, size, HAL_MAX_DELAY);
+                        memcpy(p_i2c->tx_it_buffer, data, size);
+                        res = HAL_I2C_Master_Transmit_IT(&p_i2c->hi2c, dev_addr, p_i2c->tx_it_buffer, size);
+                        if(res != HAL_OK)
+                        {
+                            p_i2c->hi2c.State = HAL_I2C_STATE_READY;                      
+                                        
+                            return UVX_I2C_ERROR; // Return error if transmission fails
+                        }
+                    }
+                    else
+                    {
+                        return UVX_I2C_BUSY;
+                    }                      
                 }
                 else
                 {
@@ -400,15 +419,23 @@ UVX_I2C_STATE uvx_i2c_read_mem(UVX_I2C_HAL* p_i2c, uint8_t dev_addr, uint16_t re
                 !( p_i2c->hi2c.Instance->ISR & I2C_ISR_NACKF ) &&
                 !( p_i2c->hi2c.Instance->ISR & I2C_ISR_RXNE ) )
             {
-                dev_addr <<= 1; // Shift address
-                if(HAL_I2C_Mem_Read_IT(&p_i2c->hi2c, dev_addr, reg_addr, reg_size, data, size) != HAL_OK)
+                if(p_i2c->RX_Ready)
                 {
-                    if( !(p_i2c->hi2c.Instance->ISR & I2C_ISR_RXNE ) )
+                    p_i2c->RX_Ready = 0;
+                    dev_addr <<= 1; // Shift address
+                    if(HAL_I2C_Mem_Read_IT(&p_i2c->hi2c, dev_addr, reg_addr, reg_size, data, size) != HAL_OK)
                     {
-                         p_i2c->hi2c.State = HAL_I2C_STATE_READY;
-                    }  
+                        if( !(p_i2c->hi2c.Instance->ISR & I2C_ISR_RXNE ) )
+                        {
+                            p_i2c->hi2c.State = HAL_I2C_STATE_READY;
+                        }  
 
-                    return UVX_I2C_ERROR; // Return error if transmission fails
+                        return UVX_I2C_ERROR; // Return error if transmission fails
+                    }                    
+                }
+                else
+                {
+                    return UVX_I2C_BUSY;
                 }
             }
             else
@@ -464,15 +491,23 @@ UVX_I2C_STATE uvx_i2c_read(UVX_I2C_HAL* p_i2c, uint8_t dev_addr, uint8_t* data, 
                 !( p_i2c->hi2c.Instance->ISR & I2C_ISR_NACKF ) &&
                 !( p_i2c->hi2c.Instance->ISR & I2C_ISR_RXNE ) )
             {
-                dev_addr <<= 1; // Shift address
-                if(HAL_I2C_Master_Receive_IT(&p_i2c->hi2c, dev_addr, data, size) != HAL_OK)
+                if(p_i2c->RX_Ready)
                 {
-                    if( !(p_i2c->hi2c.Instance->ISR & I2C_ISR_RXNE ) )
+                    p_i2c->RX_Ready = 0;
+                    dev_addr <<= 1; // Shift address
+                    if(HAL_I2C_Master_Receive_IT(&p_i2c->hi2c, dev_addr, data, size) != HAL_OK)
                     {
-                         p_i2c->hi2c.State = HAL_I2C_STATE_READY;
-                    }  
+                        if( !(p_i2c->hi2c.Instance->ISR & I2C_ISR_RXNE ) )
+                        {
+                            p_i2c->hi2c.State = HAL_I2C_STATE_READY;
+                        }  
 
-                    return UVX_I2C_ERROR; // Return error if transmission fails
+                        return UVX_I2C_ERROR; // Return error if transmission fails
+                    }                    
+                }
+                else
+                {
+                    return UVX_I2C_BUSY;
                 }
             }
             else

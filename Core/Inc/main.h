@@ -70,7 +70,7 @@ void Error_Handler(void);
 
 //=================== APP SETUP======================================================
 #define PROJECT_AQITA_PM
-#define APP_TIMEOUT_JMB_HEARTBEAT		    10000 //ms
+#define APP_TIMEOUT_JMB_HEARTBEAT		    600000 //ms
 #define APP_TIMEOUT_JMB_POWER_ON		    120000 //ms
 #define APP_TIMEOUT_JMB_POWER_OFF		    6000 //ms
 #define APP_TIMEOUT_JMB_CHECK		        1000 //ms
@@ -261,6 +261,7 @@ typedef struct
   uint8_t esc_land_complete : 1;
   uint8_t esc_flying  : 1;
   uint8_t esc_psys_arm : 1;
+  uint8_t esc_psys_arm_old : 1;
 
   DRONE_CHARGE_STATE charge_state;
 } UVX_DRONE_STATUS;
@@ -269,6 +270,7 @@ extern UVX_DRONE_STATE_MACHINE drone_state;
 extern UVX_TIMER timer_app_batt_pwr_high;
 extern UVX_TIMER timer_app_batt_pwr_low;
 extern UVX_TIMER timer_app_batt_low_voltage;
+extern UVX_TIMER timer_app_comm_jmb;
 extern UART_HandleTypeDef huart1;
 extern ADC_HandleTypeDef hadc1;
 extern UVX_DRONE_STATUS drone_status;
