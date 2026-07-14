@@ -62,6 +62,9 @@
 
 #define BATT_ERROR_BQ_L_NO_RESPONSE_BIT                0
 #define BATT_ERROR_BQ_H_NO_RESPONSE_BIT                1
+#define BATT_ERROR_BATT_MAX_TEMP_BIT                   2
+#define BATT_ERROR_CHARGE_OVERVOLTAGE_BIT              3
+#define BATT_ERROR_CHARGE_CELL_COUNT_ERROR_BIT         4
 
 #define MAX_CELL_TEMPERATURE                        650
 #define MAX_HIS_CELL_TEMPERATURE                    600 //max histeresis cell temperature for power on after high temp cutoff

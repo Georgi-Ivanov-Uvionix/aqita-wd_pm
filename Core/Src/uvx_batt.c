@@ -208,7 +208,10 @@ UVX_BATT_STATE uvx_batt_parse_data(void)
 	batt_data.CHG_fet_stat = bq_data_h.operation_status.reg.bits.CHG;
 
 	batt_data.payload.error = 	bq_data_l.No_response << BATT_ERROR_BQ_L_NO_RESPONSE_BIT |
-							 	bq_data_h.No_response << BATT_ERROR_BQ_H_NO_RESPONSE_BIT;
+							 	bq_data_h.No_response << BATT_ERROR_BQ_H_NO_RESPONSE_BIT |
+								batt_data.batt_max_temp << BATT_ERROR_BATT_MAX_TEMP_BIT |
+								drone_status.charge_overvoltage << BATT_ERROR_CHARGE_OVERVOLTAGE_BIT |
+								drone_status.charge_cell_count_error << BATT_ERROR_CHARGE_CELL_COUNT_ERROR_BIT;
 
 	batt_data.error = batt_data.payload.error;
 
