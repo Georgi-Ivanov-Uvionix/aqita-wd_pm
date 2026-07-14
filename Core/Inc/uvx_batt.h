@@ -41,9 +41,11 @@
 #define BATT_CELL_TYPE_LGINR18650MJ1				1
 
 #define BATT_CELLS_MAX                              10
+#define BATT_EXPECTED_CELLS                         9
 #define BATT_CELL_MIN_DETECT_VOLTAGE_MV             1500
 #define BATT_CELL_MIN_VOLTAGE                       2200 //mv
 #define BATT_CELL_MAX_VOLTAGE                       4200 //mv
+#define BATT_CELL_CHARGE_RESUME_VOLTAGE             4100 //mv
 #define BATT_CELL_DETECT_THRESHOLD_MV               1500 //mv
 #define BATT_CELL_VOLTAGE_DIFF                      10  //mv
 #define BATT_DELTA_VOLTAGE                          500  //mv
@@ -71,7 +73,7 @@
 #define SRAM1 __attribute__((section(".sram1")))
 #define SRAM2 __attribute__((section(".sram2")))
 
-#define CELL_1_INTERCONNECT_RESISTANCE 14 //mOhm
+#define CELL_1_INTERCONNECT_RESISTANCE 13 //mOhm
 #define CELL_2_INTERCONNECT_RESISTANCE 0 //mOhm
 #define CELL_3_INTERCONNECT_RESISTANCE 0 //mOhm
 #define CELL_4_INTERCONNECT_RESISTANCE 0 //mOhm

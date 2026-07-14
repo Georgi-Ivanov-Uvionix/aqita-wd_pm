@@ -159,6 +159,7 @@ UVX_TIMER timer_app_land;
 
 UVX_DRONE_STATE_MACHINE drone_state;
 UVX_DRONE_STATUS drone_status;
+UVX_UNIT_TEST unit_test;
 SRAM1 WS2812_Driver ws2812_strip;  // WS2812 LED strip driver
 
 uint8_t btn_percent = 0;
