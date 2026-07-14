@@ -69,6 +69,18 @@
 #define SRAM1 __attribute__((section(".sram1")))
 #define SRAM2 __attribute__((section(".sram2")))
 
+#define CELL_1_INTERCONNECT_RESISTANCE 14 //mOhm
+#define CELL_2_INTERCONNECT_RESISTANCE 0 //mOhm
+#define CELL_3_INTERCONNECT_RESISTANCE 0 //mOhm
+#define CELL_4_INTERCONNECT_RESISTANCE 0 //mOhm
+#define CELL_5_INTERCONNECT_RESISTANCE 5 //mOhm
+#define CELL_6_INTERCONNECT_RESISTANCE 13 //mOhm
+#define CELL_7_INTERCONNECT_RESISTANCE 0 //mOhm
+#define CELL_8_INTERCONNECT_RESISTANCE 0 //mOhm
+#define CELL_9_INTERCONNECT_RESISTANCE 0 //mOhm
+#define CELL_10_INTERCONNECT_RESISTANCE 0 //mOhm
+
+
 typedef packed_struct
 {
     uint8_t  SOH;                       // State of Health in percentage (0-100%)       byte 1

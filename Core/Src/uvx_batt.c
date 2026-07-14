@@ -61,6 +61,17 @@ UVX_BATT_STATE uvx_batt_learn(void)
 
 UVX_BATT_STATE uvx_batt_parse_data(void)
 {
+	batt_data.cell_voltage_1  = bq_data_l.cell_voltage_1 - (bq_data_l.current * CELL_1_INTERCONNECT_RESISTANCE)/1000;
+	batt_data.cell_voltage_2  = bq_data_l.cell_voltage_2 - (bq_data_l.current * CELL_2_INTERCONNECT_RESISTANCE)/1000;
+	batt_data.cell_voltage_3  = bq_data_l.cell_voltage_3 - (bq_data_l.current * CELL_3_INTERCONNECT_RESISTANCE)/1000;
+	batt_data.cell_voltage_4  = bq_data_l.cell_voltage_4 - (bq_data_l.current * CELL_4_INTERCONNECT_RESISTANCE)/1000;
+	batt_data.cell_voltage_5  = bq_data_l.cell_voltage_5 - (bq_data_l.current * CELL_5_INTERCONNECT_RESISTANCE)/1000;
+	batt_data.cell_voltage_6  = bq_data_h.cell_voltage_1 - (bq_data_h.current * CELL_6_INTERCONNECT_RESISTANCE)/1000;
+	batt_data.cell_voltage_7  = bq_data_h.cell_voltage_2 - (bq_data_h.current * CELL_7_INTERCONNECT_RESISTANCE)/1000;
+	batt_data.cell_voltage_8  = bq_data_h.cell_voltage_3 - (bq_data_h.current * CELL_8_INTERCONNECT_RESISTANCE)/1000;
+	batt_data.cell_voltage_9  = bq_data_h.cell_voltage_4 - (bq_data_h.current * CELL_9_INTERCONNECT_RESISTANCE)/1000;
+    batt_data.cell_voltage_10 = bq_data_h.cell_voltage_5 - (bq_data_h.current * CELL_10_INTERCONNECT_RESISTANCE)/1000;
+
 	//convert to little endian 
 	batt_data.payload.cell_voltage_1  = uvx_comm_bq_swap_u16_value(bq_data_l.cell_voltage_1);
 	batt_data.payload.cell_voltage_2  = uvx_comm_bq_swap_u16_value(bq_data_l.cell_voltage_2);
@@ -72,17 +83,6 @@ UVX_BATT_STATE uvx_batt_parse_data(void)
 	batt_data.payload.cell_voltage_8  = uvx_comm_bq_swap_u16_value(bq_data_h.cell_voltage_3);
 	batt_data.payload.cell_voltage_9  = uvx_comm_bq_swap_u16_value(bq_data_h.cell_voltage_4);
     batt_data.payload.cell_voltage_10 = uvx_comm_bq_swap_u16_value(bq_data_h.cell_voltage_5);
-
-	batt_data.cell_voltage_1  = bq_data_l.cell_voltage_1;
-	batt_data.cell_voltage_2  = bq_data_l.cell_voltage_2;
-	batt_data.cell_voltage_3  = bq_data_l.cell_voltage_3;
-	batt_data.cell_voltage_4  = bq_data_l.cell_voltage_4;
-	batt_data.cell_voltage_5  = bq_data_l.cell_voltage_5;
-	batt_data.cell_voltage_6  = bq_data_h.cell_voltage_1;
-	batt_data.cell_voltage_7  = bq_data_h.cell_voltage_2;
-	batt_data.cell_voltage_8  = bq_data_h.cell_voltage_3;
-	batt_data.cell_voltage_9  = bq_data_h.cell_voltage_4;
-    batt_data.cell_voltage_10 = bq_data_h.cell_voltage_5;	
 
 	batt_data.cell_current_1  = bq_data_l.cell_current_1;
 	batt_data.cell_current_2  = bq_data_l.cell_current_2;
