@@ -1026,7 +1026,7 @@ void         UVX_APP_Batt(void)
 			{
 				batt_state.state_current = batt_state.state_previous;
 				batt_data.cnt_no_response++;
-				bq_data_l.No_response = false;
+				//bq_data_l.No_response = false;
 			}	
 		break;
 
