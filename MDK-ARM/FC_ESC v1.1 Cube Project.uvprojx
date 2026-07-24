@@ -475,6 +475,16 @@
               <FileType>1</FileType>
               <FilePath>..\Core\Src\uvx_comm_m2jmb_v2_0.c</FilePath>
             </File>
+            <File>
+              <FileName>uvx_dock_charger.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Core\Src\uvx_dock_charger.c</FilePath>
+            </File>
+            <File>
+              <FileName>uvx_tpl0401x_10.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Core\Src\uvx_tpl0401x_10.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
