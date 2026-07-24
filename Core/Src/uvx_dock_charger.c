@@ -348,3 +348,53 @@ UVX_DOCK_CHARGER_STATE uvx_dock_charger_process(void)
 
     return UVX_DOCK_CHARGER_BUSY;
 }
+
+#ifdef UVX_DOCK_CHARGER_CURRENT_HW_TEST
+
+#define UVX_DOCK_CHARGER_TEST_CODE_LOW       0x20U
+#define UVX_DOCK_CHARGER_TEST_CODE_HIGH      0x60U
+#define UVX_DOCK_CHARGER_TEST_INTERVAL_MS    2000U
+
+/**
+ * @brief On-target I2C test for the TPL0401A current-control resistor.
+ * @param i2c Pointer to the initialized I2C bus.
+ * @retval Current I2C transfer state.
+ *
+ * Call repeatedly from the main loop.  The test alternates the TPL0401A
+ * wiper between codes 0x20 and 0x60 every two seconds, allowing the resistance
+ * change to be measured.  This diagnostic deliberately uses raw codes because
+ * it validates the potentiometer and I2C path rather than charger calibration.
+ */
+UVX_I2C_STATE uvx_dock_charger_test_set_current(UVX_I2C *i2c)
+{
+    static uint32_t next_write_ms;
+    static uint8_t wiper_code = UVX_DOCK_CHARGER_TEST_CODE_LOW;
+    UVX_I2C_STATE state;
+    uint32_t now_ms;
+
+    if((i2c == NULL) || (i2c->is_Initilized == 0U))
+    {
+        return UVX_I2C_INIT_ERROR;
+    }
+
+    now_ms = HAL_GetTick();
+    if((int32_t)(now_ms - next_write_ms) < 0)
+    {
+        return UVX_I2C_BUSY;
+    }
+
+    state = uvx_tpl0401x_10_write(i2c,
+                                  UVX_DOCK_CHARGER_CURRENT_I2C_ADDRESS,
+                                  wiper_code);
+    if(state == UVX_I2C_OK)
+    {
+        wiper_code = (wiper_code == UVX_DOCK_CHARGER_TEST_CODE_LOW) ?
+                     UVX_DOCK_CHARGER_TEST_CODE_HIGH :
+                     UVX_DOCK_CHARGER_TEST_CODE_LOW;
+        next_write_ms = now_ms + UVX_DOCK_CHARGER_TEST_INTERVAL_MS;
+    }
+
+    return state;
+}
+
+#endif /* UVX_DOCK_CHARGER_CURRENT_HW_TEST */

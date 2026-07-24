@@ -25,6 +25,10 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
+
+#ifdef UVX_DOCK_CHARGER_CURRENT_HW_TEST
+UVX_I2C_STATE uvx_dock_charger_test_set_current(UVX_I2C *i2c);
+#endif
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -290,10 +294,15 @@ int main(void)
 	timer_app_batt_pwr_low.Enable = true;
 	
 	while (1)
-	{ 					
+	{
+	#ifdef UVX_DOCK_CHARGER_CURRENT_HW_TEST
+		/* Standalone TPL0401A hardware test; keep other I2C users idle. */
+		(void)uvx_dock_charger_test_set_current(&i2c_bq);
+	#else
 		Process_Sleep_Exit_Request();
 		Process_Button_EXTI_Request();
 		UVX_APP();
+	#endif
 	}
 }
 
