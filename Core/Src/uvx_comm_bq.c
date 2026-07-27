@@ -3,6 +3,29 @@
 #include "uvx_crc8.h"
 #include <string.h>
 
+static UVX_I2C_STATE uvx_comm_bq_lock_i2c(UVX_COMM_BQ* p_comm_bq)
+{
+	UVX_I2C_STATE state = uvx_i2c_lock(p_comm_bq->p_hal_i2c);
+
+	if(state == UVX_I2C_OK)
+	{
+		p_comm_bq->owns_i2c_lock = 1U;
+	}
+
+	return state;
+}
+
+static void uvx_comm_bq_unlock_i2c(UVX_COMM_BQ* p_comm_bq)
+{
+	if((p_comm_bq != NULL) && (p_comm_bq->owns_i2c_lock != 0U))
+	{
+		if(uvx_i2c_unlock(p_comm_bq->p_hal_i2c) == UVX_I2C_OK)
+		{
+			p_comm_bq->owns_i2c_lock = 0U;
+		}
+	}
+}
+
 
 SRAM1 UVX_BQ_DATA bq_data_l;
 SRAM1 UVX_BQ_DATA bq_data_h;
@@ -98,6 +121,7 @@ UVX_COMM_BQ_STATE uvx_comm_bq_init(UVX_COMM_BQ* p_comm_bq, UVX_I2C* i2c, uint8_t
 		p_comm_bq->TX_Ready = 1;
 		p_comm_bq->RX_Ready = 1;
 		p_comm_bq->Force_balance_old = 1; // Initialize Force_balance_old to a different value to ensure the first write occurs
+		p_comm_bq->owns_i2c_lock = 0U;
 
 		#ifdef PROJECT_AQITA_PM
 			if(uvx_i2c_init(p_comm_bq->i2c/*, buff_tx_bq, buff_rx_bq*/)) // Initialize the I2C peripheral
@@ -142,13 +166,20 @@ UVX_COMM_BQ_STATE uvx_comm_bq_read_list(UVX_COMM_BQ* p_comm_bq, uint16_t reg_ind
 			p_comm_bq->RX_Ready = 1; // Reset TX ready flag	
 		}		
 		
-		p_comm_bq->RX_Ready = 0; // Reset TX ready flag	
+		if(uvx_comm_bq_lock_i2c(p_comm_bq) != UVX_I2C_OK)
+		{
+			return UVX_BQ_ERROR_BUSY;
+		}
+
+		p_comm_bq->RX_Ready = 0; // Reset RX ready flag
 
 		if(uvx_i2c_read_mem(p_comm_bq->p_hal_i2c, p_comm_bq->addr_i2c,
 			p_comm_bq->p_register_list[reg_index].reg_addr, 1,
 			p_comm_bq->p_register_list[reg_index].p_data,
 			p_comm_bq->p_register_list[reg_index].size_data) != UVX_I2C_OK)
 		{
+			p_comm_bq->RX_Ready = 1;
+			uvx_comm_bq_unlock_i2c(p_comm_bq);
 			return UVX_BQ_ERROR;
 		}			
 		
@@ -168,20 +199,27 @@ UVX_COMM_BQ_STATE uvx_comm_bq_read_register(UVX_COMM_BQ* p_comm_bq, UVX_BQ_REGIS
 
 	UVX_COMM_BQ_STATE state = UVX_BQ_OK;
 	if(p_comm_bq->RX_Ready == 1)
-	{		
-		p_comm_bq->RX_Ready = 0; // Reset TX ready flag				
-		
+	{
 		state = uvx_comm_bq_get_index_register(p_comm_bq->p_register_list, reg_addr, &reg_index);
 		if(state != UVX_BQ_OK)
 		{
 			return state;
 		}
 
+		if(uvx_comm_bq_lock_i2c(p_comm_bq) != UVX_I2C_OK)
+		{
+			return UVX_BQ_ERROR_BUSY;
+		}
+
+		p_comm_bq->RX_Ready = 0; // Reset RX ready flag
+
 		if(uvx_i2c_read_mem(p_comm_bq->p_hal_i2c, p_comm_bq->addr_i2c,
 			 p_comm_bq->p_register_list[reg_index].reg_addr, 1,
 			 p_comm_bq->p_register_list[reg_index].p_data,
 			 p_comm_bq->p_register_list[reg_index].size_data) != UVX_I2C_OK)
 		{
+			p_comm_bq->RX_Ready = 1;
+			uvx_comm_bq_unlock_i2c(p_comm_bq);
 			return UVX_BQ_ERROR;
 		}
 	}
@@ -254,22 +292,24 @@ UVX_COMM_BQ_STATE uvx_comm_bq_write_register(UVX_COMM_BQ* p_comm_bq, uint16_t re
 
 	if(p_comm_bq->TX_Ready == 1)
 	{
+		if(uvx_comm_bq_lock_i2c(p_comm_bq) != UVX_I2C_OK)
+		{
+			return UVX_BQ_ERROR_BUSY;
+		}
+
 		p_comm_bq->TX_Ready = 0; // Reset TX ready flag
 
 		memcpy(p_comm_bq->i2c_tx_staging, data, size);
 
 		if(uvx_i2c_send_mem(p_comm_bq->p_hal_i2c, p_comm_bq->addr_i2c, reg_addr, 1, p_comm_bq->i2c_tx_staging, size) != UVX_I2C_OK)
 		{
+			p_comm_bq->TX_Ready = 1;
+			uvx_comm_bq_unlock_i2c(p_comm_bq);
 			return UVX_BQ_ERROR;
 		}
 	}
 	else
 	{
-		if(uvx_i2c_check_state(p_comm_bq->p_hal_i2c) == UVX_I2C_TX_READY)
-		{
-			p_comm_bq->TX_Ready = 1;
-		}
-
 		return UVX_BQ_ERROR_BUSY;
 	}
 	
@@ -282,6 +322,11 @@ UVX_COMM_BQ_STATE uvx_comm_bq_write_mba_register(UVX_COMM_BQ* p_comm_bq, UVX_BQ_
 
 	if(p_comm_bq->TX_Ready == 1)
 	{
+		if(uvx_comm_bq_lock_i2c(p_comm_bq) != UVX_I2C_OK)
+		{
+			return UVX_BQ_ERROR_BUSY;
+		}
+
 		p_comm_bq->TX_Ready = 0; // Reset TX ready flag
 
 		i2c_data[0] = 0x44;
@@ -291,16 +336,13 @@ UVX_COMM_BQ_STATE uvx_comm_bq_write_mba_register(UVX_COMM_BQ* p_comm_bq, UVX_BQ_
 
 		if(uvx_i2c_send(p_comm_bq->p_hal_i2c, p_comm_bq->addr_i2c, i2c_data, 4) != UVX_I2C_OK)
 		{
+			p_comm_bq->TX_Ready = 1;
+			uvx_comm_bq_unlock_i2c(p_comm_bq);
 			return UVX_BQ_ERROR;
 		}
 	}
 	else
 	{
-		if(uvx_i2c_check_state(p_comm_bq->p_hal_i2c) == UVX_I2C_TX_READY)
-		{
-			p_comm_bq->TX_Ready = 1;
-		}
-
 		return UVX_BQ_ERROR_BUSY;
 	}
 	

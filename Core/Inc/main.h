@@ -33,7 +33,6 @@ extern "C" {
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #define UVX_COMM_M2JMB_V2_0
-#define UVX_DOCK_CHARGER_CURRENT_HW_TEST
 
 #include "uvx_batt.h"
 #include "uvx_gpio.h"

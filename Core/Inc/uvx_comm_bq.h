@@ -596,6 +596,7 @@ typedef struct UVX_COMM_BQ
     uint8_t RX_Ready_Buffer     : 1; // RX buffer ready        
     uint8_t Force_balance       : 1; // Reserved for future use
     uint8_t Force_balance_old   : 1; // Reserved for future use
+    uint8_t owns_i2c_lock       : 1; // This BQ transaction owns the shared I2C lock
 
     uint16_t                buff_size_rx; // RX buffer size
     uint16_t                buff_size_tx; // TX buffer size

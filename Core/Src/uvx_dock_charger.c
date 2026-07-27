@@ -1,17 +1,17 @@
 /**
   ******************************************************************************
   * @file    uvx_dock_charger.c
-  * @brief   Review-only dock charger control using two TPL0401x-10 devices.
+  * @brief   Dock charger control using two TPL0401x-10 devices.
   *
   * TPL0401A-10 (I2C address 0x2E) regulates charge current.
   * TPL0401B-10 (I2C address 0x3E) regulates charge voltage.
   *
-  * This file is intentionally not connected to the application or build yet.
+  * The application calls this non-blocking driver from its main state loop.
   ******************************************************************************
   */
 
 #include "main.h"
-#include "uvx_i2c.h"
+#include "uvx_dock_charger.h"
 
 #define UVX_DOCK_CHARGER_CURRENT_I2C_ADDRESS    0x2EU
 #define UVX_DOCK_CHARGER_VOLTAGE_I2C_ADDRESS    0x3EU
@@ -22,16 +22,9 @@ UVX_I2C_STATE uvx_tpl0401x_10_init(UVX_I2C *i2c);
 UVX_I2C_STATE uvx_tpl0401x_10_write(UVX_I2C *i2c,
                                     uint8_t device_address,
                                     uint8_t wiper_position);
-
-typedef enum
-{
-    UVX_DOCK_CHARGER_OK = 0,
-    UVX_DOCK_CHARGER_BUSY,
-    UVX_DOCK_CHARGER_ERROR,
-    UVX_DOCK_CHARGER_ERROR_PARAMETER,
-    UVX_DOCK_CHARGER_ERROR_I2C,
-    UVX_DOCK_CHARGER_NOT_INITIALIZED
-} UVX_DOCK_CHARGER_STATE;
+UVX_I2C_STATE uvx_tpl0401x_10_read(UVX_I2C *i2c,
+                                   uint8_t device_address,
+                                   uint8_t *wiper_position);
 
 typedef enum
 {
@@ -39,30 +32,19 @@ typedef enum
     UVX_DOCK_CHARGER_SEQUENCE_WAIT_FOR_DRONE,
     UVX_DOCK_CHARGER_SEQUENCE_WRITE_CURRENT,
     UVX_DOCK_CHARGER_SEQUENCE_WAIT_CURRENT,
+    UVX_DOCK_CHARGER_SEQUENCE_READ_CURRENT,
+    UVX_DOCK_CHARGER_SEQUENCE_WAIT_CURRENT_READ,
     UVX_DOCK_CHARGER_SEQUENCE_WRITE_VOLTAGE,
     UVX_DOCK_CHARGER_SEQUENCE_WAIT_VOLTAGE,
+    UVX_DOCK_CHARGER_SEQUENCE_READ_VOLTAGE,
+    UVX_DOCK_CHARGER_SEQUENCE_WAIT_VOLTAGE_READ,
     UVX_DOCK_CHARGER_SEQUENCE_ACTIVE,
     UVX_DOCK_CHARGER_SEQUENCE_ERROR
 } UVX_DOCK_CHARGER_SEQUENCE;
 
 /**
- * @brief Two-point charger calibration in engineering units.
- *
- * The code endpoints may be ascending or descending.  This allows the dock
- * charger abstraction to hide the feedback circuit polarity from callers.
+ * @brief Internal dock charger state and pending I2C values.
  */
-typedef struct
-{
-    uint32_t current_min_ma;
-    uint32_t current_max_ma;
-    uint8_t current_code_at_min;
-    uint8_t current_code_at_max;
-    uint32_t voltage_min_mv;
-    uint32_t voltage_max_mv;
-    uint8_t voltage_code_at_min;
-    uint8_t voltage_code_at_max;
-} UVX_DOCK_CHARGER_CONFIG;
-
 typedef struct
 {
     UVX_I2C *i2c;
@@ -72,10 +54,36 @@ typedef struct
     uint8_t voltage_code;
     uint8_t transfer_current_code;
     uint8_t transfer_voltage_code;
+    uint8_t current_readback_code;
+    uint8_t voltage_readback_code;
     uint8_t settings_changed : 1;
+    uint8_t owns_i2c_lock : 1;
 } UVX_DOCK_CHARGER;
 
 static UVX_DOCK_CHARGER dock_charger;
+
+static UVX_I2C_STATE uvx_dock_charger_lock_i2c(void)
+{
+    UVX_I2C_STATE state = uvx_i2c_lock(&dock_charger.i2c->hal_i2c);
+
+    if(state == UVX_I2C_OK)
+    {
+        dock_charger.owns_i2c_lock = 1U;
+    }
+
+    return state;
+}
+
+static void uvx_dock_charger_unlock_i2c(void)
+{
+    if(dock_charger.owns_i2c_lock != 0U)
+    {
+        if(uvx_i2c_unlock(&dock_charger.i2c->hal_i2c) == UVX_I2C_OK)
+        {
+            dock_charger.owns_i2c_lock = 0U;
+        }
+    }
+}
 
 /**
  * @brief Convert an engineering-unit value to a calibrated wiper code.
@@ -180,6 +188,7 @@ UVX_DOCK_CHARGER_STATE uvx_dock_charger_init(UVX_I2C *i2c,
     dock_charger.current_code = current_code;
     dock_charger.voltage_code = voltage_code;
     dock_charger.settings_changed = 1U;
+    dock_charger.owns_i2c_lock = 0U;
     dock_charger.sequence = UVX_DOCK_CHARGER_SEQUENCE_WAIT_FOR_DRONE;
 
     return UVX_DOCK_CHARGER_OK;
@@ -267,6 +276,17 @@ UVX_DOCK_CHARGER_STATE uvx_dock_charger_process(void)
 
     if(drone_status.hall_land_2 == false)
     {
+        if(dock_charger.owns_i2c_lock != 0U)
+        {
+            if(uvx_i2c_get_transfer_state(
+                   &dock_charger.i2c->hal_i2c) == UVX_I2C_TRANSFER_PENDING)
+            {
+                return UVX_DOCK_CHARGER_BUSY;
+            }
+
+            uvx_dock_charger_unlock_i2c();
+        }
+
         dock_charger.settings_changed = 1U;
         dock_charger.sequence = UVX_DOCK_CHARGER_SEQUENCE_WAIT_FOR_DRONE;
         return UVX_DOCK_CHARGER_BUSY;
@@ -285,6 +305,11 @@ UVX_DOCK_CHARGER_STATE uvx_dock_charger_process(void)
     switch(dock_charger.sequence)
     {
         case UVX_DOCK_CHARGER_SEQUENCE_WRITE_CURRENT:
+            if(uvx_dock_charger_lock_i2c() != UVX_I2C_OK)
+            {
+                break;
+            }
+
             i2c_state = uvx_tpl0401x_10_write(
                 dock_charger.i2c,
                 UVX_DOCK_CHARGER_CURRENT_I2C_ADDRESS,
@@ -296,19 +321,88 @@ UVX_DOCK_CHARGER_STATE uvx_dock_charger_process(void)
             }
             else if(i2c_state != UVX_I2C_BUSY)
             {
+                uvx_dock_charger_unlock_i2c();
+                dock_charger.sequence = UVX_DOCK_CHARGER_SEQUENCE_ERROR;
+                return UVX_DOCK_CHARGER_ERROR_I2C;
+            }
+            else
+            {
+                uvx_dock_charger_unlock_i2c();
+            }
+            break;
+
+        case UVX_DOCK_CHARGER_SEQUENCE_WAIT_CURRENT:
+            if(uvx_i2c_get_transfer_state(
+                   &dock_charger.i2c->hal_i2c) == UVX_I2C_TRANSFER_COMPLETE)
+            {
+                uvx_dock_charger_unlock_i2c();
+                dock_charger.sequence = UVX_DOCK_CHARGER_SEQUENCE_READ_CURRENT;
+            }
+            else if(uvx_i2c_get_transfer_state(
+                        &dock_charger.i2c->hal_i2c) == UVX_I2C_TRANSFER_ERROR)
+            {
+                uvx_dock_charger_unlock_i2c();
                 dock_charger.sequence = UVX_DOCK_CHARGER_SEQUENCE_ERROR;
                 return UVX_DOCK_CHARGER_ERROR_I2C;
             }
             break;
 
-        case UVX_DOCK_CHARGER_SEQUENCE_WAIT_CURRENT:
-            if(dock_charger.i2c->hal_i2c.TX_Ready != 0U)
+        case UVX_DOCK_CHARGER_SEQUENCE_READ_CURRENT:
+            if(uvx_dock_charger_lock_i2c() != UVX_I2C_OK)
             {
+                break;
+            }
+
+            i2c_state = uvx_tpl0401x_10_read(
+                dock_charger.i2c,
+                UVX_DOCK_CHARGER_CURRENT_I2C_ADDRESS,
+                &dock_charger.current_readback_code);
+
+            if(i2c_state == UVX_I2C_OK)
+            {
+                dock_charger.sequence = UVX_DOCK_CHARGER_SEQUENCE_WAIT_CURRENT_READ;
+            }
+            else
+            {
+                uvx_dock_charger_unlock_i2c();
+                if(i2c_state != UVX_I2C_BUSY)
+                {
+                    dock_charger.sequence = UVX_DOCK_CHARGER_SEQUENCE_ERROR;
+                    return UVX_DOCK_CHARGER_ERROR_I2C;
+                }
+            }
+            break;
+
+        case UVX_DOCK_CHARGER_SEQUENCE_WAIT_CURRENT_READ:
+            if(uvx_i2c_get_transfer_state(
+                   &dock_charger.i2c->hal_i2c) == UVX_I2C_TRANSFER_COMPLETE)
+            {
+                uvx_dock_charger_unlock_i2c();
+
+                if((dock_charger.current_readback_code & 0x7FU) !=
+                   dock_charger.transfer_current_code)
+                {
+                    dock_charger.sequence = UVX_DOCK_CHARGER_SEQUENCE_ERROR;
+                    return UVX_DOCK_CHARGER_ERROR;
+                }
+
                 dock_charger.sequence = UVX_DOCK_CHARGER_SEQUENCE_WRITE_VOLTAGE;
+            }
+            else if(uvx_i2c_get_transfer_state(
+                        &dock_charger.i2c->hal_i2c) == UVX_I2C_TRANSFER_ERROR)
+            {
+                uvx_dock_charger_unlock_i2c();
+                dock_charger.sequence = UVX_DOCK_CHARGER_SEQUENCE_ERROR;
+                return UVX_DOCK_CHARGER_ERROR_I2C;
             }
             break;
 
         case UVX_DOCK_CHARGER_SEQUENCE_WRITE_VOLTAGE:
+            if(uvx_dock_charger_lock_i2c() != UVX_I2C_OK)
+            {
+                break;
+            }
+
             i2c_state = uvx_tpl0401x_10_write(
                 dock_charger.i2c,
                 UVX_DOCK_CHARGER_VOLTAGE_I2C_ADDRESS,
@@ -320,19 +414,83 @@ UVX_DOCK_CHARGER_STATE uvx_dock_charger_process(void)
             }
             else if(i2c_state != UVX_I2C_BUSY)
             {
+                uvx_dock_charger_unlock_i2c();
+                dock_charger.sequence = UVX_DOCK_CHARGER_SEQUENCE_ERROR;
+                return UVX_DOCK_CHARGER_ERROR_I2C;
+            }
+            else
+            {
+                uvx_dock_charger_unlock_i2c();
+            }
+            break;
+
+        case UVX_DOCK_CHARGER_SEQUENCE_WAIT_VOLTAGE:
+            if(uvx_i2c_get_transfer_state(
+                   &dock_charger.i2c->hal_i2c) == UVX_I2C_TRANSFER_COMPLETE)
+            {
+                uvx_dock_charger_unlock_i2c();
+                dock_charger.sequence = UVX_DOCK_CHARGER_SEQUENCE_READ_VOLTAGE;
+            }
+            else if(uvx_i2c_get_transfer_state(
+                        &dock_charger.i2c->hal_i2c) == UVX_I2C_TRANSFER_ERROR)
+            {
+                uvx_dock_charger_unlock_i2c();
                 dock_charger.sequence = UVX_DOCK_CHARGER_SEQUENCE_ERROR;
                 return UVX_DOCK_CHARGER_ERROR_I2C;
             }
             break;
 
-        case UVX_DOCK_CHARGER_SEQUENCE_WAIT_VOLTAGE:
-            if(dock_charger.i2c->hal_i2c.TX_Ready != 0U)
+        case UVX_DOCK_CHARGER_SEQUENCE_READ_VOLTAGE:
+            if(uvx_dock_charger_lock_i2c() != UVX_I2C_OK)
             {
+                break;
+            }
+
+            i2c_state = uvx_tpl0401x_10_read(
+                dock_charger.i2c,
+                UVX_DOCK_CHARGER_VOLTAGE_I2C_ADDRESS,
+                &dock_charger.voltage_readback_code);
+
+            if(i2c_state == UVX_I2C_OK)
+            {
+                dock_charger.sequence = UVX_DOCK_CHARGER_SEQUENCE_WAIT_VOLTAGE_READ;
+            }
+            else
+            {
+                uvx_dock_charger_unlock_i2c();
+                if(i2c_state != UVX_I2C_BUSY)
+                {
+                    dock_charger.sequence = UVX_DOCK_CHARGER_SEQUENCE_ERROR;
+                    return UVX_DOCK_CHARGER_ERROR_I2C;
+                }
+            }
+            break;
+
+        case UVX_DOCK_CHARGER_SEQUENCE_WAIT_VOLTAGE_READ:
+            if(uvx_i2c_get_transfer_state(
+                   &dock_charger.i2c->hal_i2c) == UVX_I2C_TRANSFER_COMPLETE)
+            {
+                uvx_dock_charger_unlock_i2c();
+
+                if((dock_charger.voltage_readback_code & 0x7FU) !=
+                   dock_charger.transfer_voltage_code)
+                {
+                    dock_charger.sequence = UVX_DOCK_CHARGER_SEQUENCE_ERROR;
+                    return UVX_DOCK_CHARGER_ERROR;
+                }
+
                 dock_charger.settings_changed =
                     (uint8_t)((dock_charger.current_code != dock_charger.transfer_current_code) ||
                               (dock_charger.voltage_code != dock_charger.transfer_voltage_code));
                 dock_charger.sequence = UVX_DOCK_CHARGER_SEQUENCE_ACTIVE;
                 return UVX_DOCK_CHARGER_OK;
+            }
+            else if(uvx_i2c_get_transfer_state(
+                        &dock_charger.i2c->hal_i2c) == UVX_I2C_TRANSFER_ERROR)
+            {
+                uvx_dock_charger_unlock_i2c();
+                dock_charger.sequence = UVX_DOCK_CHARGER_SEQUENCE_ERROR;
+                return UVX_DOCK_CHARGER_ERROR_I2C;
             }
             break;
 
@@ -348,53 +506,3 @@ UVX_DOCK_CHARGER_STATE uvx_dock_charger_process(void)
 
     return UVX_DOCK_CHARGER_BUSY;
 }
-
-#ifdef UVX_DOCK_CHARGER_CURRENT_HW_TEST
-
-#define UVX_DOCK_CHARGER_TEST_CODE_LOW       0x20U
-#define UVX_DOCK_CHARGER_TEST_CODE_HIGH      0x60U
-#define UVX_DOCK_CHARGER_TEST_INTERVAL_MS    2000U
-
-/**
- * @brief On-target I2C test for the TPL0401A current-control resistor.
- * @param i2c Pointer to the initialized I2C bus.
- * @retval Current I2C transfer state.
- *
- * Call repeatedly from the main loop.  The test alternates the TPL0401A
- * wiper between codes 0x20 and 0x60 every two seconds, allowing the resistance
- * change to be measured.  This diagnostic deliberately uses raw codes because
- * it validates the potentiometer and I2C path rather than charger calibration.
- */
-UVX_I2C_STATE uvx_dock_charger_test_set_current(UVX_I2C *i2c)
-{
-    static uint32_t next_write_ms;
-    static uint8_t wiper_code = UVX_DOCK_CHARGER_TEST_CODE_LOW;
-    UVX_I2C_STATE state;
-    uint32_t now_ms;
-
-    if((i2c == NULL) || (i2c->is_Initilized == 0U))
-    {
-        return UVX_I2C_INIT_ERROR;
-    }
-
-    now_ms = HAL_GetTick();
-    if((int32_t)(now_ms - next_write_ms) < 0)
-    {
-        return UVX_I2C_BUSY;
-    }
-
-    state = uvx_tpl0401x_10_write(i2c,
-                                  UVX_DOCK_CHARGER_CURRENT_I2C_ADDRESS,
-                                  wiper_code);
-    if(state == UVX_I2C_OK)
-    {
-        wiper_code = (wiper_code == UVX_DOCK_CHARGER_TEST_CODE_LOW) ?
-                     UVX_DOCK_CHARGER_TEST_CODE_HIGH :
-                     UVX_DOCK_CHARGER_TEST_CODE_LOW;
-        next_write_ms = now_ms + UVX_DOCK_CHARGER_TEST_INTERVAL_MS;
-    }
-
-    return state;
-}
-
-#endif /* UVX_DOCK_CHARGER_CURRENT_HW_TEST */

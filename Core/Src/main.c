@@ -25,10 +25,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
-
-#ifdef UVX_DOCK_CHARGER_CURRENT_HW_TEST
-UVX_I2C_STATE uvx_dock_charger_test_set_current(UVX_I2C *i2c);
-#endif
+#include "uvx_dock_charger.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -73,6 +70,8 @@ UVX_I2C_STATE uvx_dock_charger_test_set_current(UVX_I2C *i2c);
 #define TIME_FOR_OK_LED_TOGGLE					300		//150
 #define TIME_FOR_ERROR_LED_TOGGLE				500		//250
 #define CLOCK_READY_TIMEOUT						1000000U
+#define DOCK_CHARGER_CURRENT_MA                 20000U
+#define DOCK_CHARGER_VOLTAGE_MV                 42000U
 
 //#define APP_JETSON_PWR_FC
 //#define APP_NO_BATTERY_MODE
@@ -164,6 +163,7 @@ UVX_TIMER timer_app_land;
 UVX_DRONE_STATE_MACHINE drone_state;
 UVX_DRONE_STATUS drone_status;
 UVX_UNIT_TEST unit_test;
+UVX_DOCK_CHARGER_STATE dock_charger_app_state;
 SRAM1 WS2812_Driver ws2812_strip;  // WS2812 LED strip driver
 
 uint8_t btn_percent = 0;
@@ -231,6 +231,7 @@ void UVX_APP_Comm_m2jmb(void);
 void UVX_APP_Batt(void);
 void UVX_APP_LED_Strip (void);
 void UVX_APP_HALL_LAND(void);
+void UVX_APP_Dock_Charger(void);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -295,14 +296,9 @@ int main(void)
 	
 	while (1)
 	{
-	#ifdef UVX_DOCK_CHARGER_CURRENT_HW_TEST
-		/* Standalone TPL0401A hardware test; keep other I2C users idle. */
-		(void)uvx_dock_charger_test_set_current(&i2c_bq);
-	#else
 		Process_Sleep_Exit_Request();
 		Process_Button_EXTI_Request();
 		UVX_APP();
-	#endif
 	}
 }
 
@@ -508,7 +504,8 @@ void UVX_APP(void)
 
 	UVX_APP_LED_Strip();
 	UVX_APP_HALL_LAND();
-}
+	UVX_APP_Dock_Charger();
+g}
 
 void Process_Sleep_Exit_Request(void)
 {
@@ -594,6 +591,47 @@ void UVX_APP_HALL_LAND(void)
 	uvx_gpio_set_pin(GPIO_OUTPUT_DOCK_LOW_CP, GPIO_PIN_RESET);
 	uvx_gpio_set_pin(GPIO_OUTPUT_DOCK_HIGH_CP, GPIO_PIN_SET);
 #endif	
+}
+
+/**
+ * @brief Set dock charger current and voltage after landing is detected.
+ *
+ * Initial linear calibration:
+ *   - Current: 0 mA at 0 ohm, 20000 mA at 10 kohm.
+ *   - Voltage: 0 mV at 0 ohm, 42000 mV at 10 kohm.
+ */
+void UVX_APP_Dock_Charger(void)
+{
+    static uint8_t initialized;
+    static const UVX_DOCK_CHARGER_CONFIG config =
+    {
+        .current_min_ma = 0U,
+        .current_max_ma = 20000U,
+        .current_code_at_min = 0U,
+        .current_code_at_max = 127U,
+        .voltage_min_mv = 0U,
+        .voltage_max_mv = 42000U,
+        .voltage_code_at_min = 0U,
+        .voltage_code_at_max = 127U
+    };
+
+    if(initialized == 0U)
+    {
+        dock_charger_app_state = uvx_dock_charger_init(
+            &i2c_bq,
+            &config,
+            DOCK_CHARGER_CURRENT_MA,
+            DOCK_CHARGER_VOLTAGE_MV);
+
+        if(dock_charger_app_state == UVX_DOCK_CHARGER_OK)
+        {
+            initialized = 1U;
+        }
+
+        return;
+    }
+
+    dock_charger_app_state = uvx_dock_charger_process();
 }
 
 void UVX_APP_LED_Strip (void)
@@ -755,6 +793,10 @@ void UVX_APP_LED_Strip (void)
 
 void         UVX_APP_Batt(void)
 {
+	UVX_I2C_TRANSFER_STATE bq_transfer_state;
+	UVX_COMM_BQ_STATE bq_comm_state;
+	UVX_COMM_BQ* p_active_bq;
+
 	switch(batt_state.state_current)
 	{
 		case BATT_MODE_INIT:
@@ -765,13 +807,14 @@ void         UVX_APP_Batt(void)
 		break;
 
 		case BATT_MODE_READ_ONCE_BQ_L:
-			if(uvx_comm_bq_read_list(&comm_bq_l, batt_reg_cnt) == UVX_BQ_REG_END)
+			bq_comm_state = uvx_comm_bq_read_list(&comm_bq_l, batt_reg_cnt);
+			if(bq_comm_state == UVX_BQ_REG_END)
 			{
 				batt_reg_cnt = 0;
 				batt_state.state_current = BATT_MODE_READ_ONCE_BQ_H;
 				uvx_batt_parse_data();
 			}
-			else
+			else if(bq_comm_state == UVX_BQ_OK)
 			{
 				batt_state.state_current = BATT_MODE_WAIT_RESPONSE;
 				batt_state.state_next = BATT_MODE_READ_ONCE_BQ_L;
@@ -780,7 +823,8 @@ void         UVX_APP_Batt(void)
 		break;
 
 		case BATT_MODE_READ_ONCE_BQ_H:
-			if(uvx_comm_bq_read_list(&comm_bq_h, batt_reg_cnt) == UVX_BQ_REG_END)
+			bq_comm_state = uvx_comm_bq_read_list(&comm_bq_h, batt_reg_cnt);
+			if(bq_comm_state == UVX_BQ_REG_END)
 			{
 				batt_reg_cnt = 0;
 				batt_data.design_capacity = (bq_data_h.design_capacity + bq_data_l.design_capacity)/2;
@@ -790,7 +834,7 @@ void         UVX_APP_Batt(void)
 				batt_state.state_current = BATT_MODE_INIT_BALANCE_L;
 				uvx_batt_parse_data();				
 			}
-			else
+			else if(bq_comm_state == UVX_BQ_OK)
 			{
 				batt_state.state_current = BATT_MODE_WAIT_RESPONSE;
 				batt_state.state_next = BATT_MODE_READ_ONCE_BQ_H;
@@ -812,7 +856,8 @@ void         UVX_APP_Batt(void)
 		break;		
 
 		case BATT_MODE_READ_BQ_L:
-			if(uvx_comm_bq_read_list(&comm_bq_l, batt_reg_cnt) == UVX_BQ_REG_END)
+			bq_comm_state = uvx_comm_bq_read_list(&comm_bq_l, batt_reg_cnt);
+			if(bq_comm_state == UVX_BQ_REG_END)
 			{
 				batt_reg_cnt = 0;
 				batt_state.state_current = BATT_MODE_READ_BQ_H;
@@ -824,7 +869,7 @@ void         UVX_APP_Batt(void)
 				}
 				uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_SET);
 			}
-			else
+			else if(bq_comm_state == UVX_BQ_OK)
 			{
 				batt_state.state_current = BATT_MODE_WAIT_RESPONSE;
 				batt_state.state_next = BATT_MODE_READ_BQ_L;
@@ -834,13 +879,14 @@ void         UVX_APP_Batt(void)
 		break;
 
 		case BATT_MODE_READ_BQ_H:
-			if(uvx_comm_bq_read_list(&comm_bq_h, batt_reg_cnt) == UVX_BQ_REG_END)
+			bq_comm_state = uvx_comm_bq_read_list(&comm_bq_h, batt_reg_cnt);
+			if(bq_comm_state == UVX_BQ_REG_END)
 			{
 				batt_reg_cnt = 0;
 				batt_state.state_current = BATT_MODE_CHECK_STATUS;
 				uvx_batt_parse_data();
 			}
-			else
+			else if(bq_comm_state == UVX_BQ_OK)
 			{
 				batt_state.state_current = BATT_MODE_WAIT_RESPONSE;
 				batt_state.state_next = BATT_MODE_READ_BQ_H;
@@ -960,8 +1006,51 @@ void         UVX_APP_Batt(void)
 		break;
 
 		case BATT_MODE_WAIT_RESPONSE:
-			if((i2c_bq.hal_i2c.RX_Ready) || (batt_data.cnt_no_response > BQ_MAX_NO_RESPONSE))
+			if(comm_bq_l.owns_i2c_lock != 0U)
 			{
+				p_active_bq = &comm_bq_l;
+			}
+			else if(comm_bq_h.owns_i2c_lock != 0U)
+			{
+				p_active_bq = &comm_bq_h;
+			}
+			else
+			{
+				p_active_bq = NULL;
+			}
+
+			bq_transfer_state = (p_active_bq != NULL) ?
+				uvx_i2c_get_transfer_state(&i2c_bq.hal_i2c) :
+				UVX_I2C_TRANSFER_IDLE;
+
+			if(bq_transfer_state == UVX_I2C_TRANSFER_ERROR)
+			{
+				uvx_i2c_unlock(&i2c_bq.hal_i2c);
+				p_active_bq->owns_i2c_lock = 0U;
+				i2c_bq.hal_i2c.RX_Ready = 1U;
+				i2c_bq.hal_i2c.TX_Ready = 1U;
+				comm_bq_l.RX_Ready = 1U;
+				comm_bq_l.TX_Ready = 1U;
+				comm_bq_h.RX_Ready = 1U;
+				comm_bq_h.TX_Ready = 1U;
+				batt_data.cnt_no_response++;
+				batt_state.state_current = batt_state.state_next;
+				break;
+			}
+
+			if((bq_transfer_state == UVX_I2C_TRANSFER_COMPLETE) ||
+			   ((i2c_bq.hal_i2c.lock == 0U) &&
+			    (i2c_bq.hal_i2c.RX_Ready != 0U)) ||
+			   (batt_data.cnt_no_response > BQ_MAX_NO_RESPONSE))
+			{
+				if(bq_transfer_state == UVX_I2C_TRANSFER_COMPLETE)
+				{
+					uvx_i2c_unlock(&i2c_bq.hal_i2c);
+					p_active_bq->owns_i2c_lock = 0U;
+					comm_bq_l.TX_Ready = 1U;
+					comm_bq_h.TX_Ready = 1U;
+				}
+
 				switch(batt_state.state_next)
 				{
 					case BATT_MODE_READ_CHECK_PACK_V:
@@ -1033,7 +1122,6 @@ void         UVX_APP_Batt(void)
 			}
 			else
 			{
-				batt_state.state_current = batt_state.state_previous;
 				batt_data.cnt_no_response++;
 				//bq_data_l.No_response = false;
 			}	
@@ -2658,6 +2746,46 @@ void I2C1_EV_IRQHandler(void)
 void I2C1_ER_IRQHandler(void)
 {
 	HAL_I2C_ER_IRQHandler(&i2c_bq.hal_i2c.hi2c);	
+}
+
+void HAL_I2C_MasterTxCpltCallback(I2C_HandleTypeDef *hi2c)
+{
+    if(hi2c == &i2c_bq.hal_i2c.hi2c)
+    {
+        uvx_i2c_transfer_complete_callback(&i2c_bq.hal_i2c);
+    }
+}
+
+void HAL_I2C_MasterRxCpltCallback(I2C_HandleTypeDef *hi2c)
+{
+    if(hi2c == &i2c_bq.hal_i2c.hi2c)
+    {
+        uvx_i2c_transfer_complete_callback(&i2c_bq.hal_i2c);
+    }
+}
+
+void HAL_I2C_MemTxCpltCallback(I2C_HandleTypeDef *hi2c)
+{
+    if(hi2c == &i2c_bq.hal_i2c.hi2c)
+    {
+        uvx_i2c_transfer_complete_callback(&i2c_bq.hal_i2c);
+    }
+}
+
+void HAL_I2C_MemRxCpltCallback(I2C_HandleTypeDef *hi2c)
+{
+    if(hi2c == &i2c_bq.hal_i2c.hi2c)
+    {
+        uvx_i2c_transfer_complete_callback(&i2c_bq.hal_i2c);
+    }
+}
+
+void HAL_I2C_ErrorCallback(I2C_HandleTypeDef *hi2c)
+{
+    if(hi2c == &i2c_bq.hal_i2c.hi2c)
+    {
+        uvx_i2c_transfer_error_callback(&i2c_bq.hal_i2c);
+    }
 }
 
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)

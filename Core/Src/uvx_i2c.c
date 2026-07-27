@@ -9,6 +9,9 @@ static UVX_I2C_STATE uvx_i2c_hal_init(UVX_I2C_HAL* hal_i2c)
     if(hal_i2c)
     {                    
         hal_i2c->error_dma_cnt = 0;
+        hal_i2c->lock = 0U;
+        hal_i2c->transfer_state = UVX_I2C_TRANSFER_IDLE;
+        hal_i2c->transfer_error = HAL_I2C_ERROR_NONE;
         
         #if defined(STM32L4xx_HAL_H)
         if(hal_i2c->hi2c.Instance == I2C1)
@@ -30,7 +33,7 @@ static UVX_I2C_STATE uvx_i2c_hal_init(UVX_I2C_HAL* hal_i2c)
 
         if (HAL_I2C_Init(&hal_i2c->hi2c) == HAL_OK)
         {
-            if(hal_i2c->i2c_interrupt_ev != NULL)
+            if(hal_i2c->i2c_interrupt_ev != (IRQn_Type)0)
             {
                 #if defined(STM32L4xx_HAL_H)
                     /* Enable the I2C1 global Interrupt */
@@ -72,7 +75,7 @@ static UVX_I2C_STATE uvx_i2c_hal_init(UVX_I2C_HAL* hal_i2c)
                 }                
             }
 
-            if(hal_i2c->i2c_interrupt_err != NULL)
+            if(hal_i2c->i2c_interrupt_err != (IRQn_Type)0)
             {
                 #if defined(STM32L4xx_HAL_H)
                     /* Enable the I2C1 Error Interrupt */
@@ -280,6 +283,11 @@ UVX_I2C_STATE uvx_i2c_send_mem(UVX_I2C_HAL* p_i2c, uint8_t dev_addr, uint16_t re
 		// Check if the I2C handle is initialized
 		if (p_i2c != NULL && p_i2c->hi2c.Instance != NULL)
 		{
+            if((p_i2c->lock == 0U) ||
+               (p_i2c->transfer_state != UVX_I2C_TRANSFER_IDLE))
+            {
+                return UVX_I2C_BUSY;
+            }
             
             if( !( p_i2c->hi2c.Instance->ISR & I2C_ISR_STOPF ) && 
                 !( p_i2c->hi2c.Instance->ISR & I2C_ISR_NACKF ) &&
@@ -293,10 +301,12 @@ UVX_I2C_STATE uvx_i2c_send_mem(UVX_I2C_HAL* p_i2c, uint8_t dev_addr, uint16_t re
                     {
                         p_i2c->TX_Ready = 0;
                         dev_addr <<= 1; // Shift address            
+                        p_i2c->transfer_state = UVX_I2C_TRANSFER_PENDING;
                         res = HAL_I2C_Mem_Write_IT(&p_i2c->hi2c, dev_addr, reg_addr, reg_size, data, size);
                         //res = HAL_I2C_Master_Transmit(&p_i2c->hi2c, dev_addr, data, size, HAL_MAX_DELAY);
                         if(res != HAL_OK)
                         {
+                            p_i2c->transfer_state = UVX_I2C_TRANSFER_IDLE;
                             p_i2c->hi2c.State = HAL_I2C_STATE_READY;                      
                                         
                             return UVX_I2C_ERROR; // Return error if transmission fails
@@ -345,6 +355,11 @@ UVX_I2C_STATE uvx_i2c_send(UVX_I2C_HAL* p_i2c, uint8_t dev_addr, uint8_t* data, 
 		// Check if the I2C handle is initialized
 		if (p_i2c != NULL && p_i2c->hi2c.Instance != NULL && data != NULL)
 		{
+            if((p_i2c->lock == 0U) ||
+               (p_i2c->transfer_state != UVX_I2C_TRANSFER_IDLE))
+            {
+                return UVX_I2C_BUSY;
+            }
             if((size == 0U) || (size > UVX_I2C_TX_IT_BUFFER_SIZE))
             {
                 return UVX_I2C_ERROR;
@@ -366,9 +381,11 @@ UVX_I2C_STATE uvx_i2c_send(UVX_I2C_HAL* p_i2c, uint8_t dev_addr, uint8_t* data, 
                         //res = HAL_I2C_Mem_Write_IT(&p_i2c->hi2c, dev_addr, reg_addr, reg_size, data, size); 
                         //res = HAL_I2C_Master_Transmit(&p_i2c->hi2c, dev_addr, data, size, HAL_MAX_DELAY);
                         memcpy(p_i2c->tx_it_buffer, data, size);
+                        p_i2c->transfer_state = UVX_I2C_TRANSFER_PENDING;
                         res = HAL_I2C_Master_Transmit_IT(&p_i2c->hi2c, dev_addr, p_i2c->tx_it_buffer, size);
                         if(res != HAL_OK)
                         {
+                            p_i2c->transfer_state = UVX_I2C_TRANSFER_IDLE;
                             p_i2c->hi2c.State = HAL_I2C_STATE_READY;                      
                                         
                             return UVX_I2C_ERROR; // Return error if transmission fails
@@ -415,6 +432,11 @@ UVX_I2C_STATE uvx_i2c_read_mem(UVX_I2C_HAL* p_i2c, uint8_t dev_addr, uint16_t re
 		// Check if the I2C handle is initialized
 		if (p_i2c != NULL && p_i2c->hi2c.Instance != NULL)
 		{
+            if((p_i2c->lock == 0U) ||
+               (p_i2c->transfer_state != UVX_I2C_TRANSFER_IDLE))
+            {
+                return UVX_I2C_BUSY;
+            }
             if(!( p_i2c->hi2c.Instance->ISR & I2C_ISR_STOPF ) && 
                 !( p_i2c->hi2c.Instance->ISR & I2C_ISR_NACKF ) &&
                 !( p_i2c->hi2c.Instance->ISR & I2C_ISR_RXNE ) )
@@ -423,8 +445,10 @@ UVX_I2C_STATE uvx_i2c_read_mem(UVX_I2C_HAL* p_i2c, uint8_t dev_addr, uint16_t re
                 {
                     p_i2c->RX_Ready = 0;
                     dev_addr <<= 1; // Shift address
+                    p_i2c->transfer_state = UVX_I2C_TRANSFER_PENDING;
                     if(HAL_I2C_Mem_Read_IT(&p_i2c->hi2c, dev_addr, reg_addr, reg_size, data, size) != HAL_OK)
                     {
+                        p_i2c->transfer_state = UVX_I2C_TRANSFER_IDLE;
                         if( !(p_i2c->hi2c.Instance->ISR & I2C_ISR_RXNE ) )
                         {
                             p_i2c->hi2c.State = HAL_I2C_STATE_READY;
@@ -487,6 +511,11 @@ UVX_I2C_STATE uvx_i2c_read(UVX_I2C_HAL* p_i2c, uint8_t dev_addr, uint8_t* data, 
 		// Check if the I2C handle is initialized
 		if (p_i2c != NULL && p_i2c->hi2c.Instance != NULL)
 		{
+            if((p_i2c->lock == 0U) ||
+               (p_i2c->transfer_state != UVX_I2C_TRANSFER_IDLE))
+            {
+                return UVX_I2C_BUSY;
+            }
             if(!( p_i2c->hi2c.Instance->ISR & I2C_ISR_STOPF ) && 
                 !( p_i2c->hi2c.Instance->ISR & I2C_ISR_NACKF ) &&
                 !( p_i2c->hi2c.Instance->ISR & I2C_ISR_RXNE ) )
@@ -495,8 +524,10 @@ UVX_I2C_STATE uvx_i2c_read(UVX_I2C_HAL* p_i2c, uint8_t dev_addr, uint8_t* data, 
                 {
                     p_i2c->RX_Ready = 0;
                     dev_addr <<= 1; // Shift address
+                    p_i2c->transfer_state = UVX_I2C_TRANSFER_PENDING;
                     if(HAL_I2C_Master_Receive_IT(&p_i2c->hi2c, dev_addr, data, size) != HAL_OK)
                     {
+                        p_i2c->transfer_state = UVX_I2C_TRANSFER_IDLE;
                         if( !(p_i2c->hi2c.Instance->ISR & I2C_ISR_RXNE ) )
                         {
                             p_i2c->hi2c.State = HAL_I2C_STATE_READY;
@@ -574,4 +605,100 @@ UVX_I2C_STATE uvx_i2c_check_state(UVX_I2C_HAL* p_i2c)
     #endif
 
     return UVX_I2C_ERROR; // Return error
+}
+
+UVX_I2C_STATE uvx_i2c_lock(UVX_I2C_HAL* p_i2c)
+{
+    uint32_t primask;
+
+    if(p_i2c == NULL)
+    {
+        return UVX_I2C_ERROR;
+    }
+
+    primask = __get_PRIMASK();
+    __disable_irq();
+
+    if((p_i2c->lock != 0U) ||
+       (p_i2c->transfer_state != UVX_I2C_TRANSFER_IDLE))
+    {
+        if(primask == 0U)
+        {
+            __enable_irq();
+        }
+        return UVX_I2C_BUSY;
+    }
+
+    p_i2c->lock = 1U;
+    p_i2c->transfer_error = HAL_I2C_ERROR_NONE;
+
+    if(primask == 0U)
+    {
+        __enable_irq();
+    }
+
+    return UVX_I2C_OK;
+}
+
+UVX_I2C_STATE uvx_i2c_unlock(UVX_I2C_HAL* p_i2c)
+{
+    uint32_t primask;
+
+    if((p_i2c == NULL) || (p_i2c->lock == 0U))
+    {
+        return UVX_I2C_ERROR;
+    }
+
+    if(p_i2c->transfer_state == UVX_I2C_TRANSFER_PENDING)
+    {
+        return UVX_I2C_BUSY;
+    }
+
+    primask = __get_PRIMASK();
+    __disable_irq();
+    p_i2c->lock = 0U;
+    p_i2c->transfer_state = UVX_I2C_TRANSFER_IDLE;
+
+    if(primask == 0U)
+    {
+        __enable_irq();
+    }
+
+    return UVX_I2C_OK;
+}
+
+UVX_I2C_TRANSFER_STATE uvx_i2c_get_transfer_state(UVX_I2C_HAL* p_i2c)
+{
+    if((p_i2c == NULL) || (p_i2c->lock == 0U))
+    {
+        return UVX_I2C_TRANSFER_IDLE;
+    }
+
+    return p_i2c->transfer_state;
+}
+
+void uvx_i2c_transfer_complete_callback(UVX_I2C_HAL* p_i2c)
+{
+    if((p_i2c != NULL) &&
+       (p_i2c->lock != 0U) &&
+       (p_i2c->transfer_state == UVX_I2C_TRANSFER_PENDING))
+    {
+        p_i2c->transfer_error = HAL_I2C_ERROR_NONE;
+        p_i2c->transfer_state = UVX_I2C_TRANSFER_COMPLETE;
+        p_i2c->TX_Ready = 1U;
+        p_i2c->RX_Ready = 1U;
+    }
+}
+
+void uvx_i2c_transfer_error_callback(UVX_I2C_HAL* p_i2c)
+{
+    if((p_i2c != NULL) &&
+       (p_i2c->lock != 0U) &&
+       (p_i2c->transfer_state == UVX_I2C_TRANSFER_PENDING))
+    {
+        p_i2c->transfer_error = p_i2c->hi2c.ErrorCode;
+        p_i2c->transfer_state = UVX_I2C_TRANSFER_ERROR;
+        p_i2c->TX_Ready = 1U;
+        p_i2c->RX_Ready = 1U;
+    }
 }

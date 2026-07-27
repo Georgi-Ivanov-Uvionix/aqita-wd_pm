@@ -30,6 +30,14 @@ typedef enum
     UVX_I2C_ALREADY_INITIALIZED
 } UVX_I2C_STATE;
 
+typedef enum
+{
+    UVX_I2C_TRANSFER_IDLE = 0,
+    UVX_I2C_TRANSFER_PENDING,
+    UVX_I2C_TRANSFER_COMPLETE,
+    UVX_I2C_TRANSFER_ERROR
+} UVX_I2C_TRANSFER_STATE;
+
 typedef struct UVX_I2C_HAL
 {
     I2C_HandleTypeDef   hi2c;
@@ -51,6 +59,8 @@ typedef struct UVX_I2C_HAL
     IRQn_Type dma_interrupt_line_rx; // DMA interrupt line
 
     uint32_t error_dma_cnt; // DMA error counter
+    volatile UVX_I2C_TRANSFER_STATE transfer_state;
+    volatile uint32_t transfer_error;
     uint8_t tx_it_buffer[UVX_I2C_TX_IT_BUFFER_SIZE];
     //interrupt event line
     uint8_t i2c_interrupt_rx 	    : 1; // Flag to indicate if RX interrupt is enabled
@@ -71,6 +81,7 @@ typedef struct UVX_I2C_HAL
 
     uint8_t RX_Ready 	            : 1; // RX byte ready
     uint8_t TX_Ready 	            : 1; // TX byte ready    
+    volatile uint8_t lock           : 1; // Shared peripheral mutex
 
 }UVX_I2C_HAL;
 
@@ -243,6 +254,11 @@ UVX_I2C_STATE uvx_i2c_send(UVX_I2C_HAL* p_i2c, uint8_t dev_addr, uint8_t* data, 
 UVX_I2C_STATE uvx_i2c_read_mem(UVX_I2C_HAL* p_i2c, uint8_t dev_addr, uint16_t reg_addr, uint16_t reg_size, uint8_t* data, uint16_t size);
 UVX_I2C_STATE uvx_i2c_read(UVX_I2C_HAL* p_i2c, uint8_t dev_addr, uint8_t* data, uint16_t size);
 UVX_I2C_STATE uvx_i2c_check_state(UVX_I2C_HAL* p_i2c);
+UVX_I2C_STATE uvx_i2c_lock(UVX_I2C_HAL* p_i2c);
+UVX_I2C_STATE uvx_i2c_unlock(UVX_I2C_HAL* p_i2c);
+UVX_I2C_TRANSFER_STATE uvx_i2c_get_transfer_state(UVX_I2C_HAL* p_i2c);
+void uvx_i2c_transfer_complete_callback(UVX_I2C_HAL* p_i2c);
+void uvx_i2c_transfer_error_callback(UVX_I2C_HAL* p_i2c);
 
 
 #define I2C_START_BYTE								0x0F
