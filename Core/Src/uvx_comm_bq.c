@@ -3,9 +3,53 @@
 #include "uvx_crc8.h"
 #include <string.h>
 
+static void uvx_comm_bq_unlock_i2c(UVX_COMM_BQ* p_comm_bq);
+
 static UVX_I2C_STATE uvx_comm_bq_lock_i2c(UVX_COMM_BQ* p_comm_bq)
 {
-	UVX_I2C_STATE state = uvx_i2c_lock(p_comm_bq->p_hal_i2c);
+	UVX_I2C_STATE state;
+	UVX_I2C_TRANSFER_STATE transfer_state;
+
+	if((p_comm_bq == NULL) || (p_comm_bq->p_hal_i2c == NULL))
+	{
+		return UVX_I2C_ERROR;
+	}
+
+	/*
+	 * Synchronize the module ownership flag with the asynchronous transfer.
+	 * A completion can occur between application state-machine iterations.
+	 * In that case the old BQ transaction is finished and its lock must be
+	 * released before this module attempts the next request.
+	 */
+	if(p_comm_bq->owns_i2c_lock != 0U)
+	{
+		transfer_state = uvx_i2c_get_transfer_state(p_comm_bq->p_hal_i2c);
+
+		if((transfer_state == UVX_I2C_TRANSFER_COMPLETE) ||
+		   (transfer_state == UVX_I2C_TRANSFER_ERROR))
+		{
+			p_comm_bq->RX_Ready = 1U;
+			p_comm_bq->TX_Ready = 1U;
+			uvx_comm_bq_unlock_i2c(p_comm_bq);
+		}
+		else if(transfer_state == UVX_I2C_TRANSFER_PENDING)
+		{
+			return UVX_I2C_BUSY;
+		}
+		else if(p_comm_bq->p_hal_i2c->lock == 0U)
+		{
+			/* Recover a stale local ownership flag after bus reset/re-init. */
+			p_comm_bq->owns_i2c_lock = 0U;
+			p_comm_bq->RX_Ready = 1U;
+			p_comm_bq->TX_Ready = 1U;
+		}
+		else
+		{
+			return UVX_I2C_BUSY;
+		}
+	}
+
+	state = uvx_i2c_lock(p_comm_bq->p_hal_i2c);
 
 	if(state == UVX_I2C_OK)
 	{
@@ -122,6 +166,7 @@ UVX_COMM_BQ_STATE uvx_comm_bq_init(UVX_COMM_BQ* p_comm_bq, UVX_I2C* i2c, uint8_t
 		p_comm_bq->RX_Ready = 1;
 		p_comm_bq->Force_balance_old = 1; // Initialize Force_balance_old to a different value to ensure the first write occurs
 		p_comm_bq->owns_i2c_lock = 0U;
+		p_comm_bq->busy_reason = UVX_BQ_BUSY_NONE;
 
 		#ifdef PROJECT_AQITA_PM
 			if(uvx_i2c_init(p_comm_bq->i2c/*, buff_tx_bq, buff_rx_bq*/)) // Initialize the I2C peripheral
@@ -153,40 +198,44 @@ UVX_COMM_BQ_STATE uvx_comm_bq_change_list(UVX_COMM_BQ* p_comm_bq, UVX_BQ_REGISTE
 }
 
 UVX_COMM_BQ_STATE uvx_comm_bq_read_list(UVX_COMM_BQ* p_comm_bq, uint16_t reg_index) 
-{    
-	if(p_comm_bq->RX_Ready == 1)
-	{					
-		if(p_comm_bq->p_register_list[reg_index].reg_addr == END_REGISTER)
-		{
-			return UVX_BQ_REG_END;
-		}
-
-		if(p_comm_bq->p_register_list[reg_index].reg_addr == DA_STATUS1)
-		{
-			p_comm_bq->RX_Ready = 1; // Reset TX ready flag	
-		}		
-		
-		if(uvx_comm_bq_lock_i2c(p_comm_bq) != UVX_I2C_OK)
-		{
-			return UVX_BQ_ERROR_BUSY;
-		}
-
-		p_comm_bq->RX_Ready = 0; // Reset RX ready flag
-
-		if(uvx_i2c_read_mem(p_comm_bq->p_hal_i2c, p_comm_bq->addr_i2c,
-			p_comm_bq->p_register_list[reg_index].reg_addr, 1,
-			p_comm_bq->p_register_list[reg_index].p_data,
-			p_comm_bq->p_register_list[reg_index].size_data) != UVX_I2C_OK)
-		{
-			p_comm_bq->RX_Ready = 1;
-			uvx_comm_bq_unlock_i2c(p_comm_bq);
-			return UVX_BQ_ERROR;
-		}			
-		
-	}
-	else
+{
+	if((p_comm_bq == NULL) || (p_comm_bq->p_register_list == NULL) ||
+	   (p_comm_bq->p_hal_i2c == NULL))
 	{
+		return UVX_BQ_ERROR;
+	}
+
+	if(p_comm_bq->p_register_list[reg_index].reg_addr == END_REGISTER)
+	{
+		return UVX_BQ_REG_END;
+	}
+
+	/*
+	 * owns_i2c_lock and the shared I2C lock are the transaction authority.
+	 * RX_Ready is retained as a compatibility/status flag, but must not act
+	 * as a second mutex: it can be stale after another device used the bus.
+	 */
+	if(uvx_comm_bq_lock_i2c(p_comm_bq) != UVX_I2C_OK)
+	{
+		p_comm_bq->busy_reason = (p_comm_bq->owns_i2c_lock != 0U) ?
+			UVX_BQ_BUSY_OWNS_PREVIOUS_TRANSFER :
+			((p_comm_bq->p_hal_i2c->lock != 0U) ?
+			 UVX_BQ_BUSY_SHARED_I2C_LOCK :
+			 UVX_BQ_BUSY_I2C_TRANSFER_NOT_IDLE);
 		return UVX_BQ_ERROR_BUSY;
+	}
+
+	p_comm_bq->busy_reason = UVX_BQ_BUSY_NONE;
+	p_comm_bq->RX_Ready = 0U;
+
+	if(uvx_i2c_read_mem(p_comm_bq->p_hal_i2c, p_comm_bq->addr_i2c,
+		p_comm_bq->p_register_list[reg_index].reg_addr, 1,
+		p_comm_bq->p_register_list[reg_index].p_data,
+		p_comm_bq->p_register_list[reg_index].size_data) != UVX_I2C_OK)
+	{
+		p_comm_bq->RX_Ready = 1U;
+		uvx_comm_bq_unlock_i2c(p_comm_bq);
+		return UVX_BQ_ERROR;
 	}
     
 	return UVX_BQ_OK; // Return success
@@ -195,37 +244,41 @@ UVX_COMM_BQ_STATE uvx_comm_bq_read_list(UVX_COMM_BQ* p_comm_bq, uint16_t reg_ind
 UVX_COMM_BQ_STATE uvx_comm_bq_read_register(UVX_COMM_BQ* p_comm_bq, UVX_BQ_REGISTERS reg_addr) 
 {    
 	uint8_t reg_index = 0;
-
-
 	UVX_COMM_BQ_STATE state = UVX_BQ_OK;
-	if(p_comm_bq->RX_Ready == 1)
+
+	if((p_comm_bq == NULL) || (p_comm_bq->p_register_list == NULL) ||
+	   (p_comm_bq->p_hal_i2c == NULL))
 	{
-		state = uvx_comm_bq_get_index_register(p_comm_bq->p_register_list, reg_addr, &reg_index);
-		if(state != UVX_BQ_OK)
-		{
-			return state;
-		}
-
-		if(uvx_comm_bq_lock_i2c(p_comm_bq) != UVX_I2C_OK)
-		{
-			return UVX_BQ_ERROR_BUSY;
-		}
-
-		p_comm_bq->RX_Ready = 0; // Reset RX ready flag
-
-		if(uvx_i2c_read_mem(p_comm_bq->p_hal_i2c, p_comm_bq->addr_i2c,
-			 p_comm_bq->p_register_list[reg_index].reg_addr, 1,
-			 p_comm_bq->p_register_list[reg_index].p_data,
-			 p_comm_bq->p_register_list[reg_index].size_data) != UVX_I2C_OK)
-		{
-			p_comm_bq->RX_Ready = 1;
-			uvx_comm_bq_unlock_i2c(p_comm_bq);
-			return UVX_BQ_ERROR;
-		}
+		return UVX_BQ_ERROR;
 	}
-	else
+
+	state = uvx_comm_bq_get_index_register(p_comm_bq->p_register_list, reg_addr, &reg_index);
+	if(state != UVX_BQ_OK)
 	{
+		return state;
+	}
+
+	if(uvx_comm_bq_lock_i2c(p_comm_bq) != UVX_I2C_OK)
+	{
+		p_comm_bq->busy_reason = (p_comm_bq->owns_i2c_lock != 0U) ?
+			UVX_BQ_BUSY_OWNS_PREVIOUS_TRANSFER :
+			((p_comm_bq->p_hal_i2c->lock != 0U) ?
+			 UVX_BQ_BUSY_SHARED_I2C_LOCK :
+			 UVX_BQ_BUSY_I2C_TRANSFER_NOT_IDLE);
 		return UVX_BQ_ERROR_BUSY;
+	}
+
+	p_comm_bq->busy_reason = UVX_BQ_BUSY_NONE;
+	p_comm_bq->RX_Ready = 0U;
+
+	if(uvx_i2c_read_mem(p_comm_bq->p_hal_i2c, p_comm_bq->addr_i2c,
+		 p_comm_bq->p_register_list[reg_index].reg_addr, 1,
+		 p_comm_bq->p_register_list[reg_index].p_data,
+		 p_comm_bq->p_register_list[reg_index].size_data) != UVX_I2C_OK)
+	{
+		p_comm_bq->RX_Ready = 1U;
+		uvx_comm_bq_unlock_i2c(p_comm_bq);
+		return UVX_BQ_ERROR;
 	}
     
 	return UVX_BQ_OK; // Return success

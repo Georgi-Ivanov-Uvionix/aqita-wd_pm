@@ -26,41 +26,7 @@ UVX_I2C_STATE uvx_tpl0401x_10_read(UVX_I2C *i2c,
                                    uint8_t device_address,
                                    uint8_t *wiper_position);
 
-typedef enum
-{
-    UVX_DOCK_CHARGER_SEQUENCE_NOT_INITIALIZED = 0,
-    UVX_DOCK_CHARGER_SEQUENCE_WAIT_FOR_DRONE,
-    UVX_DOCK_CHARGER_SEQUENCE_WRITE_CURRENT,
-    UVX_DOCK_CHARGER_SEQUENCE_WAIT_CURRENT,
-    UVX_DOCK_CHARGER_SEQUENCE_READ_CURRENT,
-    UVX_DOCK_CHARGER_SEQUENCE_WAIT_CURRENT_READ,
-    UVX_DOCK_CHARGER_SEQUENCE_WRITE_VOLTAGE,
-    UVX_DOCK_CHARGER_SEQUENCE_WAIT_VOLTAGE,
-    UVX_DOCK_CHARGER_SEQUENCE_READ_VOLTAGE,
-    UVX_DOCK_CHARGER_SEQUENCE_WAIT_VOLTAGE_READ,
-    UVX_DOCK_CHARGER_SEQUENCE_ACTIVE,
-    UVX_DOCK_CHARGER_SEQUENCE_ERROR
-} UVX_DOCK_CHARGER_SEQUENCE;
-
-/**
- * @brief Internal dock charger state and pending I2C values.
- */
-typedef struct
-{
-    UVX_I2C *i2c;
-    UVX_DOCK_CHARGER_CONFIG config;
-    UVX_DOCK_CHARGER_SEQUENCE sequence;
-    uint8_t current_code;
-    uint8_t voltage_code;
-    uint8_t transfer_current_code;
-    uint8_t transfer_voltage_code;
-    uint8_t current_readback_code;
-    uint8_t voltage_readback_code;
-    uint8_t settings_changed : 1;
-    uint8_t owns_i2c_lock : 1;
-} UVX_DOCK_CHARGER;
-
-static UVX_DOCK_CHARGER dock_charger;
+UVX_DOCK_CHARGER dock_charger;
 
 static UVX_I2C_STATE uvx_dock_charger_lock_i2c(void)
 {

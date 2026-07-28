@@ -505,7 +505,7 @@ void UVX_APP(void)
 	UVX_APP_LED_Strip();
 	UVX_APP_HALL_LAND();
 	UVX_APP_Dock_Charger();
-g}
+}
 
 void Process_Sleep_Exit_Request(void)
 {
@@ -582,7 +582,16 @@ void UVX_APP_HALL_LAND(void)
 	{
 		timer_app_land.Timeout = APP_TIMEOUT_LAND; // Reset timeout for power on
 		timer_app_land.Enable = true;
-		drone_status.hall_land_2 = false;
+
+		if(unit_test.hall_land_2) // If unit test is enabled, set hall_land_2 to true
+		{
+			drone_status.hall_land_2 = true;
+		}
+		else
+		{
+			drone_status.hall_land_2 = false;
+		}		
+
 		uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_SET);
 		uvx_gpio_set_pin(GPIO_OUTPUT_DOCK_LOW_CP, GPIO_PIN_RESET);
 		uvx_gpio_set_pin(GPIO_OUTPUT_DOCK_HIGH_CP, GPIO_PIN_RESET);
@@ -1038,10 +1047,21 @@ void         UVX_APP_Batt(void)
 				break;
 			}
 
+			/*
+			 * Never leave WAIT_RESPONSE only because the software timeout
+			 * expired while this BQ still owns an interrupt-driven transfer.
+			 * Doing that leaves transfer_state PENDING and the shared I2C lock
+			 * set, so every later BQ access returns UVX_BQ_ERROR_BUSY.
+			 *
+			 * The timeout fallback is valid only when no BQ transaction owns
+			 * the bus.  An owned transaction is released by the completion or
+			 * error callback paths above.
+			 */
 			if((bq_transfer_state == UVX_I2C_TRANSFER_COMPLETE) ||
 			   ((i2c_bq.hal_i2c.lock == 0U) &&
 			    (i2c_bq.hal_i2c.RX_Ready != 0U)) ||
-			   (batt_data.cnt_no_response > BQ_MAX_NO_RESPONSE))
+			   ((p_active_bq == NULL) &&
+			    (batt_data.cnt_no_response > BQ_MAX_NO_RESPONSE)))
 			{
 				if(bq_transfer_state == UVX_I2C_TRANSFER_COMPLETE)
 				{

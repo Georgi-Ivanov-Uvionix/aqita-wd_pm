@@ -250,6 +250,7 @@ typedef struct
 typedef struct
 {
   uint8_t cell_count   : 1;
+  uint8_t hall_land_2  : 1;
 } UVX_UNIT_TEST;
 
 typedef struct

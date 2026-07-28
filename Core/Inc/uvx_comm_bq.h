@@ -607,10 +607,19 @@ typedef struct UVX_COMM_BQ
     uint8_t*                p_buff_tx; // Pointer to the TX buffer
     uint8_t*                p_buff_rx; // Pointer to the RX buffer  
     uint8_t                 i2c_tx_staging[UVX_BQ_I2C_TX_STAGING_SIZE]; // Must persist for HAL_I2C_Mem_Write_IT
+    volatile uint8_t        busy_reason; // UVX_BQ_BUSY_REASON debugger diagnostic
     uint16_t                size_frame;
     uint16_t                size_payload;
 
 }UVX_COMM_BQ;
+
+typedef enum
+{
+  UVX_BQ_BUSY_NONE = 0,
+  UVX_BQ_BUSY_OWNS_PREVIOUS_TRANSFER,
+  UVX_BQ_BUSY_SHARED_I2C_LOCK,
+  UVX_BQ_BUSY_I2C_TRANSFER_NOT_IDLE
+} UVX_BQ_BUSY_REASON;
 
  typedef enum
  {
