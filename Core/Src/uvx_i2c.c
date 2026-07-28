@@ -631,6 +631,13 @@ UVX_I2C_STATE uvx_i2c_lock(UVX_I2C_HAL* p_i2c)
 
     p_i2c->lock = 1U;
     p_i2c->transfer_error = HAL_I2C_ERROR_NONE;
+    /*
+     * transfer_state is the authoritative asynchronous state.  When an idle
+     * peripheral is successfully locked there cannot be an outstanding RX or
+     * TX operation, so repair any stale legacy readiness flags here.
+     */
+    p_i2c->RX_Ready = 1U;
+    p_i2c->TX_Ready = 1U;
 
     if(primask == 0U)
     {

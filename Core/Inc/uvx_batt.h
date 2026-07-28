@@ -289,6 +289,7 @@ typedef struct
     uint16_t manufacturer_date;        // Manufacturer Date
     uint16_t serial_number;            // Serial Number
     uint32_t cnt_no_response;
+    uint32_t max_cnt_no_response;
         
 }UVX_BATT_DATA;
 

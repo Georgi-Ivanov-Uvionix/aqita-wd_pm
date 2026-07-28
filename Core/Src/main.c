@@ -1011,6 +1011,7 @@ void         UVX_APP_Batt(void)
 				uvx_batt_learn();	
 			}			
 
+			batt_data.max_cnt_no_response = 0;
 			HAL_Delay(1);
 		break;
 
@@ -1031,6 +1032,11 @@ void         UVX_APP_Batt(void)
 			bq_transfer_state = (p_active_bq != NULL) ?
 				uvx_i2c_get_transfer_state(&i2c_bq.hal_i2c) :
 				UVX_I2C_TRANSFER_IDLE;
+
+			if(batt_data.cnt_no_response > batt_data.max_cnt_no_response)
+			{
+				batt_data.max_cnt_no_response = batt_data.cnt_no_response;
+			}
 
 			if(bq_transfer_state == UVX_I2C_TRANSFER_ERROR)
 			{
@@ -1101,7 +1107,7 @@ void         UVX_APP_Batt(void)
 						}						
 						else
 						{
-							bq_data_l.No_response = false;
+							bq_data_l.No_response = false;							
 						}
 
 						batt_data.cnt_no_response = 0;						
@@ -1129,7 +1135,7 @@ void         UVX_APP_Batt(void)
 							}						
 							else
 							{
-								bq_data_h.No_response = false;
+								bq_data_h.No_response = false;								
 							}				
 
 							batt_data.cnt_no_response = 0;
@@ -1143,7 +1149,6 @@ void         UVX_APP_Batt(void)
 			else
 			{
 				batt_data.cnt_no_response++;
-				//bq_data_l.No_response = false;
 			}	
 		break;
 

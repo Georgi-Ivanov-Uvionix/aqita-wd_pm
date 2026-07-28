@@ -199,6 +199,8 @@ UVX_COMM_BQ_STATE uvx_comm_bq_change_list(UVX_COMM_BQ* p_comm_bq, UVX_BQ_REGISTE
 
 UVX_COMM_BQ_STATE uvx_comm_bq_read_list(UVX_COMM_BQ* p_comm_bq, uint16_t reg_index) 
 {
+	UVX_I2C_STATE i2c_state;
+
 	if((p_comm_bq == NULL) || (p_comm_bq->p_register_list == NULL) ||
 	   (p_comm_bq->p_hal_i2c == NULL))
 	{
@@ -228,22 +230,26 @@ UVX_COMM_BQ_STATE uvx_comm_bq_read_list(UVX_COMM_BQ* p_comm_bq, uint16_t reg_ind
 	p_comm_bq->busy_reason = UVX_BQ_BUSY_NONE;
 	p_comm_bq->RX_Ready = 0U;
 
-	if(uvx_i2c_read_mem(p_comm_bq->p_hal_i2c, p_comm_bq->addr_i2c,
+	i2c_state = uvx_i2c_read_mem(p_comm_bq->p_hal_i2c, p_comm_bq->addr_i2c,
 		p_comm_bq->p_register_list[reg_index].reg_addr, 1,
 		p_comm_bq->p_register_list[reg_index].p_data,
-		p_comm_bq->p_register_list[reg_index].size_data) != UVX_I2C_OK)
+		p_comm_bq->p_register_list[reg_index].size_data);
+
+	if(i2c_state != UVX_I2C_OK)
 	{
 		p_comm_bq->RX_Ready = 1U;
 		uvx_comm_bq_unlock_i2c(p_comm_bq);
-		return UVX_BQ_ERROR;
+		return (i2c_state == UVX_I2C_BUSY) ?
+			UVX_BQ_ERROR_BUSY : UVX_BQ_ERROR;
 	}
     
 	return UVX_BQ_OK; // Return success
 }  
 
 UVX_COMM_BQ_STATE uvx_comm_bq_read_register(UVX_COMM_BQ* p_comm_bq, UVX_BQ_REGISTERS reg_addr) 
-{    
+{   
 	uint8_t reg_index = 0;
+	UVX_I2C_STATE i2c_state;
 	UVX_COMM_BQ_STATE state = UVX_BQ_OK;
 
 	if((p_comm_bq == NULL) || (p_comm_bq->p_register_list == NULL) ||
@@ -271,14 +277,17 @@ UVX_COMM_BQ_STATE uvx_comm_bq_read_register(UVX_COMM_BQ* p_comm_bq, UVX_BQ_REGIS
 	p_comm_bq->busy_reason = UVX_BQ_BUSY_NONE;
 	p_comm_bq->RX_Ready = 0U;
 
-	if(uvx_i2c_read_mem(p_comm_bq->p_hal_i2c, p_comm_bq->addr_i2c,
+	i2c_state = uvx_i2c_read_mem(p_comm_bq->p_hal_i2c, p_comm_bq->addr_i2c,
 		 p_comm_bq->p_register_list[reg_index].reg_addr, 1,
 		 p_comm_bq->p_register_list[reg_index].p_data,
-		 p_comm_bq->p_register_list[reg_index].size_data) != UVX_I2C_OK)
+		 p_comm_bq->p_register_list[reg_index].size_data);
+
+	if(i2c_state != UVX_I2C_OK)
 	{
 		p_comm_bq->RX_Ready = 1U;
 		uvx_comm_bq_unlock_i2c(p_comm_bq);
-		return UVX_BQ_ERROR;
+		return (i2c_state == UVX_I2C_BUSY) ?
+			UVX_BQ_ERROR_BUSY : UVX_BQ_ERROR;
 	}
     
 	return UVX_BQ_OK; // Return success
