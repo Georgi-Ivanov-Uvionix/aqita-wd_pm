@@ -446,14 +446,16 @@ UVX_COMM_BQ_STATE uvx_comm_bq_charge_fet(UVX_COMM_BQ* p_comm_bq, uint8_t state)
 	{
 		if(!batt_data.CHG_fet_stat)
 		{
-			uvx_comm_bq_write_mba_register(&comm_bq_h, BQ_MA_CHG_FET_TOGGLE, NULL, 0);
+			return uvx_comm_bq_write_mba_register(
+				p_comm_bq, BQ_MA_CHG_FET_TOGGLE, NULL, 0);
 		}
 	}
 	else
 	{
 		if(batt_data.CHG_fet_stat)
 		{
-			uvx_comm_bq_write_mba_register(&comm_bq_h, BQ_MA_CHG_FET_TOGGLE, NULL, 0);
+			return uvx_comm_bq_write_mba_register(
+				p_comm_bq, BQ_MA_CHG_FET_TOGGLE, NULL, 0);
 		}
 	}
 

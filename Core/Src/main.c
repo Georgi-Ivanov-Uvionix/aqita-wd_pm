@@ -905,15 +905,18 @@ void         UVX_APP_Batt(void)
 		break;	
 
 		case BATT_MODE_CHECK_STATUS:
+			bq_comm_state = UVX_BQ_OK;
 			if(batt_data.CHG_fet_en)
 			{
-				uvx_comm_bq_write_mba_register(&comm_bq_h, BQ_MA_FET_CONTROL, NULL, 0);
+				bq_comm_state = uvx_comm_bq_write_mba_register(
+					&comm_bq_h, BQ_MA_FET_CONTROL, NULL, 0);
+				batt_state.state_next = BATT_MODE_READ_CHECK_PACK_V;
 			}
 			else
 			{
 				if(batt_data.tc)
 				{
-					uvx_comm_bq_charge_fet(&comm_bq_h, 0);
+					bq_comm_state = uvx_comm_bq_charge_fet(&comm_bq_h, 0);
 				//UVX_APP_PWR_FET(0); // PWR off
 				}
 				else
@@ -926,12 +929,26 @@ void         UVX_APP_Batt(void)
 							uvx_gpio_set_pin(GPIO_OUTPUT_PWR_LED, GPIO_PIN_RESET);
 						}
 
-						uvx_comm_bq_charge_fet(&comm_bq_h, 1);
+						bq_comm_state = uvx_comm_bq_charge_fet(&comm_bq_h, 1);
 					}
 					else
 					{
-						uvx_comm_bq_charge_fet(&comm_bq_h, 0);
+						bq_comm_state = uvx_comm_bq_charge_fet(&comm_bq_h, 0);
 					}		
+				}
+
+				/* Only one BQ command may own the shared bus at a time. */
+				if(comm_bq_h.owns_i2c_lock != 0U)
+				{
+					batt_state.state_next = BATT_MODE_READ_CHECK_PACK_V;
+					batt_state.state_current = BATT_MODE_WAIT_RESPONSE;
+					break;
+				}
+
+				if(bq_comm_state != UVX_BQ_OK)
+				{
+					/* Retry CHECK_STATUS after temporary bus contention/error. */
+					break;
 				}
 
 				if(!batt_data.cell_ball_h && !batt_data.cell_ball_l)
@@ -981,8 +998,25 @@ void         UVX_APP_Batt(void)
 					}		
 				}
 			}
-		
-			batt_state.state_current = BATT_MODE_WAIT_RESPONSE;			
+
+			if((bq_comm_state != UVX_BQ_OK) &&
+			   (comm_bq_l.owns_i2c_lock == 0U) &&
+			   (comm_bq_h.owns_i2c_lock == 0U))
+			{
+				/* The command did not start; retry this state later. */
+				break;
+			}
+
+			if((comm_bq_l.owns_i2c_lock != 0U) ||
+			   (comm_bq_h.owns_i2c_lock != 0U))
+			{
+				batt_state.state_current = BATT_MODE_WAIT_RESPONSE;
+			}
+			else
+			{
+				/* No asynchronous BQ command was required. */
+				batt_state.state_current = batt_state.state_next;
+			}
 		break;
 
 		case BATT_MODE_OFF_BALANCE_L:
