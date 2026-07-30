@@ -428,6 +428,8 @@ UVX_I2C_STATE uvx_i2c_send(UVX_I2C_HAL* p_i2c, uint8_t dev_addr, uint8_t* data, 
 
 UVX_I2C_STATE uvx_i2c_read_mem(UVX_I2C_HAL* p_i2c, uint8_t dev_addr, uint16_t reg_addr, uint16_t reg_size, uint8_t* data, uint16_t size) 
 {
+	HAL_StatusTypeDef hal_state;
+
 	#if defined(STM32L4xx_HAL_H)
 		// Check if the I2C handle is initialized
 		if (p_i2c != NULL && p_i2c->hi2c.Instance != NULL)
@@ -446,15 +448,20 @@ UVX_I2C_STATE uvx_i2c_read_mem(UVX_I2C_HAL* p_i2c, uint8_t dev_addr, uint16_t re
                     p_i2c->RX_Ready = 0;
                     dev_addr <<= 1; // Shift address
                     p_i2c->transfer_state = UVX_I2C_TRANSFER_PENDING;
-                    if(HAL_I2C_Mem_Read_IT(&p_i2c->hi2c, dev_addr, reg_addr, reg_size, data, size) != HAL_OK)
+                    hal_state = HAL_I2C_Mem_Read_IT(
+                        &p_i2c->hi2c, dev_addr, reg_addr, reg_size, data, size);
+                    if(hal_state != HAL_OK)
                     {
                         p_i2c->transfer_state = UVX_I2C_TRANSFER_IDLE;
-                        if( !(p_i2c->hi2c.Instance->ISR & I2C_ISR_RXNE ) )
+						p_i2c->RX_Ready = 1U;
+                        if((hal_state != HAL_BUSY) &&
+                           !(p_i2c->hi2c.Instance->ISR & I2C_ISR_RXNE))
                         {
                             p_i2c->hi2c.State = HAL_I2C_STATE_READY;
                         }  
 
-                        return UVX_I2C_ERROR; // Return error if transmission fails
+						return (hal_state == HAL_BUSY) ?
+							UVX_I2C_BUSY : UVX_I2C_ERROR;
                     }                    
                 }
                 else
@@ -488,8 +495,13 @@ UVX_I2C_STATE uvx_i2c_read_mem(UVX_I2C_HAL* p_i2c, uint8_t dev_addr, uint16_t re
 
                 p_i2c->hi2c.Instance->ICR = I2C_ICR_STOPCF | I2C_ICR_NACKCF;
 
-                HAL_I2C_Master_Abort_IT(&p_i2c->hi2c, dev_addr);
-                return UVX_I2C_BUSY; // Return error if transmission fails
+				/*
+				 * Do not start an asynchronous abort here.  This function's caller
+				 * releases the shared lock after BUSY, so an abort would continue
+				 * without an owner and race the next BQ/TPL transaction.  Clearing
+				 * stale flags and retrying on the next loop is sufficient.
+				 */
+                return UVX_I2C_BUSY;
             }
 
 		}

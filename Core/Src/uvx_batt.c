@@ -505,7 +505,7 @@ UVX_BATT_STATE uvx_batt_read_pack_v(void)
 					{
 						batt_state.state_current = BATT_MODE_INIT;
 					}
-					else
+					else if(batt_state.state_current == BATT_MODE_STOP)
 					{
 						batt_state.state_current = BATT_MODE_READ_BQ_L;
 					}
