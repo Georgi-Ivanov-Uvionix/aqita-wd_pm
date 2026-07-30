@@ -1,5 +1,6 @@
 
 #include "uvx_batt.h"
+#include "uvx_dock_charger.h"
 
 SRAM1 UVX_BATT_DATA batt_data;
 
@@ -494,7 +495,8 @@ UVX_BATT_STATE uvx_batt_read_pack_v(void)
 
 				if( (drone_status.pwr_fet == 0) &&
 					(drone_status.pwr_fc == 0) &&
-				    (!batt_data.tc))				   
+				    (!batt_data.tc) &&
+					(dock_charger.voltage_ready != 0U) )
 				{					
 					UVX_APP_PWR_FET(1); // power on FC
 					batt_data.adc_pack_v_stable_low = 0;

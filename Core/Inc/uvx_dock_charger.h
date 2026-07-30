@@ -58,6 +58,7 @@ typedef struct
     uint8_t voltage_readback_code;
     uint8_t settings_changed : 1;
     uint8_t owns_i2c_lock : 1;
+    uint8_t voltage_ready : 1; /* ADC verified at battery voltage + test offset */
 } UVX_DOCK_CHARGER;
 
 UVX_DOCK_CHARGER_STATE uvx_dock_charger_init(

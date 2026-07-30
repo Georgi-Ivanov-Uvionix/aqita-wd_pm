@@ -155,6 +155,7 @@ UVX_DOCK_CHARGER_STATE uvx_dock_charger_init(UVX_I2C *i2c,
     dock_charger.voltage_code = voltage_code;
     dock_charger.settings_changed = 1U;
     dock_charger.owns_i2c_lock = 0U;
+    dock_charger.voltage_ready = 0U;
     dock_charger.sequence = UVX_DOCK_CHARGER_SEQUENCE_WAIT_FOR_DRONE;
 
     return UVX_DOCK_CHARGER_OK;
@@ -242,6 +243,7 @@ UVX_DOCK_CHARGER_STATE uvx_dock_charger_process(void)
 
     if(drone_status.hall_land_2 == false)
     {
+        dock_charger.voltage_ready = 0U;
         if(dock_charger.owns_i2c_lock != 0U)
         {
             if(uvx_i2c_get_transfer_state(

@@ -71,7 +71,13 @@
 #define TIME_FOR_ERROR_LED_TOGGLE				500		//250
 #define CLOCK_READY_TIMEOUT						1000000U
 #define DOCK_CHARGER_CURRENT_MA                 20000U
-#define DOCK_CHARGER_VOLTAGE_MV                 42000U
+#define DOCK_CHARGER_VOLTAGE_MIN_MV              5670U
+#define DOCK_CHARGER_VOLTAGE_MAX_MV             40490U
+#define DOCK_CHARGER_VOLTAGE_OFFSET_MV           1000U
+#define DOCK_CHARGER_VOLTAGE_TOLERANCE_MV         200U
+#define DOCK_CHARGER_RAMP_INTERVAL_MS              500U
+#define DOCK_CHARGER_WIPER_MAX                     127U
+#define DOCK_CHARGER_WIPER_POWER_UP                 64U
 
 //#define APP_JETSON_PWR_FC
 //#define APP_NO_BATTERY_MODE
@@ -293,6 +299,9 @@ int main(void)
 
 	timer_app_batt_pwr_low.Timeout = APP_TIMEOUT_PACK_V_STABLE_LOW; // Reset timeout for power off
 	timer_app_batt_pwr_low.Enable = true;
+
+	unit_test.cell_count = 0;
+	unit_test.hall_land_2 = 1;
 	
 	while (1)
 	{
@@ -470,6 +479,22 @@ void UVX_APP(void)
 				batt_data.adc_pack_v_stable_low = 1;	
 				#endif							
 
+				/*
+				 * The sleep timer wakes the MCU periodically so the ADC can be
+				 * sampled.  More than 9 V on the pack input keeps the application
+				 * awake for the dock charger voltage ramp.  This does not assert
+				 * stable_high and therefore cannot enable charging by itself.
+				 */
+				if(batt_data.adc_pack_v > BATT_ADC_PACK_V_WAKE_MV)
+				{
+					drone_state.state_current = drone_state.state_next;
+					if(batt_state.state_current == BATT_MODE_STOP)
+					{
+						batt_state.state_current = BATT_MODE_READ_BQ_L;
+					}
+					break;
+				}
+
 				if((!batt_data.adc_pack_v_stable_high) &&
 				   (batt_data.adc_pack_v_stable_low) &&
 				   (comm_m2jmb_state.state_current == M2JMB_MODE_IDLE) &&
@@ -605,21 +630,31 @@ void UVX_APP_HALL_LAND(void)
 /**
  * @brief Set dock charger current and voltage after landing is detected.
  *
- * Initial linear calibration:
- *   - Current: 0 mA at 0 ohm, 20000 mA at 10 kohm.
- *   - Voltage: 0 mV at 0 ohm, 42000 mV at 10 kohm.
+ * Test calibration:
+ *   - Current: 0 mA at code 0, 20000 mA at code 127.
+ *   - Voltage: 5670 mV at code 0, 40490 mV at code 127.
+ * Voltage ramps up from the TPL0401 power-up code by one calibrated code
+ * every 500 ms and charging is
+ * permitted only at battery voltage + 1 V, within +/-200 mV ADC feedback.
  */
 void UVX_APP_Dock_Charger(void)
 {
     static uint8_t initialized;
+    static uint8_t zero_initialization_complete;
+    static uint8_t ramp_code = DOCK_CHARGER_WIPER_POWER_UP;
+    static uint8_t hall_was_active;
+    static uint32_t ramp_tick;
+    uint32_t target_voltage_mv;
+    uint32_t requested_voltage_mv;
+    uint32_t now;
     static const UVX_DOCK_CHARGER_CONFIG config =
     {
         .current_min_ma = 0U,
         .current_max_ma = 20000U,
         .current_code_at_min = 0U,
         .current_code_at_max = 127U,
-        .voltage_min_mv = 0U,
-        .voltage_max_mv = 42000U,
+        .voltage_min_mv = DOCK_CHARGER_VOLTAGE_MIN_MV,
+        .voltage_max_mv = DOCK_CHARGER_VOLTAGE_MAX_MV,
         .voltage_code_at_min = 0U,
         .voltage_code_at_max = 127U
     };
@@ -629,8 +664,8 @@ void UVX_APP_Dock_Charger(void)
         dock_charger_app_state = uvx_dock_charger_init(
             &i2c_bq,
             &config,
-            DOCK_CHARGER_CURRENT_MA,
-            DOCK_CHARGER_VOLTAGE_MV);
+            0U,
+            DOCK_CHARGER_VOLTAGE_MIN_MV);
 
         if(dock_charger_app_state == UVX_DOCK_CHARGER_OK)
         {
@@ -640,7 +675,107 @@ void UVX_APP_Dock_Charger(void)
         return;
     }
 
+    if(drone_status.hall_land_2 == false)
+    {
+        hall_was_active = 0U;
+        zero_initialization_complete = 0U;
+        ramp_code = DOCK_CHARGER_WIPER_POWER_UP;
+        dock_charger.voltage_ready = 0U;
+        dock_charger_app_state = uvx_dock_charger_process();
+        return;
+    }
+
+    if(hall_was_active == 0U)
+    {
+        hall_was_active = 1U;
+        ramp_code = DOCK_CHARGER_WIPER_POWER_UP;
+        ramp_tick = HAL_GetTick();
+        dock_charger.voltage_ready = 0U;
+        zero_initialization_complete = 0U;
+        (void)uvx_dock_charger_set_current(0U);
+        (void)uvx_dock_charger_set_voltage(DOCK_CHARGER_VOLTAGE_MIN_MV);
+    }
+
     dock_charger_app_state = uvx_dock_charger_process();
+    if(dock_charger_app_state != UVX_DOCK_CHARGER_OK)
+    {
+        return;
+    }
+
+    if(zero_initialization_complete == 0U)
+    {
+        /*
+         * Both TPL0401 devices have now written and read back code zero.
+         * Start normal operation only after this safe initialization phase.
+         */
+        zero_initialization_complete = 1U;
+        ramp_tick = HAL_GetTick();
+        (void)uvx_dock_charger_set_current(DOCK_CHARGER_CURRENT_MA);
+        requested_voltage_mv = DOCK_CHARGER_VOLTAGE_MIN_MV +
+            (((uint32_t)ramp_code *
+              (DOCK_CHARGER_VOLTAGE_MAX_MV - DOCK_CHARGER_VOLTAGE_MIN_MV) +
+              (DOCK_CHARGER_WIPER_MAX / 2U)) /
+             DOCK_CHARGER_WIPER_MAX);
+        (void)uvx_dock_charger_set_voltage(requested_voltage_mv);
+        return;
+    }
+
+    target_voltage_mv = (uint32_t)batt_data.batt_voltage +
+                        DOCK_CHARGER_VOLTAGE_OFFSET_MV;
+    if(target_voltage_mv > DOCK_CHARGER_VOLTAGE_MAX_MV)
+    {
+        target_voltage_mv = DOCK_CHARGER_VOLTAGE_MAX_MV;
+    }
+
+    if((batt_data.adc_pack_v_stable_high != 0U) &&
+       ((uint32_t)batt_data.adc_pack_v + DOCK_CHARGER_VOLTAGE_TOLERANCE_MV >=
+        target_voltage_mv) &&
+       ((uint32_t)batt_data.adc_pack_v <=
+        target_voltage_mv + DOCK_CHARGER_VOLTAGE_TOLERANCE_MV))
+    {
+        dock_charger.voltage_ready = 1U;
+        return;
+    }
+
+    dock_charger.voltage_ready = 0U;
+    UVX_APP_PWR_FET(0U);
+    now = HAL_GetTick();
+    if(((uint32_t)batt_data.adc_pack_v +
+        DOCK_CHARGER_VOLTAGE_TOLERANCE_MV < target_voltage_mv) &&
+       ((uint32_t)(now - ramp_tick) >= DOCK_CHARGER_RAMP_INTERVAL_MS) &&
+       (ramp_code < DOCK_CHARGER_WIPER_MAX))
+    {
+        ramp_code++;
+        requested_voltage_mv = DOCK_CHARGER_VOLTAGE_MIN_MV +
+            (((uint32_t)ramp_code *
+              (DOCK_CHARGER_VOLTAGE_MAX_MV - DOCK_CHARGER_VOLTAGE_MIN_MV) +
+              (DOCK_CHARGER_WIPER_MAX / 2U)) /
+             DOCK_CHARGER_WIPER_MAX);
+
+        if(uvx_dock_charger_set_voltage(requested_voltage_mv) ==
+           UVX_DOCK_CHARGER_OK)
+        {
+            ramp_tick = now;
+        }
+    }
+    else if(((uint32_t)batt_data.adc_pack_v >
+             target_voltage_mv + DOCK_CHARGER_VOLTAGE_TOLERANCE_MV) &&
+            ((uint32_t)(now - ramp_tick) >= DOCK_CHARGER_RAMP_INTERVAL_MS) &&
+            (ramp_code > 0U))
+    {
+        ramp_code--;
+        requested_voltage_mv = DOCK_CHARGER_VOLTAGE_MIN_MV +
+            (((uint32_t)ramp_code *
+              (DOCK_CHARGER_VOLTAGE_MAX_MV - DOCK_CHARGER_VOLTAGE_MIN_MV) +
+              (DOCK_CHARGER_WIPER_MAX / 2U)) /
+             DOCK_CHARGER_WIPER_MAX);
+
+        if(uvx_dock_charger_set_voltage(requested_voltage_mv) ==
+           UVX_DOCK_CHARGER_OK)
+        {
+            ramp_tick = now;
+        }
+    }
 }
 
 void UVX_APP_LED_Strip (void)
@@ -921,7 +1056,8 @@ void         UVX_APP_Batt(void)
 				}
 				else
 				{
-					if((batt_data.adc_pack_v_stable_high) && (drone_status.pwr_fet))
+					if((batt_data.adc_pack_v_stable_high) &&
+					   (drone_status.pwr_fet))
 					{
 						uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_RESET);
 						if(drone_state.state_current == DRONE_CHECK_BUTTON_PRESS_ONCE)
@@ -1188,7 +1324,8 @@ void         UVX_APP_Batt(void)
 
 		case BATT_MODE_STOP:
 			//batt_data.init = false;
-			if((batt_data.tc) && (batt_data.adc_pack_v_stable_high))
+			if(((batt_data.tc) && (batt_data.adc_pack_v_stable_high)) ||
+			   (batt_data.adc_pack_v > BATT_ADC_PACK_V_WAKE_MV))
 			{
 				batt_state.state_current = BATT_MODE_READ_BQ_L;
 			}

@@ -50,6 +50,7 @@
 #define BATT_CELL_VOLTAGE_DIFF                      10  //mv
 #define BATT_DELTA_VOLTAGE                          500  //mv
 #define BATT_ADC_PACK_V_LOW_MIN_MS                  5000U
+#define BATT_ADC_PACK_V_WAKE_MV                     9000U
 
 #define BATT_SUPPLY_STATUS_PWR_FET_BIT                 0
 #define BATT_SUPPLY_STATUS_CHG_FET_BIT                 1
