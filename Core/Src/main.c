@@ -681,6 +681,7 @@ void UVX_APP_Dock_Charger(void)
         zero_initialization_complete = 0U;
         ramp_code = DOCK_CHARGER_WIPER_POWER_UP;
         dock_charger.voltage_ready = 0U;
+        UVX_APP_PWR_FET(0U);
         dock_charger_app_state = uvx_dock_charger_process();
         return;
     }
@@ -727,6 +728,17 @@ void UVX_APP_Dock_Charger(void)
         target_voltage_mv = DOCK_CHARGER_VOLTAGE_MAX_MV;
     }
 
+    /*
+     * Once the open-circuit dock voltage has been verified, keep the result
+     * latched for this Hall session.  Closing the power FET changes the ADC
+     * operating point and must not restart the open-circuit adjustment loop.
+     */
+    if(dock_charger.voltage_ready != 0U)
+    {
+        UVX_APP_PWR_FET(1U);
+        return;
+    }
+
     if((batt_data.adc_pack_v_stable_high != 0U) &&
        ((uint32_t)batt_data.adc_pack_v + DOCK_CHARGER_VOLTAGE_TOLERANCE_MV >=
         target_voltage_mv) &&
@@ -734,6 +746,7 @@ void UVX_APP_Dock_Charger(void)
         target_voltage_mv + DOCK_CHARGER_VOLTAGE_TOLERANCE_MV))
     {
         dock_charger.voltage_ready = 1U;
+        UVX_APP_PWR_FET(1U);
         return;
     }
 
@@ -1056,7 +1069,7 @@ void         UVX_APP_Batt(void)
 				}
 				else
 				{
-					if((batt_data.adc_pack_v_stable_high) &&
+					if(((batt_data.adc_pack_v_stable_high) || (dock_charger.voltage_ready)) &&
 					   (drone_status.pwr_fet))
 					{
 						uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_RESET);
