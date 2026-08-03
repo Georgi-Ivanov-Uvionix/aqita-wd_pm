@@ -7,6 +7,8 @@ extern uint32_t g_Drone_Started;
 
 UVX_BATT_STATE_MACHINE batt_state;
 
+static uint32_t charge_overvoltage_recovery_start_ms;
+
 static UVX_BATT_STATE uvx_batt_send_learn_commands(UVX_COMM_BQ* p_comm_bq)
 {
 	static const UVX_BQ_MA_REGISTERS learn_commands[] =
@@ -368,10 +370,27 @@ UVX_BATT_STATE uvx_batt_parse_data(void)
 	if(batt_data.voltage_max_cell > BATT_CELL_MAX_VOLTAGE)
 	{
 		drone_status.charge_overvoltage = 1U;
+		charge_overvoltage_recovery_start_ms = 0U;
 	}
-	else if(batt_data.voltage_max_cell < BATT_CELL_CHARGE_RESUME_VOLTAGE)
+	else if(drone_status.charge_overvoltage)
 	{
-		drone_status.charge_overvoltage = 0U;
+		if(batt_data.voltage_max_cell < BATT_CELL_CHARGE_RESUME_VOLTAGE)
+		{
+			if(charge_overvoltage_recovery_start_ms == 0U)
+			{
+				charge_overvoltage_recovery_start_ms = HAL_GetTick();
+			}
+			else if((HAL_GetTick() - charge_overvoltage_recovery_start_ms) >= BATT_CHARGE_RESUME_DELAY_MS)
+			{
+				drone_status.charge_overvoltage = 0U;
+				charge_overvoltage_recovery_start_ms = 0U;
+			}
+		}
+		else
+		{
+			/* Require three continuous minutes below the resume voltage. */
+			charge_overvoltage_recovery_start_ms = 0U;
+		}
 	}
 
 	if(batt_data.cells_count != BATT_EXPECTED_CELLS)

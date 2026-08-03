@@ -432,6 +432,7 @@ typedef enum
     BQ_MA_ROM_MODE                      = 0x0F00,
     BQ_MA_WRITE_TEMP                    = 0x3008,
     BQ_MA_DATAFLASH_ACCESS_START        = 0x4000,  // 0x4000–0x5FFF
+    BQ_DM_BALANCING_CONFIGURATION       = 0x4B8C,
     BQ_MA_EXIT_CAL_OUTPUT_MODE          = 0xF080,
     BQ_MA_OUTPUT_CADC_CAL               = 0xF081,
     BQ_MA_OUTPUT_SHORTED_CCADC_CAL      = 0xF082,
@@ -596,6 +597,7 @@ typedef struct UVX_COMM_BQ
     uint8_t RX_Ready_Buffer     : 1; // RX buffer ready        
     uint8_t Force_balance       : 1; // Reserved for future use
     uint8_t Force_balance_old   : 1; // Reserved for future use
+    uint8_t Balance_enabled     : 1; // BQ Data Memory Balancing Configuration[CB]
 
     uint16_t                buff_size_rx; // RX buffer size
     uint16_t                buff_size_tx; // TX buffer size
@@ -670,6 +672,7 @@ UVX_COMM_BQ_STATE uvx_comm_bq_send_error(uint8_t data);
 UVX_COMM_BQ_STATE uvx_comm_bq_process_rx(uint8_t byte_rx);
 UVX_COMM_BQ_STATE uvx_comm_bq_process_rx_data(void);
 UVX_COMM_BQ_STATE uvx_comm_bq_force_balance(UVX_COMM_BQ* p_comm_bq, uint8_t enable);
+UVX_COMM_BQ_STATE uvx_comm_bq_set_balance_enabled(UVX_COMM_BQ* p_comm_bq, uint8_t enable);
 UVX_COMM_BQ_STATE uvx_comm_bq_charge_fet(UVX_COMM_BQ* p_comm_bq, uint8_t state);
 uint8_t uvx_comm_bq_swap_u8(uint8_t* v);
 uint16_t uvx_comm_bq_swap_u16_pointer(uint16_t* v);

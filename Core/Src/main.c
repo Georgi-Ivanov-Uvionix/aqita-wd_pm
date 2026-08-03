@@ -841,6 +841,19 @@ void         UVX_APP_Batt(void)
 		break;	
 
 		case BATT_MODE_CHECK_STATUS:
+			if(comm_bq_l.Balance_enabled && comm_bq_h.Balance_enabled &&
+			   (batt_data.voltage_min_cell < BATT_BALANCE_DISABLE_VOLTAGE_MV))
+			{
+				batt_state.state_current = BATT_MODE_DISABLE_BQ_BALANCE_L;
+				break;
+			}
+			else if((!comm_bq_l.Balance_enabled || !comm_bq_h.Balance_enabled) &&
+					(batt_data.voltage_min_cell > BATT_BALANCE_ENABLE_VOLTAGE_MV))
+			{
+				batt_state.state_current = BATT_MODE_ENABLE_BQ_BALANCE_L;
+				break;
+			}
+
 			if(batt_data.CHG_fet_en)
 			{
 				uvx_comm_bq_write_mba_register(&comm_bq_h, BQ_MA_FET_CONTROL, NULL, 0);
@@ -933,6 +946,32 @@ void         UVX_APP_Batt(void)
 			batt_state.state_next = BATT_MODE_READ_CHECK_PACK_V;			
 			batt_reg_cnt = 0;
 		break;				
+
+		case BATT_MODE_DISABLE_BQ_BALANCE_L:
+			uvx_comm_bq_set_balance_enabled(&comm_bq_l, 0U);
+			batt_state.state_current = BATT_MODE_WAIT_RESPONSE;
+			batt_state.state_next = BATT_MODE_DISABLE_BQ_BALANCE_H;
+		break;
+
+		case BATT_MODE_DISABLE_BQ_BALANCE_H:
+			uvx_comm_bq_set_balance_enabled(&comm_bq_h, 0U);
+			batt_state.state_current = BATT_MODE_WAIT_RESPONSE;
+			batt_state.state_next = BATT_MODE_READ_CHECK_PACK_V;
+			batt_state.state_previous = BATT_MODE_READ_CHECK_PACK_V;
+		break;
+
+		case BATT_MODE_ENABLE_BQ_BALANCE_L:
+			uvx_comm_bq_set_balance_enabled(&comm_bq_l, 1U);
+			batt_state.state_current = BATT_MODE_WAIT_RESPONSE;
+			batt_state.state_next = BATT_MODE_ENABLE_BQ_BALANCE_H;
+		break;
+
+		case BATT_MODE_ENABLE_BQ_BALANCE_H:
+			uvx_comm_bq_set_balance_enabled(&comm_bq_h, 1U);
+			batt_state.state_current = BATT_MODE_WAIT_RESPONSE;
+			batt_state.state_next = BATT_MODE_READ_CHECK_PACK_V;
+			batt_state.state_previous = BATT_MODE_READ_CHECK_PACK_V;
+		break;
 		
 		case BATT_MODE_READ_CHECK_PACK_V:
 			batt_data.init = true;
@@ -972,6 +1011,8 @@ void         UVX_APP_Batt(void)
 
 					case BATT_MODE_INIT_BALANCE_H:
 					case BATT_MODE_OFF_BALANCE_L:
+					case BATT_MODE_DISABLE_BQ_BALANCE_H:
+					case BATT_MODE_ENABLE_BQ_BALANCE_H:
 					case BATT_MODE_READ_ONCE_BQ_L:
 					case BATT_MODE_READ_BQ_L:
 						if(batt_data.cnt_no_response > BQ_MAX_NO_RESPONSE)

@@ -44,10 +44,13 @@
 #define BATT_EXPECTED_CELLS                         9
 #define BATT_CELL_MIN_DETECT_VOLTAGE_MV             1500
 #define BATT_CELL_MIN_VOLTAGE                       2200 //mv
-#define BATT_CELL_MAX_VOLTAGE                       4200 //mv
-#define BATT_CELL_CHARGE_RESUME_VOLTAGE             4100 //mv
+#define BATT_CELL_MAX_VOLTAGE                       4100 //mv
+#define BATT_CELL_CHARGE_RESUME_VOLTAGE             4000 //mv
+#define BATT_CHARGE_RESUME_DELAY_MS                 (3U * 60U * 1000U)
 #define BATT_CELL_DETECT_THRESHOLD_MV               1500 //mv
 #define BATT_CELL_VOLTAGE_DIFF                      10  //mv
+#define BATT_BALANCE_DISABLE_VOLTAGE_MV             3000U
+#define BATT_BALANCE_ENABLE_VOLTAGE_MV              3100U
 #define BATT_DELTA_VOLTAGE                          500  //mv
 #define BATT_ADC_PACK_V_LOW_MIN_MS                  5000U
 
@@ -316,6 +319,10 @@ typedef enum
     BATT_MODE_INIT_BALANCE_H,    
     BATT_MODE_OFF_BALANCE_L,    
     BATT_MODE_OFF_BALANCE_H,     
+    BATT_MODE_DISABLE_BQ_BALANCE_L,
+    BATT_MODE_DISABLE_BQ_BALANCE_H,
+    BATT_MODE_ENABLE_BQ_BALANCE_L,
+    BATT_MODE_ENABLE_BQ_BALANCE_H,
     BATT_MODE_READ_BQ_L,
 	BATT_MODE_READ_BQ_H,	
     BATT_MODE_CHECK_STATUS,

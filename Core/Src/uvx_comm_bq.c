@@ -98,6 +98,7 @@ UVX_COMM_BQ_STATE uvx_comm_bq_init(UVX_COMM_BQ* p_comm_bq, UVX_I2C* i2c, uint8_t
 		p_comm_bq->TX_Ready = 1;
 		p_comm_bq->RX_Ready = 1;
 		p_comm_bq->Force_balance_old = 1; // Initialize Force_balance_old to a different value to ensure the first write occurs
+		p_comm_bq->Balance_enabled = 1; // Balancing Configuration is programmed to 0x3F initially
 
 		#ifdef PROJECT_AQITA_PM
 			if(uvx_i2c_init(p_comm_bq->i2c/*, buff_tx_bq, buff_rx_bq*/)) // Initialize the I2C peripheral
@@ -280,16 +281,25 @@ UVX_COMM_BQ_STATE uvx_comm_bq_write_mba_register(UVX_COMM_BQ* p_comm_bq, UVX_BQ_
 {    
 	uint8_t i2c_data[20] = {0};
 
+	if((p_comm_bq == NULL) || (size > (sizeof(i2c_data) - 4U)) || ((size > 0U) && (data == NULL)))
+	{
+		return UVX_BQ_ERROR;
+	}
+
 	if(p_comm_bq->TX_Ready == 1)
 	{
 		p_comm_bq->TX_Ready = 0; // Reset TX ready flag
 
 		i2c_data[0] = 0x44;
-		i2c_data[1] = 0x02;
-		i2c_data[2] = reg_addr;
-		i2c_data[3] = 0x00;
+		i2c_data[1] = (uint8_t)(size + 2U);
+		i2c_data[2] = (uint8_t)((uint16_t)reg_addr & 0xFFU);
+		i2c_data[3] = (uint8_t)(((uint16_t)reg_addr >> 8U) & 0xFFU);
+		if(size > 0U)
+		{
+			memcpy(&i2c_data[4], data, size);
+		}
 
-		if(uvx_i2c_send(p_comm_bq->p_hal_i2c, p_comm_bq->addr_i2c, i2c_data, 4) != UVX_I2C_OK)
+		if(uvx_i2c_send(p_comm_bq->p_hal_i2c, p_comm_bq->addr_i2c, i2c_data, size + 4U) != UVX_I2C_OK)
 		{
 			return UVX_BQ_ERROR;
 		}
@@ -305,6 +315,23 @@ UVX_COMM_BQ_STATE uvx_comm_bq_write_mba_register(UVX_COMM_BQ* p_comm_bq, UVX_BQ_
 	}
 	
 	return UVX_BQ_OK; // Return success
+}
+
+UVX_COMM_BQ_STATE uvx_comm_bq_set_balance_enabled(UVX_COMM_BQ* p_comm_bq, uint8_t enable)
+{
+	uint8_t balancing_configuration = enable ? 0x3FU : 0x3EU;
+	UVX_COMM_BQ_STATE state;
+
+	state = uvx_comm_bq_write_mba_register(p_comm_bq,
+										 BQ_DM_BALANCING_CONFIGURATION,
+										 &balancing_configuration,
+										 sizeof(balancing_configuration));
+	if(state == UVX_BQ_OK)
+	{
+		p_comm_bq->Balance_enabled = enable ? 1U : 0U;
+	}
+
+	return state;
 }
 
 UVX_COMM_BQ_STATE uvx_comm_bq_force_balance(UVX_COMM_BQ* p_comm_bq, uint8_t enable)
