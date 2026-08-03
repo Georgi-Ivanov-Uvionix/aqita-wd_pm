@@ -70,14 +70,7 @@
 #define TIME_FOR_OK_LED_TOGGLE					300		//150
 #define TIME_FOR_ERROR_LED_TOGGLE				500		//250
 #define CLOCK_READY_TIMEOUT						1000000U
-#define DOCK_CHARGER_CURRENT_MA                 20000U
-#define DOCK_CHARGER_VOLTAGE_MIN_MV              5670U
-#define DOCK_CHARGER_VOLTAGE_MAX_MV             40490U
-#define DOCK_CHARGER_VOLTAGE_OFFSET_MV           1000U
-#define DOCK_CHARGER_VOLTAGE_TOLERANCE_MV         200U
-#define DOCK_CHARGER_RAMP_INTERVAL_MS              500U
-#define DOCK_CHARGER_WIPER_MAX                     127U
-#define DOCK_CHARGER_WIPER_POWER_UP                 64U
+
 
 //#define APP_JETSON_PWR_FC
 //#define APP_NO_BATTERY_MODE
@@ -169,7 +162,7 @@ UVX_TIMER timer_app_land;
 UVX_DRONE_STATE_MACHINE drone_state;
 UVX_DRONE_STATUS drone_status;
 UVX_UNIT_TEST unit_test;
-UVX_DOCK_CHARGER_STATE dock_charger_app_state;
+UVX_DOCK_CHARGER_RESULT dock_charger_app_state;
 SRAM1 WS2812_Driver ws2812_strip;  // WS2812 LED strip driver
 
 uint8_t btn_percent = 0;
@@ -639,156 +632,32 @@ void UVX_APP_HALL_LAND(void)
  */
 void UVX_APP_Dock_Charger(void)
 {
-    static uint8_t initialized;
-    static uint8_t zero_initialization_complete;
-    static uint8_t ramp_code = DOCK_CHARGER_WIPER_POWER_UP;
-    static uint8_t hall_was_active;
-    static uint32_t ramp_tick;
-    uint32_t target_voltage_mv;
-    uint32_t requested_voltage_mv;
-    uint32_t now;
     static const UVX_DOCK_CHARGER_CONFIG config =
     {
-        .current_min_ma = 0U,
-        .current_max_ma = 20000U,
-        .current_code_at_min = 0U,
-        .current_code_at_max = 127U,
+        .current_min_ma = DOCK_CHARGER_CURRENT_MIN_MA,
+        .current_max_ma = DOCK_CHARGER_CURRENT_MAX_MA,
+        .current_code_at_min = DOCK_CHARGER_WIPER_MIN,
+        .current_code_at_max = DOCK_CHARGER_WIPER_MAX,
         .voltage_min_mv = DOCK_CHARGER_VOLTAGE_MIN_MV,
         .voltage_max_mv = DOCK_CHARGER_VOLTAGE_MAX_MV,
-        .voltage_code_at_min = 0U,
-        .voltage_code_at_max = 127U
+        .voltage_code_at_min = DOCK_CHARGER_WIPER_MIN,
+        .voltage_code_at_max = DOCK_CHARGER_WIPER_MAX,
     };
 
-    if(initialized == 0U)
-    {
-        dock_charger_app_state = uvx_dock_charger_init(
-            &i2c_bq,
-            &config,
-            0U,
-            DOCK_CHARGER_VOLTAGE_MIN_MV);
+	if(batt_data.init)
+	{
+		dock_charger_status.voltage_mv = batt_data.adc_pack_v;
+		dock_charger_status.current_ma = batt_data.current;
 
-        if(dock_charger_app_state == UVX_DOCK_CHARGER_OK)
-        {
-            initialized = 1U;
-        }
+		if(dock_charger_status.initialized == 0U)
+		{
+			uvx_dock_charger_init(&i2c_bq, &config);
 
-        return;
-    }
+			return;
+		}
 
-    if(drone_status.hall_land_2 == false)
-    {
-        hall_was_active = 0U;
-        zero_initialization_complete = 0U;
-        ramp_code = DOCK_CHARGER_WIPER_POWER_UP;
-        dock_charger.voltage_ready = 0U;
-        UVX_APP_PWR_FET(0U);
-        dock_charger_app_state = uvx_dock_charger_process();
-        return;
-    }
-
-    if(hall_was_active == 0U)
-    {
-        hall_was_active = 1U;
-        ramp_code = DOCK_CHARGER_WIPER_POWER_UP;
-        ramp_tick = HAL_GetTick();
-        dock_charger.voltage_ready = 0U;
-        zero_initialization_complete = 0U;
-        (void)uvx_dock_charger_set_current(0U);
-        (void)uvx_dock_charger_set_voltage(DOCK_CHARGER_VOLTAGE_MIN_MV);
-    }
-
-    dock_charger_app_state = uvx_dock_charger_process();
-    if(dock_charger_app_state != UVX_DOCK_CHARGER_OK)
-    {
-        return;
-    }
-
-    if(zero_initialization_complete == 0U)
-    {
-        /*
-         * Both TPL0401 devices have now written and read back code zero.
-         * Start normal operation only after this safe initialization phase.
-         */
-        zero_initialization_complete = 1U;
-        ramp_tick = HAL_GetTick();
-        (void)uvx_dock_charger_set_current(DOCK_CHARGER_CURRENT_MA);
-        requested_voltage_mv = DOCK_CHARGER_VOLTAGE_MIN_MV +
-            (((uint32_t)ramp_code *
-              (DOCK_CHARGER_VOLTAGE_MAX_MV - DOCK_CHARGER_VOLTAGE_MIN_MV) +
-              (DOCK_CHARGER_WIPER_MAX / 2U)) /
-             DOCK_CHARGER_WIPER_MAX);
-        (void)uvx_dock_charger_set_voltage(requested_voltage_mv);
-        return;
-    }
-
-    target_voltage_mv = (uint32_t)batt_data.batt_voltage +
-                        DOCK_CHARGER_VOLTAGE_OFFSET_MV;
-    if(target_voltage_mv > DOCK_CHARGER_VOLTAGE_MAX_MV)
-    {
-        target_voltage_mv = DOCK_CHARGER_VOLTAGE_MAX_MV;
-    }
-
-    /*
-     * Once the open-circuit dock voltage has been verified, keep the result
-     * latched for this Hall session.  Closing the power FET changes the ADC
-     * operating point and must not restart the open-circuit adjustment loop.
-     */
-    if(dock_charger.voltage_ready != 0U)
-    {
-        UVX_APP_PWR_FET(1U);
-        return;
-    }
-
-    if((batt_data.adc_pack_v_stable_high != 0U) &&
-       ((uint32_t)batt_data.adc_pack_v + DOCK_CHARGER_VOLTAGE_TOLERANCE_MV >=
-        target_voltage_mv) &&
-       ((uint32_t)batt_data.adc_pack_v <=
-        target_voltage_mv + DOCK_CHARGER_VOLTAGE_TOLERANCE_MV))
-    {
-        dock_charger.voltage_ready = 1U;
-        UVX_APP_PWR_FET(1U);
-        return;
-    }
-
-    dock_charger.voltage_ready = 0U;
-    UVX_APP_PWR_FET(0U);
-    now = HAL_GetTick();
-    if(((uint32_t)batt_data.adc_pack_v +
-        DOCK_CHARGER_VOLTAGE_TOLERANCE_MV < target_voltage_mv) &&
-       ((uint32_t)(now - ramp_tick) >= DOCK_CHARGER_RAMP_INTERVAL_MS) &&
-       (ramp_code < DOCK_CHARGER_WIPER_MAX))
-    {
-        ramp_code++;
-        requested_voltage_mv = DOCK_CHARGER_VOLTAGE_MIN_MV +
-            (((uint32_t)ramp_code *
-              (DOCK_CHARGER_VOLTAGE_MAX_MV - DOCK_CHARGER_VOLTAGE_MIN_MV) +
-              (DOCK_CHARGER_WIPER_MAX / 2U)) /
-             DOCK_CHARGER_WIPER_MAX);
-
-        if(uvx_dock_charger_set_voltage(requested_voltage_mv) ==
-           UVX_DOCK_CHARGER_OK)
-        {
-            ramp_tick = now;
-        }
-    }
-    else if(((uint32_t)batt_data.adc_pack_v >
-             target_voltage_mv + DOCK_CHARGER_VOLTAGE_TOLERANCE_MV) &&
-            ((uint32_t)(now - ramp_tick) >= DOCK_CHARGER_RAMP_INTERVAL_MS) &&
-            (ramp_code > 0U))
-    {
-        ramp_code--;
-        requested_voltage_mv = DOCK_CHARGER_VOLTAGE_MIN_MV +
-            (((uint32_t)ramp_code *
-              (DOCK_CHARGER_VOLTAGE_MAX_MV - DOCK_CHARGER_VOLTAGE_MIN_MV) +
-              (DOCK_CHARGER_WIPER_MAX / 2U)) /
-             DOCK_CHARGER_WIPER_MAX);
-
-        if(uvx_dock_charger_set_voltage(requested_voltage_mv) ==
-           UVX_DOCK_CHARGER_OK)
-        {
-            ramp_tick = now;
-        }
-    }
+		uvx_dock_charger_process();
+	}
 }
 
 void UVX_APP_LED_Strip (void)
@@ -1069,7 +938,7 @@ void         UVX_APP_Batt(void)
 				}
 				else
 				{
-					if(((batt_data.adc_pack_v_stable_high) || (dock_charger.voltage_ready)) &&
+					if(((batt_data.adc_pack_v_stable_high) || (dock_charger_status.voltage_ready)) &&
 					   (drone_status.pwr_fet))
 					{
 						uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_RESET);

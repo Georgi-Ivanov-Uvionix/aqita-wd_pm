@@ -42,9 +42,11 @@
 
 #define BATT_CELLS_MAX                              10
 #define BATT_EXPECTED_CELLS                         9
+#define BATT_PACK_CELLS                             3
 #define BATT_CELL_MIN_DETECT_VOLTAGE_MV             1500
 #define BATT_CELL_MIN_VOLTAGE                       2200 //mv
 #define BATT_CELL_MAX_VOLTAGE                       4200 //mv
+#define BATT_CELL_MAX_CURRENT                       10000 //ma
 #define BATT_CELL_CHARGE_RESUME_VOLTAGE             4100 //mv
 #define BATT_CELL_DETECT_THRESHOLD_MV               1500 //mv
 #define BATT_CELL_VOLTAGE_DIFF                      10  //mv
@@ -167,6 +169,7 @@ typedef struct
     uint8_t  cells_count;
     uint16_t pwr_min_voltage;
     uint16_t pwr_max_voltage;
+    uint16_t pwr_max_current;
 
     uint8_t  SOH;                       // State of Health in percentage (0-100%)       byte 1
     uint16_t batt_voltage;              // Battery Voltage in millivolts                bytes 2-3

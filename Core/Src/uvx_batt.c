@@ -496,7 +496,7 @@ UVX_BATT_STATE uvx_batt_read_pack_v(void)
 				if( (drone_status.pwr_fet == 0) &&
 					(drone_status.pwr_fc == 0) &&
 				    (!batt_data.tc) &&
-					(dock_charger.voltage_ready != 0U) )
+					(dock_charger_status.voltage_ready != 0U) )
 				{					
 					UVX_APP_PWR_FET(1); // power on FC
 					batt_data.adc_pack_v_stable_low = 0;
@@ -540,7 +540,7 @@ UVX_BATT_STATE uvx_batt_read_pack_v(void)
 			{
 				batt_data.adc_pack_v_stable_high = 0;
 				if((drone_status.hall_land_2 == 0U) ||
-				   (dock_charger.voltage_ready == 0U))
+				   (dock_charger_status.voltage_ready == 0U))
 				{
 					UVX_APP_PWR_FET(0); // power off
 				}
@@ -602,8 +602,9 @@ UVX_BATT_STATE uvx_batt_detect_cells(void)
 		batt_data.cells_count = (uint8_t)(bq_data_l.cells_count + bq_data_h.cells_count);
 	}
 	
-	batt_data.pwr_min_voltage = batt_data.cells_count * BATT_CELL_MIN_VOLTAGE;
+	batt_data.pwr_min_voltage = BATT_PACK_CELLS * BATT_CELL_MIN_VOLTAGE;
 	batt_data.pwr_max_voltage = batt_data.cells_count * BATT_CELL_MAX_VOLTAGE + BATT_DELTA_VOLTAGE;
+	batt_data.pwr_max_current = BATT_CELL_MAX_CURRENT;
 
 	if(batt_data.cells_count > 0U)
 	{
