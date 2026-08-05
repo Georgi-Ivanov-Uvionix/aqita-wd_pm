@@ -44,14 +44,16 @@
 #define BATT_EXPECTED_CELLS                         9
 #define BATT_CELL_MIN_DETECT_VOLTAGE_MV             1500
 #define BATT_CELL_MIN_VOLTAGE                       2200 //mv
-#define BATT_CELL_MAX_VOLTAGE                       4200 //mv
-#define BATT_CELL_CHARGE_RESUME_VOLTAGE             4100 //mv
+#define BATT_CELL_MAX_VOLTAGE                       4100 //mv
+#define BATT_CELL_CHARGE_RESUME_VOLTAGE             4000 //mv
 #define BATT_CELL_DETECT_THRESHOLD_MV               1500 //mv
 #define BATT_CELL_VOLTAGE_DIFF                      10  //mv
 #define BATT_DELTA_VOLTAGE                          500  //mv
 #define BATT_LEARN_START_DELTA_MV                   200U
 #define BATT_LEARN_STOP_DELTA_MV                    100U
 #define BATT_LEARN_INTERVAL_MS                      (10U * 60U * 1000U)
+#define BATT_LEARN_I2C_TIMEOUT_MS                   100U
+#define BATT_LEARN_RESET_RECOVERY_MS                1000U
 #define BATT_ADC_PACK_V_LOW_MIN_MS                  5000U
 
 #define BATT_SUPPLY_STATUS_PWR_FET_BIT                 0
