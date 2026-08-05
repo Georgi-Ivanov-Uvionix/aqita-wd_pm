@@ -7,6 +7,31 @@ extern uint32_t g_Drone_Started;
 
 UVX_BATT_STATE_MACHINE batt_state;
 
+static UVX_BATT_STATE uvx_batt_wait_learn_tx_ready(UVX_COMM_BQ* p_comm_bq)
+{
+	uint32_t start_tick = HAL_GetTick();
+
+	if((p_comm_bq == NULL) || (p_comm_bq->p_hal_i2c == NULL))
+	{
+		return UVX_BATT_ERROR;
+	}
+
+	do
+	{
+		if((p_comm_bq->p_hal_i2c->TX_Ready != 0U) &&
+		   (uvx_i2c_check_state(p_comm_bq->p_hal_i2c) == UVX_I2C_TX_READY))
+		{
+			p_comm_bq->TX_Ready = true;
+			return UVX_BATT_OK;
+		}
+
+		HAL_Delay(1);
+	}
+	while((uint32_t)(HAL_GetTick() - start_tick) < BATT_LEARN_I2C_TIMEOUT_MS);
+
+	return UVX_BATT_ERROR;
+}
+
 static UVX_BATT_STATE uvx_batt_send_learn_commands(UVX_COMM_BQ* p_comm_bq)
 {
 	static const UVX_BQ_MA_REGISTERS learn_commands[] =
@@ -20,12 +45,21 @@ static UVX_BATT_STATE uvx_batt_send_learn_commands(UVX_COMM_BQ* p_comm_bq)
 
 	for(i = 0U; i < (sizeof(learn_commands) / sizeof(learn_commands[0])); i++)
 	{
+		if(uvx_batt_wait_learn_tx_ready(p_comm_bq) != UVX_BATT_OK)
+		{
+			return UVX_BATT_ERROR;
+		}
+
 		if(uvx_comm_bq_write_mba_register(p_comm_bq, learn_commands[i], NULL, 0U) != UVX_BQ_OK)
 		{
 			return UVX_BATT_ERROR;
 		}
 
-		p_comm_bq->TX_Ready = true; // Set TX_Ready to true to indicate that the command has been sent
+		/* The write is interrupt-driven; wait until it has actually completed. */
+		if(uvx_batt_wait_learn_tx_ready(p_comm_bq) != UVX_BATT_OK)
+		{
+			return UVX_BATT_ERROR;
+		}
 
 		if(learn_commands[i] == BQ_MA_DEVICE_RESET)
 		{
@@ -42,14 +76,10 @@ static UVX_BATT_STATE uvx_batt_send_learn_commands(UVX_COMM_BQ* p_comm_bq)
 
 UVX_BATT_STATE uvx_batt_learn(void)
 {
-	comm_bq_l.TX_Ready = true; // Set TX_Ready to true to indicate that the command has been sent
-	
 	if(uvx_batt_send_learn_commands(&comm_bq_l) != UVX_BATT_OK)
 	{
 		return UVX_BATT_ERROR;
 	}
-
-	comm_bq_h.TX_Ready = true; // Set TX_Ready to true to indicate that the command has been sent
 
 	if(uvx_batt_send_learn_commands(&comm_bq_h) != UVX_BATT_OK)
 	{

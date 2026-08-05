@@ -49,6 +49,9 @@
 #define BATT_CELL_DETECT_THRESHOLD_MV               1500 //mv
 #define BATT_CELL_VOLTAGE_DIFF                      10  //mv
 #define BATT_DELTA_VOLTAGE                          500  //mv
+#define BATT_LEARN_START_DELTA_MV                   200U
+#define BATT_LEARN_STOP_DELTA_MV                    100U
+#define BATT_LEARN_INTERVAL_MS                      (10U * 60U * 1000U)
 #define BATT_ADC_PACK_V_LOW_MIN_MS                  5000U
 
 #define BATT_SUPPLY_STATUS_PWR_FET_BIT                 0
@@ -76,12 +79,12 @@
 #define SRAM1 __attribute__((section(".sram1")))
 #define SRAM2 __attribute__((section(".sram2")))
 
-#define CELL_1_INTERCONNECT_RESISTANCE 13 //mOhm
+#define CELL_1_INTERCONNECT_RESISTANCE 5 //mOhm cell 1 3760 	- 3750V
 #define CELL_2_INTERCONNECT_RESISTANCE 0 //mOhm
 #define CELL_3_INTERCONNECT_RESISTANCE 0 //mOhm
 #define CELL_4_INTERCONNECT_RESISTANCE 0 //mOhm
-#define CELL_5_INTERCONNECT_RESISTANCE 5 //mOhm
-#define CELL_6_INTERCONNECT_RESISTANCE 13 //mOhm
+#define CELL_5_INTERCONNECT_RESISTANCE 7 //mOhm cell 5 4024 	- 3990V
+#define CELL_6_INTERCONNECT_RESISTANCE 8 //mOhm cell 6 4004 	- 3940V
 #define CELL_7_INTERCONNECT_RESISTANCE 0 //mOhm
 #define CELL_8_INTERCONNECT_RESISTANCE 0 //mOhm
 #define CELL_9_INTERCONNECT_RESISTANCE 0 //mOhm

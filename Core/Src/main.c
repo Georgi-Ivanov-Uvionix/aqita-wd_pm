@@ -935,19 +935,65 @@ void         UVX_APP_Batt(void)
 		break;				
 		
 		case BATT_MODE_READ_CHECK_PACK_V:
+		{
+			static bool batt_learn_active = false;
+			static uint32_t batt_learn_last_tick = 0U;
+			static bool batt_learn_has_run = false;
+			static bool batt_learn_reset_pending = false;
+			static uint32_t batt_learn_reset_tick = 0U;
+			uint32_t now = HAL_GetTick();
+
 			batt_data.init = true;
-			batt_state.state_current = BATT_MODE_READ_BQ_L;
 			if((led_strip_state.state_current < LED_STRIP_MODE_BATTERY_LEVEL))
 			{
 				led_strip_state.state_next = LED_STRIP_MODE_BATTERY_LEVEL;				
 			}
 
-			if(enable) //manual learn new battery
+			/* Do not access either gauge while it is recovering from DEVICE_RESET. */
+			if(batt_learn_reset_pending)
 			{
-				uvx_batt_learn();	
-			}			
+				if((uint32_t)(now - batt_learn_reset_tick) < BATT_LEARN_RESET_RECOVERY_MS)
+				{
+					break;
+				}
+
+				batt_learn_reset_pending = false;
+				batt_reg_cnt = 0U;
+			}
+
+			/*
+			 * Start learning when the cell-voltage delta exceeds 200 mV and
+			 * keep it active until the delta drops below 100 mV.  While active,
+			 * execute the learning sequence no more than once every 10 minutes.
+			 */
+			if(batt_data.voltage_delta_cell > BATT_LEARN_START_DELTA_MV)
+			{
+				batt_learn_active = true;
+			}
+			else if(batt_data.voltage_delta_cell < BATT_LEARN_STOP_DELTA_MV)
+			{
+				batt_learn_active = false;
+				batt_learn_has_run = false;
+			}
+
+			if(batt_learn_active &&
+			   (!batt_learn_has_run ||
+			    ((uint32_t)(now - batt_learn_last_tick) >= BATT_LEARN_INTERVAL_MS)))
+			{
+				batt_learn_last_tick = now;
+				batt_learn_has_run = true;
+				(void)uvx_batt_learn();
+				batt_learn_reset_tick = HAL_GetTick();
+				batt_learn_reset_pending = true;
+			}
+
+			if(!batt_learn_reset_pending)
+			{
+				batt_state.state_current = BATT_MODE_READ_BQ_L;
+			}
 
 			HAL_Delay(1);
+		}
 		break;
 
 		case BATT_MODE_WAIT_RESPONSE:
