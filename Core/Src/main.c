@@ -803,7 +803,10 @@ void         UVX_APP_Batt(void)
 		break;		
 
 		case BATT_MODE_READ_BQ_L:
-			if(uvx_comm_bq_read_list(&comm_bq_l, batt_reg_cnt) == UVX_BQ_REG_END)
+		{
+			UVX_COMM_BQ_STATE read_state = uvx_comm_bq_read_list(&comm_bq_l, batt_reg_cnt);
+
+			if(read_state == UVX_BQ_REG_END)
 			{
 				batt_reg_cnt = 0;
 				batt_state.state_current = BATT_MODE_READ_BQ_H;
@@ -815,29 +818,44 @@ void         UVX_APP_Batt(void)
 				}
 				uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_SET);
 			}
-			else
+			else if(read_state == UVX_BQ_OK)
 			{
 				batt_state.state_current = BATT_MODE_WAIT_RESPONSE;
 				batt_state.state_next = BATT_MODE_READ_BQ_L;
 				batt_state.state_previous = BATT_MODE_WAIT_RESPONSE;
 				HAL_Delay(1);
 			}
+			else
+			{
+				/* The read did not start; remain in this state and retry. */
+				HAL_Delay(1);
+			}
+		}
 		break;
 
 		case BATT_MODE_READ_BQ_H:
-			if(uvx_comm_bq_read_list(&comm_bq_h, batt_reg_cnt) == UVX_BQ_REG_END)
+		{
+			UVX_COMM_BQ_STATE read_state = uvx_comm_bq_read_list(&comm_bq_h, batt_reg_cnt);
+
+			if(read_state == UVX_BQ_REG_END)
 			{
 				batt_reg_cnt = 0;
 				batt_state.state_current = BATT_MODE_CHECK_STATUS;
 				uvx_batt_parse_data();
 			}
-			else
+			else if(read_state == UVX_BQ_OK)
 			{
 				batt_state.state_current = BATT_MODE_WAIT_RESPONSE;
 				batt_state.state_next = BATT_MODE_READ_BQ_H;
 				batt_state.state_previous = BATT_MODE_WAIT_RESPONSE;
 				HAL_Delay(1);
 			}
+			else
+			{
+				/* The read did not start; remain in this state and retry. */
+				HAL_Delay(1);
+			}
+		}
 		break;	
 
 		case BATT_MODE_CHECK_STATUS:

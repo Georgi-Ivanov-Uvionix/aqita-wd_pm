@@ -45,10 +45,10 @@
 #define BATT_CELL_MIN_DETECT_VOLTAGE_MV             1500
 #define BATT_CELL_MIN_VOLTAGE                       2200 //mv
 #define BATT_CELL_MAX_VOLTAGE                       4100 //mv
-#define BATT_CELL_CHARGE_RESUME_VOLTAGE             4000 //mv
+#define BATT_CELL_CHARGE_RESUME_VOLTAGE             4050 //mv
 #define BATT_CELL_DETECT_THRESHOLD_MV               1500 //mv
 #define BATT_CELL_VOLTAGE_DIFF                      10  //mv
-#define BATT_DELTA_VOLTAGE                          500  //mv
+#define BATT_DELTA_VOLTAGE                          1000 //mv
 #define BATT_LEARN_START_DELTA_MV                   200U
 #define BATT_LEARN_STOP_DELTA_MV                    100U
 #define BATT_LEARN_INTERVAL_MS                      (10U * 60U * 1000U)

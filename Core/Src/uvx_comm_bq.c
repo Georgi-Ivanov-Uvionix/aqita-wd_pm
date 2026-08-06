@@ -129,7 +129,9 @@ UVX_COMM_BQ_STATE uvx_comm_bq_change_list(UVX_COMM_BQ* p_comm_bq, UVX_BQ_REGISTE
 }
 
 UVX_COMM_BQ_STATE uvx_comm_bq_read_list(UVX_COMM_BQ* p_comm_bq, uint16_t reg_index) 
-{    
+{
+	UVX_I2C_STATE i2c_state;
+
 	if(p_comm_bq->RX_Ready == 1)
 	{					
 		if(p_comm_bq->p_register_list[reg_index].reg_addr == END_REGISTER)
@@ -142,15 +144,29 @@ UVX_COMM_BQ_STATE uvx_comm_bq_read_list(UVX_COMM_BQ* p_comm_bq, uint16_t reg_ind
 			p_comm_bq->RX_Ready = 1; // Reset TX ready flag	
 		}		
 		
-		p_comm_bq->RX_Ready = 0; // Reset TX ready flag	
-
-		if(uvx_i2c_read_mem(p_comm_bq->p_hal_i2c, p_comm_bq->addr_i2c,
+		i2c_state = uvx_i2c_read_mem(p_comm_bq->p_hal_i2c, p_comm_bq->addr_i2c,
 			p_comm_bq->p_register_list[reg_index].reg_addr, 1,
 			p_comm_bq->p_register_list[reg_index].p_data,
-			p_comm_bq->p_register_list[reg_index].size_data) != UVX_I2C_OK)
+			p_comm_bq->p_register_list[reg_index].size_data);
+
+		if(i2c_state == UVX_I2C_OK)
 		{
+			/* The completion path sets this flag again after the response. */
+			p_comm_bq->RX_Ready = 0;
+		}
+		else if(i2c_state == UVX_I2C_BUSY)
+		{
+			/* No read was started, so keep this BQ object available for retry. */
+			p_comm_bq->RX_Ready = 1;
+			return UVX_BQ_ERROR_BUSY;
+		}
+		else
+		{
+			/* No completion interrupt will arrive when starting the read failed. */
+			p_comm_bq->RX_Ready = 1;
+			p_comm_bq->p_hal_i2c->RX_Ready = 1;
 			return UVX_BQ_ERROR;
-		}			
+		}
 		
 	}
 	else
