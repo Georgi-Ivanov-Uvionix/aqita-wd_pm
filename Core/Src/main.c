@@ -1015,7 +1015,35 @@ void         UVX_APP_Batt(void)
 		break;
 
 		case BATT_MODE_WAIT_RESPONSE:
-			if((i2c_bq.hal_i2c.RX_Ready) || (batt_data.cnt_no_response > BQ_MAX_NO_RESPONSE))
+		{
+			bool i2c_bus_ready;
+			bool wait_complete;
+
+			/*
+			 * A read must wait for RX_Ready.  Balance, FET and other write
+			 * commands only wait for the shared I2C peripheral to become idle;
+			 * their completion does not reliably update RX_Ready.
+			 */
+			i2c_bus_ready =
+				(HAL_I2C_GetState(&i2c_bq.hal_i2c.hi2c) == HAL_I2C_STATE_READY) &&
+				((i2c_bq.hal_i2c.hi2c.Instance->ISR & I2C_ISR_BUSY) == 0U);
+
+			switch(batt_state.state_next)
+			{
+				case BATT_MODE_READ_ONCE_BQ_L:
+				case BATT_MODE_READ_ONCE_BQ_H:
+				case BATT_MODE_READ_BQ_L:
+				case BATT_MODE_READ_BQ_H:
+					wait_complete = i2c_bus_ready && i2c_bq.hal_i2c.RX_Ready;
+				break;
+
+				default:
+					wait_complete = i2c_bus_ready;
+				break;
+			}
+
+			if(wait_complete ||
+			   (batt_data.cnt_no_response > BQ_MAX_NO_RESPONSE))
 			{
 				switch(batt_state.state_next)
 				{
@@ -1088,10 +1116,12 @@ void         UVX_APP_Batt(void)
 			}
 			else
 			{
-				batt_state.state_current = batt_state.state_previous;
+				/* The asynchronous transaction is still active; keep waiting. */
+				batt_state.state_current = BATT_MODE_WAIT_RESPONSE;
 				batt_data.cnt_no_response++;
 				bq_data_l.No_response = false;
 			}	
+		}
 		break;
 
 		case BATT_MODE_STOP:
