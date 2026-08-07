@@ -44,7 +44,7 @@
 #define BATT_EXPECTED_CELLS                         9
 #define BATT_CELL_MIN_DETECT_VOLTAGE_MV             1500
 #define BATT_CELL_MIN_VOLTAGE                       2200 //mv
-#define BATT_CELL_MAX_VOLTAGE                       4100 //mv
+#define BATT_CELL_MAX_VOLTAGE                       4200 //mv
 #define BATT_CELL_CHARGE_RESUME_VOLTAGE             4050 //mv
 #define BATT_CELL_DETECT_THRESHOLD_MV               1500 //mv
 #define BATT_CELL_VOLTAGE_DIFF                      10  //mv

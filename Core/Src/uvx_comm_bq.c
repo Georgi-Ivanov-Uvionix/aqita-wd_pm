@@ -131,6 +131,29 @@ UVX_COMM_BQ_STATE uvx_comm_bq_change_list(UVX_COMM_BQ* p_comm_bq, UVX_BQ_REGISTE
 UVX_COMM_BQ_STATE uvx_comm_bq_read_list(UVX_COMM_BQ* p_comm_bq, uint16_t reg_index) 
 {
 	UVX_I2C_STATE i2c_state;
+	bool i2c_bus_idle;
+
+	if((p_comm_bq == NULL) || (p_comm_bq->p_hal_i2c == NULL) ||
+	   (p_comm_bq->p_hal_i2c->hi2c.Instance == NULL) ||
+	   (p_comm_bq->p_register_list == NULL))
+	{
+		return UVX_BQ_ERROR;
+	}
+
+	i2c_bus_idle =
+		(HAL_I2C_GetState(&p_comm_bq->p_hal_i2c->hi2c) == HAL_I2C_STATE_READY) &&
+		((p_comm_bq->p_hal_i2c->hi2c.Instance->ISR & I2C_ISR_BUSY) == 0U);
+
+	/*
+	 * An asynchronous I2C error has no normal receive-complete callback.
+	 * Recover stale software-ready flags only after HAL confirms that no
+	 * transfer is active; never force them while the peripheral is busy.
+	 */
+	if(i2c_bus_idle)
+	{
+		p_comm_bq->RX_Ready = 1;
+		p_comm_bq->p_hal_i2c->RX_Ready = 1;
+	}
 
 	if(p_comm_bq->RX_Ready == 1)
 	{					
