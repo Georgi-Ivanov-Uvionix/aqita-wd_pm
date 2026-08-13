@@ -41,9 +41,11 @@
 #define BATT_CELL_TYPE_LGINR18650MJ1				1
 
 #define BATT_CELLS_MAX                              10
+#define BATT_EXPECTED_CELLS                         9
 #define BATT_CELL_MIN_DETECT_VOLTAGE_MV             1500
 #define BATT_CELL_MIN_VOLTAGE                       2200 //mv
 #define BATT_CELL_MAX_VOLTAGE                       4200 //mv
+#define BATT_CELL_CHARGE_RESUME_VOLTAGE             4100 //mv
 #define BATT_CELL_DETECT_THRESHOLD_MV               1500 //mv
 #define BATT_CELL_VOLTAGE_DIFF                      10  //mv
 #define BATT_DELTA_VOLTAGE                          500  //mv
@@ -60,14 +62,31 @@
 
 #define BATT_ERROR_BQ_L_NO_RESPONSE_BIT                0
 #define BATT_ERROR_BQ_H_NO_RESPONSE_BIT                1
+#define BATT_ERROR_BATT_MAX_TEMP_BIT                   2
+#define BATT_ERROR_CHARGE_OVERVOLTAGE_BIT              3
+#define BATT_ERROR_CHARGE_CELL_COUNT_ERROR_BIT         4
 
 #define MAX_CELL_TEMPERATURE                        650
+#define MAX_HIS_CELL_TEMPERATURE                    600 //max histeresis cell temperature for power on after high temp cutoff
+#define MIN_HIS_CELL_TEMPERATURE                    500 //min histeresis cell temperature for power on after high temp cutoff
 #define SOC_START_LOW_POWER                         95
 
 #define KELVIN_TO_DEG_C                             2732
 
 #define SRAM1 __attribute__((section(".sram1")))
 #define SRAM2 __attribute__((section(".sram2")))
+
+#define CELL_1_INTERCONNECT_RESISTANCE 15 //mOhm
+#define CELL_2_INTERCONNECT_RESISTANCE 0 //mOhm
+#define CELL_3_INTERCONNECT_RESISTANCE 0 //mOhm
+#define CELL_4_INTERCONNECT_RESISTANCE 0 //mOhm
+#define CELL_5_INTERCONNECT_RESISTANCE 1 //mOhm
+#define CELL_6_INTERCONNECT_RESISTANCE 12 //mOhm
+#define CELL_7_INTERCONNECT_RESISTANCE 0 //mOhm
+#define CELL_8_INTERCONNECT_RESISTANCE 0 //mOhm
+#define CELL_9_INTERCONNECT_RESISTANCE 0 //mOhm
+#define CELL_10_INTERCONNECT_RESISTANCE 0 //mOhm
+
 
 typedef packed_struct
 {
@@ -264,6 +283,7 @@ typedef struct
     uint32_t tc       : 1; 
     uint32_t cell_ball_h : 1;
     uint32_t cell_ball_l : 1;
+    uint32_t batt_max_temp : 1;
    
     uint16_t specification_info;       // Specification Information
     uint16_t manufacturer_date;        // Manufacturer Date

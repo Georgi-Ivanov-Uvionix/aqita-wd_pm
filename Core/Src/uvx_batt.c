@@ -61,6 +61,17 @@ UVX_BATT_STATE uvx_batt_learn(void)
 
 UVX_BATT_STATE uvx_batt_parse_data(void)
 {
+	batt_data.cell_voltage_1  = bq_data_l.cell_voltage_1 - (bq_data_l.current * CELL_1_INTERCONNECT_RESISTANCE)/1000;
+	batt_data.cell_voltage_2  = bq_data_l.cell_voltage_2 - (bq_data_l.current * CELL_2_INTERCONNECT_RESISTANCE)/1000;
+	batt_data.cell_voltage_3  = bq_data_l.cell_voltage_3 - (bq_data_l.current * CELL_3_INTERCONNECT_RESISTANCE)/1000;
+	batt_data.cell_voltage_4  = bq_data_l.cell_voltage_4 - (bq_data_l.current * CELL_4_INTERCONNECT_RESISTANCE)/1000;
+	batt_data.cell_voltage_5  = bq_data_l.cell_voltage_5 - (bq_data_l.current * CELL_5_INTERCONNECT_RESISTANCE)/1000;
+	batt_data.cell_voltage_6  = bq_data_h.cell_voltage_1 - (bq_data_h.current * CELL_6_INTERCONNECT_RESISTANCE)/1000;
+	batt_data.cell_voltage_7  = bq_data_h.cell_voltage_2 - (bq_data_h.current * CELL_7_INTERCONNECT_RESISTANCE)/1000;
+	batt_data.cell_voltage_8  = bq_data_h.cell_voltage_3 - (bq_data_h.current * CELL_8_INTERCONNECT_RESISTANCE)/1000;
+	batt_data.cell_voltage_9  = bq_data_h.cell_voltage_4 - (bq_data_h.current * CELL_9_INTERCONNECT_RESISTANCE)/1000;
+    batt_data.cell_voltage_10 = bq_data_h.cell_voltage_5 - (bq_data_h.current * CELL_10_INTERCONNECT_RESISTANCE)/1000;
+
 	//convert to little endian 
 	batt_data.payload.cell_voltage_1  = uvx_comm_bq_swap_u16_value(bq_data_l.cell_voltage_1);
 	batt_data.payload.cell_voltage_2  = uvx_comm_bq_swap_u16_value(bq_data_l.cell_voltage_2);
@@ -72,17 +83,6 @@ UVX_BATT_STATE uvx_batt_parse_data(void)
 	batt_data.payload.cell_voltage_8  = uvx_comm_bq_swap_u16_value(bq_data_h.cell_voltage_3);
 	batt_data.payload.cell_voltage_9  = uvx_comm_bq_swap_u16_value(bq_data_h.cell_voltage_4);
     batt_data.payload.cell_voltage_10 = uvx_comm_bq_swap_u16_value(bq_data_h.cell_voltage_5);
-
-	batt_data.cell_voltage_1  = bq_data_l.cell_voltage_1;
-	batt_data.cell_voltage_2  = bq_data_l.cell_voltage_2;
-	batt_data.cell_voltage_3  = bq_data_l.cell_voltage_3;
-	batt_data.cell_voltage_4  = bq_data_l.cell_voltage_4;
-	batt_data.cell_voltage_5  = bq_data_l.cell_voltage_5;
-	batt_data.cell_voltage_6  = bq_data_h.cell_voltage_1;
-	batt_data.cell_voltage_7  = bq_data_h.cell_voltage_2;
-	batt_data.cell_voltage_8  = bq_data_h.cell_voltage_3;
-	batt_data.cell_voltage_9  = bq_data_h.cell_voltage_4;
-    batt_data.cell_voltage_10 = bq_data_h.cell_voltage_5;	
 
 	batt_data.cell_current_1  = bq_data_l.cell_current_1;
 	batt_data.cell_current_2  = bq_data_l.cell_current_2;
@@ -207,19 +207,11 @@ UVX_BATT_STATE uvx_batt_parse_data(void)
 	batt_data.CHG_fet_en = bq_data_h.manufacturing_status.reg.bits.FET_EN;
 	batt_data.CHG_fet_stat = bq_data_h.operation_status.reg.bits.CHG;
 
-	batt_data.payload.supply_status = 	drone_status.pwr_fet 								<< BATT_SUPPLY_STATUS_PWR_FET_BIT |
-										batt_data.CHG_fet_stat 								<< BATT_SUPPLY_STATUS_CHG_FET_BIT |
-										batt_data.tc 										<< BATT_SUPPLY_STATUS_TC_BIT |
-										((batt_data.cell_ball_l || batt_data.cell_ball_h) 	<< BATT_SUPPLY_STATUS_BALANCE_BIT) |
-										((comm_bq_l.Force_balance) 							<< BATT_SUPPLY_STATUS_FORCE_BALANCE_L_BIT) |
-										((comm_bq_h.Force_balance) 							<< BATT_SUPPLY_STATUS_FORCE_BALANCE_H_BIT) |
-										((batt_data.adc_pack_v_stable_low)  				<< BATT_SUPPLY_STATUS_STABLE_L_BIT) |
-										((batt_data.adc_pack_v_stable_high) 				<< BATT_SUPPLY_STATUS_STABLE_H_BIT);
-
-	batt_data.supply_status = batt_data.payload.supply_status;
-
 	batt_data.payload.error = 	bq_data_l.No_response << BATT_ERROR_BQ_L_NO_RESPONSE_BIT |
-							 	bq_data_h.No_response << BATT_ERROR_BQ_H_NO_RESPONSE_BIT;
+							 	bq_data_h.No_response << BATT_ERROR_BQ_H_NO_RESPONSE_BIT |
+								batt_data.batt_max_temp << BATT_ERROR_BATT_MAX_TEMP_BIT |
+								drone_status.charge_overvoltage << BATT_ERROR_CHARGE_OVERVOLTAGE_BIT |
+								drone_status.charge_cell_count_error << BATT_ERROR_CHARGE_CELL_COUNT_ERROR_BIT;
 
 	batt_data.error = batt_data.payload.error;
 
@@ -373,14 +365,58 @@ UVX_BATT_STATE uvx_batt_parse_data(void)
 
 	batt_data.payload.avg_time_to_full_m = uvx_comm_bq_swap_u16_value(batt_data.avg_time_to_full_m);
 
-	if((bq_data_h.gauging_status.reg.bits.TC || bq_data_l.gauging_status.reg.bits.TC)  && (batt_data.voltage_max_cell > BATT_CELL_MAX_VOLTAGE))
+	if(batt_data.voltage_max_cell > BATT_CELL_MAX_VOLTAGE)
 	{
-		//UVX_APP_PWR_FET(0); // power off FC
+		drone_status.charge_overvoltage = 1U;
+	}
+	else if(batt_data.voltage_max_cell < BATT_CELL_CHARGE_RESUME_VOLTAGE)
+	{
+		drone_status.charge_overvoltage = 0U;
+	}
+
+	if(batt_data.cells_count != BATT_EXPECTED_CELLS)
+	{
+		drone_status.charge_cell_count_error = 1U;
+	}
+	else
+	{
+		drone_status.charge_cell_count_error = 0U;
+	}
+
+	if( (drone_status.charge_overvoltage) || 
+		(drone_status.charge_cell_count_error) ||
+		(batt_data.batt_max_temp) ||
+		(drone_status.pwr_fc))
+	{
 		batt_data.tc = 1;
 	}
 	else
 	{
 		batt_data.tc = 0;
+	}
+
+	batt_data.payload.supply_status = 	drone_status.pwr_fet 								<< BATT_SUPPLY_STATUS_PWR_FET_BIT |
+										batt_data.CHG_fet_stat 								<< BATT_SUPPLY_STATUS_CHG_FET_BIT |
+										batt_data.tc 										<< BATT_SUPPLY_STATUS_TC_BIT |
+										((batt_data.cell_ball_l || batt_data.cell_ball_h) 	<< BATT_SUPPLY_STATUS_BALANCE_BIT) |
+										((comm_bq_l.Force_balance) 							<< BATT_SUPPLY_STATUS_FORCE_BALANCE_L_BIT) |
+										((comm_bq_h.Force_balance) 							<< BATT_SUPPLY_STATUS_FORCE_BALANCE_H_BIT) |
+										((batt_data.adc_pack_v_stable_low)  				<< BATT_SUPPLY_STATUS_STABLE_L_BIT) |
+										((batt_data.adc_pack_v_stable_high) 				<< BATT_SUPPLY_STATUS_STABLE_H_BIT);
+
+	batt_data.supply_status = batt_data.payload.supply_status;
+
+	if((batt_data.temperature_cell_h > MAX_HIS_CELL_TEMPERATURE) || (batt_data.temperature_cell_l > MAX_HIS_CELL_TEMPERATURE))
+	{
+		//UVX_APP_PWR_FET(0); // power off FC
+		batt_data.batt_max_temp = 1;
+	}
+	else
+	{
+		if((batt_data.temperature_cell_h < MIN_HIS_CELL_TEMPERATURE) && (batt_data.temperature_cell_l < MIN_HIS_CELL_TEMPERATURE))
+		{
+			batt_data.batt_max_temp = 0;
+		}
 	}
 
 	batt_data.cell_ball_h = bq_data_h.operation_status.reg.bits.CB;
@@ -444,7 +480,7 @@ UVX_BATT_STATE uvx_batt_read_pack_v(void)
 	if(&hadc1 != NULL)
 	{
 		HAL_ADC_Start(&hadc1);
-		HAL_ADC_PollForConversion(&hadc1, HAL_MAX_DELAY);
+		HAL_ADC_PollForConversion(&hadc1, 10);
 		HAL_ADC_Stop(&hadc1);
 
 		batt_data.adc_pack_v = HAL_ADC_GetValue(&hadc1) * PACK_V_GAIN;
@@ -456,9 +492,9 @@ UVX_BATT_STATE uvx_batt_read_pack_v(void)
 			{
 				batt_data.adc_pack_v_stable_high = 1;
 
-				if((drone_status.pwr_fet == 0) &&
-				   (!batt_data.tc))// &&
-				   //(batt_data.adc_pack_v_stable_low))
+				if( (drone_status.pwr_fet == 0) &&
+					(drone_status.pwr_fc == 0) &&
+				    (!batt_data.tc))				   
 				{					
 					UVX_APP_PWR_FET(1); // power on FC
 					batt_data.adc_pack_v_stable_low = 0;
@@ -472,6 +508,16 @@ UVX_BATT_STATE uvx_batt_read_pack_v(void)
 						batt_state.state_current = BATT_MODE_READ_BQ_L;
 					}
 				}				
+				else if(drone_status.pwr_fc == 1)
+				{
+					UVX_APP_PWR_FET(0); // power off FC
+					uvx_gpio_set_pin(GPIO_OUT_LED_STRIP_ENABLE, GPIO_PIN_RESET);
+				}
+			}
+			else
+			{
+				timer_app_comm_jmb.Timeout = comm_m2jmb.timeout_heartbeat; // Reset heartbeat timeout
+				timer_app_comm_jmb.Enable = true;			
 			}
 			
 			batt_data.adc_pack_v_stable_low = 0;
@@ -479,7 +525,7 @@ UVX_BATT_STATE uvx_batt_read_pack_v(void)
 			timer_app_batt_pwr_low.Enable = true;
 		}
 		else
-		{
+		{				
 			if(timer_app_batt_pwr_low.Timeout == 0)
 			{
 				batt_data.adc_pack_v_stable_low = 1;
@@ -541,7 +587,15 @@ UVX_BATT_STATE uvx_batt_detect_cells(void)
 		}
 	}
 
-	batt_data.cells_count = (uint8_t)(bq_data_l.cells_count + bq_data_h.cells_count);
+	if(unit_test.cell_count)
+	{
+		batt_data.cells_count = BATT_EXPECTED_CELLS - 1;
+	}
+	else
+	{
+		batt_data.cells_count = (uint8_t)(bq_data_l.cells_count + bq_data_h.cells_count);
+	}
+	
 	batt_data.pwr_min_voltage = batt_data.cells_count * BATT_CELL_MIN_VOLTAGE;
 	batt_data.pwr_max_voltage = batt_data.cells_count * BATT_CELL_MAX_VOLTAGE + BATT_DELTA_VOLTAGE;
 

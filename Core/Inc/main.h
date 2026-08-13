@@ -70,7 +70,7 @@ void Error_Handler(void);
 
 //=================== APP SETUP======================================================
 #define PROJECT_AQITA_PM
-#define APP_TIMEOUT_JMB_HEARTBEAT		    10000 //ms
+#define APP_TIMEOUT_JMB_HEARTBEAT		    600000 //ms
 #define APP_TIMEOUT_JMB_POWER_ON		    120000 //ms
 #define APP_TIMEOUT_JMB_POWER_OFF		    6000 //ms
 #define APP_TIMEOUT_JMB_CHECK		        1000 //ms
@@ -96,7 +96,7 @@ void Error_Handler(void);
 #define ADC_MAX        4095.0f
 #define VDDA           3.3f
 #define RESISTOR_R124  45.3f
-#define RESISTOR_R8    2.94f
+#define RESISTOR_R8    2.80f
 #define DIV_RATIO      (RESISTOR_R8 / (RESISTOR_R124 + RESISTOR_R8))
 #define PACK_V_GAIN    ((VDDA / (ADC_MAX * DIV_RATIO)) * 1000)
 
@@ -249,6 +249,11 @@ typedef struct
 
 typedef struct
 {
+  uint8_t cell_count   : 1;
+} UVX_UNIT_TEST;
+
+typedef struct
+{
   uint8_t btn_cnt;
   uint8_t btn_state   : 1;
   uint8_t pwr_fet     : 1;
@@ -261,6 +266,9 @@ typedef struct
   uint8_t esc_land_complete : 1;
   uint8_t esc_flying  : 1;
   uint8_t esc_psys_arm : 1;
+  uint8_t esc_psys_arm_old : 1;
+  uint8_t charge_overvoltage : 1;
+  uint8_t charge_cell_count_error : 1;
 
   DRONE_CHARGE_STATE charge_state;
 } UVX_DRONE_STATUS;
@@ -269,9 +277,12 @@ extern UVX_DRONE_STATE_MACHINE drone_state;
 extern UVX_TIMER timer_app_batt_pwr_high;
 extern UVX_TIMER timer_app_batt_pwr_low;
 extern UVX_TIMER timer_app_batt_low_voltage;
+extern UVX_TIMER timer_app_comm_jmb;
 extern UART_HandleTypeDef huart1;
 extern ADC_HandleTypeDef hadc1;
 extern UVX_DRONE_STATUS drone_status;
+extern UVX_UNIT_TEST unit_test;
+extern uint8_t enable;
 
 void UVX_APP_PWR_FET(uint8_t state);
 void UVX_APP_Shutdown_JMB(void);
