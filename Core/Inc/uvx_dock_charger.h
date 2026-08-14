@@ -54,6 +54,12 @@ typedef struct
     UVX_DOCK_CHARGER_STATE state_next;
 } UVX_DOCK_CHARGER_STATE_MACHINE;
 
+typedef enum
+{
+    UVX_DOCK_CHARGER_REGULATION_MATCH_VOLTAGE = 0,
+    UVX_DOCK_CHARGER_REGULATION_CONTROL_CURRENT
+} UVX_DOCK_CHARGER_REGULATION_STATE;
+
 /**
  * @brief Dock charger runtime status, calibration and pending I2C values.
  */
@@ -71,10 +77,11 @@ typedef struct
     uint8_t voltage_readback_code;
     uint32_t voltage_ramp_tick;
     uint32_t current_ramp_tick;
+    UVX_DOCK_CHARGER_REGULATION_STATE regulation_state;
 
     uint8_t initialized : 1;
     uint8_t owns_i2c_lock : 1;
-    uint8_t voltage_ready : 1; /* ADC verified at battery voltage + test offset */
+    uint8_t voltage_ready : 1; /* ADC verified at battery voltage within tolerance */
     uint8_t current_ready : 1;
 } UVX_DOCK_CHARGER_STATUS;
 
