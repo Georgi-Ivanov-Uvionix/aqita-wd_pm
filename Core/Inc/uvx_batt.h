@@ -60,8 +60,8 @@
 #define BATT_SUPPLY_STATUS_STABLE_L_BIT                6
 #define BATT_SUPPLY_STATUS_STABLE_H_BIT                7
 
-#define BATT_ERROR_BQ_L_NO_RESPONSE_BIT                0
-#define BATT_ERROR_BQ_H_NO_RESPONSE_BIT                1
+#define BATT_ERROR_BQ_1_NO_RESPONSE_BIT                0
+#define BATT_ERROR_BQ_2_NO_RESPONSE_BIT                1
 #define BATT_ERROR_BATT_MAX_TEMP_BIT                   2
 #define BATT_ERROR_CHARGE_OVERVOLTAGE_BIT              3
 #define BATT_ERROR_CHARGE_CELL_COUNT_ERROR_BIT         4
@@ -147,16 +147,16 @@ typedef packed_struct
     uint16_t avg_time_to_full_m;        // Average Time to Full in minutes    
     uint16_t state_time_l_m;            // Time passed since last state change (DISCHARGE, CHARGE, REST)  
     uint16_t state_time_h_m;            // Time passed since last state change (DISCHARGE, CHARGE, REST)        byte 99
-    uint8_t  error;                     //bit 0 - BQ L no response      byte 100
-                                        //bit 1 - BQ H no response
+    uint8_t  error;                     //bit 0 - BQ 1 no response      byte 100
+                                        //bit 1 - BQ 2 no response
                                         //bit 2 - reserved
                                         //bit 3 - reserved
                                         //bit 4 - reserved
                                         //bit 5 - reserved
                                         //bit 6 - reserved
                                         //bit 7 - reserved
-    int16_t  Qmax_passed_BQ_l;              // Qmax value from BQ L in mAh byte 102                                        
-    int16_t  Qmax_passed_BQ_h;              // Qmax value from BQ H in mAh byte 104                                       
+    int16_t  Qmax_passed_BQ_1;              // Qmax value from BQ 1 in mAh byte 102                                        
+    int16_t  Qmax_passed_BQ_2;              // Qmax value from BQ 2 in mAh byte 104                                       
 } BATT_DATA_PAYLOAD;
 
 typedef struct
@@ -224,16 +224,16 @@ typedef struct
     uint16_t avg_time_to_full_m;        // Average Time to Full in minutes    
     uint16_t state_time_l_m;            // Time passed since last state change (DISCHARGE, CHARGE, REST)  
     uint16_t state_time_h_m;            // Time passed since last state change (DISCHARGE, CHARGE, REST)        byte 99
-    uint8_t  error;                     //bit 0 - BQ L no response      byte 100
-                                        //bit 1 - BQ H no response
+    uint8_t  error;                     //bit 0 - BQ 1 no response      byte 100
+                                        //bit 1 - BQ 2 no response
                                         //bit 2 - reserved
                                         //bit 3 - reserved
                                         //bit 4 - reserved
                                         //bit 5 - reserved
                                         //bit 6 - reserved
                                         //bit 7 - reserved
-    int16_t  Qmax_passed_BQ_l;              // Qmax value from BQ L in mAh byte 102                                        
-    int16_t  Qmax_passed_BQ_h;              // Qmax value from BQ H in mAh byte 104  
+    int16_t  Qmax_passed_BQ_1;              // Qmax value from BQ 1 in mAh byte 102                                        
+    int16_t  Qmax_passed_BQ_2;              // Qmax value from BQ 2 in mAh byte 104  
 
 //--------------------------------DATA FOR JETSON-------------------------------------------    
     BATT_DATA_PAYLOAD payload;                                    
@@ -310,14 +310,14 @@ typedef struct
 typedef enum 
 {
     BATT_MODE_INIT = 0x00,
-    BATT_MODE_READ_ONCE_BQ_L,
-	BATT_MODE_READ_ONCE_BQ_H,
+    BATT_MODE_READ_ONCE_BQ_1,
+	BATT_MODE_READ_ONCE_BQ_2,
     BATT_MODE_INIT_BALANCE_L,
     BATT_MODE_INIT_BALANCE_H,    
     BATT_MODE_OFF_BALANCE_L,    
     BATT_MODE_OFF_BALANCE_H,     
-    BATT_MODE_READ_BQ_L,
-	BATT_MODE_READ_BQ_H,	
+    BATT_MODE_READ_BQ_1,
+	BATT_MODE_READ_BQ_2,	
     BATT_MODE_CHECK_STATUS,
 	BATT_MODE_READ_CHECK_PACK_V,	
 	BATT_MODE_READ_CHECK_PACK_V_STABLE,	

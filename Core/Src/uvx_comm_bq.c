@@ -4,86 +4,88 @@
 #include <string.h>
 
 
-SRAM1 UVX_BQ_DATA bq_data_l;
-SRAM1 UVX_BQ_DATA bq_data_h;
+SRAM1 UVX_BQ_DATA bq_data_1;
+SRAM1 UVX_BQ_DATA bq_data_2;
+SRAM1 UVX_BQ_DATA bq_data_3;
 
-SRAM1 UVX_COMM_BQ comm_bq_l; // BQ communication structure
-SRAM1 UVX_COMM_BQ comm_bq_h; // BQ communication structure
+SRAM1 UVX_COMM_BQ comm_bq_1; // BQ communication structure
+SRAM1 UVX_COMM_BQ comm_bq_2; // BQ communication structure
+SRAM1 UVX_COMM_BQ comm_bq_3; // BQ communication structure
 SRAM1 UVX_COMM_BQ_STATE_MACHINE comm_bq_state;
 
-// Array of all BQ_L registers with address and size
-UVX_BQ_REGISTER bq_l_register_list_read[] = {
-    {TEMPERATURE, 				2, (uint8_t*) &bq_data_l.temperature},
-    {VOLTAGE, 					2, (uint8_t*) &bq_data_l.voltage},
-    {CURRENT, 					2, (uint8_t*) &bq_data_l.current},
-    {RELATIVE_STATE_OF_CHARGE, 	1, (uint8_t*) &bq_data_l.relative_state_of_charge},
-    {ABSOLUTE_STATE_OF_CHARGE, 	1, (uint8_t*) &bq_data_l.absolute_state_of_charge},
-    {REMAINING_CAPACITY, 		2, (uint8_t*) &bq_data_l.remaining_capacity},
-    {FULL_CHARGE_CAPACITY, 		2, (uint8_t*) &bq_data_l.full_charge_capacity},
-    {AVERAGE_TIME_TO_EMPTY, 	2, (uint8_t*) &bq_data_l.average_time_to_empty},
-    {AVERAGE_TIME_TO_FULL, 		2, (uint8_t*) &bq_data_l.average_time_to_full},
-    {CHARGING_CURRENT, 			2, (uint8_t*) &bq_data_l.charging_current},
-    {CHARGING_VOLTAGE, 			2, (uint8_t*) &bq_data_l.charging_voltage},
-	{DA_STATUS1, 			   32, (uint8_t*) &bq_data_l.dastatus1_size},
-	{DA_STATUS2, 			   16, (uint8_t*) &bq_data_l.dastatus2_size},
-	{DA_STATUS3, 			   18, (uint8_t*) &bq_data_l.dastatus3_size},
-	{OPERATION_STATUS, 		    5, (uint8_t*) &bq_data_l.operation_status.raw},
-    {GAUGING_STATUS, 		    4, (uint8_t*) &bq_data_l.gauging_status.raw},
-    {GAUGING_STATUS_2, 		   32, (uint8_t*) &bq_data_l.gauging_status_2_size},
-    {GAUGING_STATUS_3, 		   32, (uint8_t*) &bq_data_l.gauging_status_3_size},
-	{MANUFACTURING_STATUS,   	3, (uint8_t*) &bq_data_l.manufacturing_status.raw},	
-	{CBSTATUS,   			   30, (uint8_t*) &bq_data_l.CBSTATUS_size},	
-	{STATE_OF_HEALTH,   	    1, (uint8_t*) &bq_data_l.SOH},	
-	{CYCLE_COUNT,   	    	2, (uint8_t*) &bq_data_l.cycle_count},
+// Array of all BQ_1 registers with address and size
+UVX_BQ_REGISTER bq_1_register_list_read[] = {
+    {TEMPERATURE, 				2, (uint8_t*) &bq_data_1.temperature},
+    {VOLTAGE, 					2, (uint8_t*) &bq_data_1.voltage},
+    {CURRENT, 					2, (uint8_t*) &bq_data_1.current},
+    {RELATIVE_STATE_OF_CHARGE, 	1, (uint8_t*) &bq_data_1.relative_state_of_charge},
+    {ABSOLUTE_STATE_OF_CHARGE, 	1, (uint8_t*) &bq_data_1.absolute_state_of_charge},
+    {REMAINING_CAPACITY, 		2, (uint8_t*) &bq_data_1.remaining_capacity},
+    {FULL_CHARGE_CAPACITY, 		2, (uint8_t*) &bq_data_1.full_charge_capacity},
+    {AVERAGE_TIME_TO_EMPTY, 	2, (uint8_t*) &bq_data_1.average_time_to_empty},
+    {AVERAGE_TIME_TO_FULL, 		2, (uint8_t*) &bq_data_1.average_time_to_full},
+    {CHARGING_CURRENT, 			2, (uint8_t*) &bq_data_1.charging_current},
+    {CHARGING_VOLTAGE, 			2, (uint8_t*) &bq_data_1.charging_voltage},
+	{DA_STATUS1, 			   32, (uint8_t*) &bq_data_1.dastatus1_size},
+	{DA_STATUS2, 			   16, (uint8_t*) &bq_data_1.dastatus2_size},
+	{DA_STATUS3, 			   18, (uint8_t*) &bq_data_1.dastatus3_size},
+	{OPERATION_STATUS, 		    5, (uint8_t*) &bq_data_1.operation_status.raw},
+    {GAUGING_STATUS, 		    4, (uint8_t*) &bq_data_1.gauging_status.raw},
+    {GAUGING_STATUS_2, 		   32, (uint8_t*) &bq_data_1.gauging_status_2_size},
+    {GAUGING_STATUS_3, 		   32, (uint8_t*) &bq_data_1.gauging_status_3_size},
+	{MANUFACTURING_STATUS,   	3, (uint8_t*) &bq_data_1.manufacturing_status.raw},	
+	{CBSTATUS,   			   30, (uint8_t*) &bq_data_1.CBSTATUS_size},	
+	{STATE_OF_HEALTH,   	    1, (uint8_t*) &bq_data_1.SOH},	
+	{CYCLE_COUNT,   	    	2, (uint8_t*) &bq_data_1.cycle_count},
     {END_REGISTER, 				0, NULL} // End marker
 };
 
 // Array of all BQ registers with address and size
-UVX_BQ_REGISTER bq_l_register_list_read_once[] = {
-    {DESIGN_CAPACITY, 			2, (uint8_t*) &bq_data_l.design_capacity},
-    {DESIGN_VOLTAGE, 			2, (uint8_t*) &bq_data_l.design_voltage},
-    {SPECIFICATION_INFO, 		2, (uint8_t*) &bq_data_l.specification_info},
-    {MANUFACTURER_DATE, 		2, (uint8_t*) &bq_data_l.manufacturer_date},
-    {SERIAL_NUMBER, 			2, (uint8_t*) &bq_data_l.serial_number},
+UVX_BQ_REGISTER bq_1_register_list_read_once[] = {
+    {DESIGN_CAPACITY, 			2, (uint8_t*) &bq_data_1.design_capacity},
+    {DESIGN_VOLTAGE, 			2, (uint8_t*) &bq_data_1.design_voltage},
+    {SPECIFICATION_INFO, 		2, (uint8_t*) &bq_data_1.specification_info},
+    {MANUFACTURER_DATE, 		2, (uint8_t*) &bq_data_1.manufacturer_date},
+    {SERIAL_NUMBER, 			2, (uint8_t*) &bq_data_1.serial_number},
     {END_REGISTER,		 		0, NULL} // End marker
 };
 
 //====================================================================================================
 
-// Array of all BQ_L registers with address and size
-UVX_BQ_REGISTER bq_h_register_list_read[] = {
-    {TEMPERATURE, 				2, (uint8_t*) &bq_data_h.temperature},
-    {VOLTAGE, 					2, (uint8_t*) &bq_data_h.voltage},
-    {CURRENT, 					2, (uint8_t*) &bq_data_h.current},
-    {RELATIVE_STATE_OF_CHARGE, 	1, (uint8_t*) &bq_data_h.relative_state_of_charge},
-    {ABSOLUTE_STATE_OF_CHARGE, 	1, (uint8_t*) &bq_data_h.absolute_state_of_charge},
-    {REMAINING_CAPACITY, 		2, (uint8_t*) &bq_data_h.remaining_capacity},
-    {FULL_CHARGE_CAPACITY, 		2, (uint8_t*) &bq_data_h.full_charge_capacity},
-    {AVERAGE_TIME_TO_EMPTY, 	2, (uint8_t*) &bq_data_h.average_time_to_empty},
-    {AVERAGE_TIME_TO_FULL, 		2, (uint8_t*) &bq_data_h.average_time_to_full},
-    {CHARGING_CURRENT, 			2, (uint8_t*) &bq_data_h.charging_current},
-    {CHARGING_VOLTAGE, 			2, (uint8_t*) &bq_data_h.charging_voltage},
-	{DA_STATUS1, 			   32, (uint8_t*) &bq_data_h.dastatus1_size},
-	{DA_STATUS2, 			   16, (uint8_t*) &bq_data_h.dastatus2_size},
-	{DA_STATUS3, 			   18, (uint8_t*) &bq_data_h.dastatus3_size},
-	{OPERATION_STATUS, 		    5, (uint8_t*) &bq_data_h.operation_status.raw},	
-    {GAUGING_STATUS, 		    4, (uint8_t*) &bq_data_h.gauging_status.raw},
-	{GAUGING_STATUS_2, 		   32, (uint8_t*) &bq_data_h.gauging_status_2_size},
-	{GAUGING_STATUS_3, 		   32, (uint8_t*) &bq_data_h.gauging_status_3_size},
-	{MANUFACTURING_STATUS,   	3, (uint8_t*) &bq_data_h.manufacturing_status.raw},
-	{CBSTATUS,   			   30, (uint8_t*) &bq_data_h.CBSTATUS_size},
-	{STATE_OF_HEALTH,   	    1, (uint8_t*) &bq_data_h.SOH},
-	{CYCLE_COUNT,   	    	2, (uint8_t*) &bq_data_h.cycle_count},
+// Array of all BQ_2 registers with address and size
+UVX_BQ_REGISTER bq_2_register_list_read[] = {
+    {TEMPERATURE, 				2, (uint8_t*) &bq_data_2.temperature},
+    {VOLTAGE, 					2, (uint8_t*) &bq_data_2.voltage},
+    {CURRENT, 					2, (uint8_t*) &bq_data_2.current},
+    {RELATIVE_STATE_OF_CHARGE, 	1, (uint8_t*) &bq_data_2.relative_state_of_charge},
+    {ABSOLUTE_STATE_OF_CHARGE, 	1, (uint8_t*) &bq_data_2.absolute_state_of_charge},
+    {REMAINING_CAPACITY, 		2, (uint8_t*) &bq_data_2.remaining_capacity},
+    {FULL_CHARGE_CAPACITY, 		2, (uint8_t*) &bq_data_2.full_charge_capacity},
+    {AVERAGE_TIME_TO_EMPTY, 	2, (uint8_t*) &bq_data_2.average_time_to_empty},
+    {AVERAGE_TIME_TO_FULL, 		2, (uint8_t*) &bq_data_2.average_time_to_full},
+    {CHARGING_CURRENT, 			2, (uint8_t*) &bq_data_2.charging_current},
+    {CHARGING_VOLTAGE, 			2, (uint8_t*) &bq_data_2.charging_voltage},
+	{DA_STATUS1, 			   32, (uint8_t*) &bq_data_2.dastatus1_size},
+	{DA_STATUS2, 			   16, (uint8_t*) &bq_data_2.dastatus2_size},
+	{DA_STATUS3, 			   18, (uint8_t*) &bq_data_2.dastatus3_size},
+	{OPERATION_STATUS, 		    5, (uint8_t*) &bq_data_2.operation_status.raw},	
+    {GAUGING_STATUS, 		    4, (uint8_t*) &bq_data_2.gauging_status.raw},
+	{GAUGING_STATUS_2, 		   32, (uint8_t*) &bq_data_2.gauging_status_2_size},
+	{GAUGING_STATUS_3, 		   32, (uint8_t*) &bq_data_2.gauging_status_3_size},
+	{MANUFACTURING_STATUS,   	3, (uint8_t*) &bq_data_2.manufacturing_status.raw},
+	{CBSTATUS,   			   30, (uint8_t*) &bq_data_2.CBSTATUS_size},
+	{STATE_OF_HEALTH,   	    1, (uint8_t*) &bq_data_2.SOH},
+	{CYCLE_COUNT,   	    	2, (uint8_t*) &bq_data_2.cycle_count},
     {END_REGISTER, 				0, NULL} // End marker
 };
 
 // Array of all BQ registers with address and size
-UVX_BQ_REGISTER bq_h_register_list_read_once[] = {
-    {DESIGN_CAPACITY, 			2, (uint8_t*) &bq_data_h.design_capacity},
-    {DESIGN_VOLTAGE, 			2, (uint8_t*) &bq_data_h.design_voltage},
-    {SPECIFICATION_INFO, 		2, (uint8_t*) &bq_data_h.specification_info},
-    {MANUFACTURER_DATE, 		2, (uint8_t*) &bq_data_h.manufacturer_date},
-    {SERIAL_NUMBER, 			2, (uint8_t*) &bq_data_h.serial_number},
+UVX_BQ_REGISTER bq_2_register_list_read_once[] = {
+    {DESIGN_CAPACITY, 			2, (uint8_t*) &bq_data_2.design_capacity},
+    {DESIGN_VOLTAGE, 			2, (uint8_t*) &bq_data_2.design_voltage},
+    {SPECIFICATION_INFO, 		2, (uint8_t*) &bq_data_2.specification_info},
+    {MANUFACTURER_DATE, 		2, (uint8_t*) &bq_data_2.manufacturer_date},
+    {SERIAL_NUMBER, 			2, (uint8_t*) &bq_data_2.serial_number},
     {END_REGISTER,		 		0, NULL} // End marker
 };
 
@@ -342,14 +344,14 @@ UVX_COMM_BQ_STATE uvx_comm_bq_charge_fet(UVX_COMM_BQ* p_comm_bq, uint8_t state)
 	{
 		if(!batt_data.CHG_fet_stat)
 		{
-			uvx_comm_bq_write_mba_register(&comm_bq_h, BQ_MA_CHG_FET_TOGGLE, NULL, 0);
+			uvx_comm_bq_write_mba_register(&comm_bq_2, BQ_MA_CHG_FET_TOGGLE, NULL, 0);
 		}
 	}
 	else
 	{
 		if(batt_data.CHG_fet_stat)
 		{
-			uvx_comm_bq_write_mba_register(&comm_bq_h, BQ_MA_CHG_FET_TOGGLE, NULL, 0);
+			uvx_comm_bq_write_mba_register(&comm_bq_2, BQ_MA_CHG_FET_TOGGLE, NULL, 0);
 		}
 	}
 

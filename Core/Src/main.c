@@ -70,7 +70,7 @@
 #define TIME_FOR_ERROR_LED_TOGGLE				500		//250
 #define CLOCK_READY_TIMEOUT						1000000U
 
-#define APP_JETSON_PWR_FC
+//#define APP_JETSON_PWR_FC
 //#define APP_NO_BATTERY_MODE
 #define APP_HALL_POWER_ENABLE
 /* USER CODE END PD */
@@ -367,7 +367,7 @@ void UVX_APP(void)
 						}
 						else
 						{
-							batt_state.state_current = BATT_MODE_READ_BQ_L;
+							batt_state.state_current = BATT_MODE_READ_BQ_1;
 						}
 						comm_m2jmb.Heartbeat = 0;
 						memset(buff_rx_m2jmb, 0, sizeof(buff_rx_m2jmb));
@@ -468,7 +468,7 @@ void UVX_APP(void)
 				if((!batt_data.adc_pack_v_stable_high) &&
 				   (batt_data.adc_pack_v_stable_low) &&
 				   (comm_m2jmb_state.state_current == M2JMB_MODE_IDLE) &&
-				   (!comm_bq_h.Force_balance || !comm_bq_l.Force_balance)) 
+				   (!comm_bq_2.Force_balance || !comm_bq_1.Force_balance)) 
 				{
 					uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_SET);
 					batt_state.state_current = BATT_MODE_STOP;
@@ -526,7 +526,7 @@ void Process_Button_EXTI_Request(void)
 
 		if(batt_state.state_current == BATT_MODE_STOP)
 		{
-			batt_state.state_current = BATT_MODE_READ_BQ_L;
+			batt_state.state_current = BATT_MODE_READ_BQ_1;
 		}
 	}
 }
@@ -544,7 +544,7 @@ void UVX_APP_HALL_LAND(void)
 				uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_RESET);
 				if(batt_data.init)
 				{
-					batt_state.state_current = BATT_MODE_READ_BQ_L;
+					batt_state.state_current = BATT_MODE_READ_BQ_1;
 				}				
 			}
 
@@ -749,64 +749,64 @@ void         UVX_APP_Batt(void)
 	switch(batt_state.state_current)
 	{
 		case BATT_MODE_INIT:
-			uvx_comm_bq_change_list(&comm_bq_l, bq_l_register_list_read_once);
-			uvx_comm_bq_change_list(&comm_bq_h, bq_h_register_list_read_once);
+			uvx_comm_bq_change_list(&comm_bq_1, bq_1_register_list_read_once);
+			uvx_comm_bq_change_list(&comm_bq_2, bq_2_register_list_read_once);
 			batt_reg_cnt = 0;
-			batt_state.state_current = BATT_MODE_READ_ONCE_BQ_L;
+			batt_state.state_current = BATT_MODE_READ_ONCE_BQ_1;
 		break;
 
-		case BATT_MODE_READ_ONCE_BQ_L:
-			if(uvx_comm_bq_read_list(&comm_bq_l, batt_reg_cnt) == UVX_BQ_REG_END)
+		case BATT_MODE_READ_ONCE_BQ_1:
+			if(uvx_comm_bq_read_list(&comm_bq_1, batt_reg_cnt) == UVX_BQ_REG_END)
 			{
 				batt_reg_cnt = 0;
-				batt_state.state_current = BATT_MODE_READ_ONCE_BQ_H;
+				batt_state.state_current = BATT_MODE_READ_ONCE_BQ_2;
 				uvx_batt_parse_data();
 			}
 			else
 			{
 				batt_state.state_current = BATT_MODE_WAIT_RESPONSE;
-				batt_state.state_next = BATT_MODE_READ_ONCE_BQ_L;
+				batt_state.state_next = BATT_MODE_READ_ONCE_BQ_1;
 				HAL_Delay(1);
 			}
 		break;
 
-		case BATT_MODE_READ_ONCE_BQ_H:
-			if(uvx_comm_bq_read_list(&comm_bq_h, batt_reg_cnt) == UVX_BQ_REG_END)
+		case BATT_MODE_READ_ONCE_BQ_2:
+			if(uvx_comm_bq_read_list(&comm_bq_2, batt_reg_cnt) == UVX_BQ_REG_END)
 			{
 				batt_reg_cnt = 0;
-				batt_data.design_capacity = (bq_data_h.design_capacity + bq_data_l.design_capacity)/2;
-				batt_data.design_voltage = (bq_data_h.design_voltage + bq_data_l.design_voltage);
-				uvx_comm_bq_change_list(&comm_bq_l, bq_l_register_list_read);
-				uvx_comm_bq_change_list(&comm_bq_h, bq_h_register_list_read);
+				batt_data.design_capacity = (bq_data_2.design_capacity + bq_data_1.design_capacity)/2;
+				batt_data.design_voltage = (bq_data_2.design_voltage + bq_data_1.design_voltage);
+				uvx_comm_bq_change_list(&comm_bq_1, bq_1_register_list_read);
+				uvx_comm_bq_change_list(&comm_bq_2, bq_2_register_list_read);
 				batt_state.state_current = BATT_MODE_INIT_BALANCE_L;
 				uvx_batt_parse_data();				
 			}
 			else
 			{
 				batt_state.state_current = BATT_MODE_WAIT_RESPONSE;
-				batt_state.state_next = BATT_MODE_READ_ONCE_BQ_H;
+				batt_state.state_next = BATT_MODE_READ_ONCE_BQ_2;
 				HAL_Delay(1);
 			}
 		break;		
 
 		case BATT_MODE_INIT_BALANCE_L:
-			uvx_comm_bq_force_balance(&comm_bq_l, 0);
+			uvx_comm_bq_force_balance(&comm_bq_1, 0);
 			batt_state.state_current = BATT_MODE_WAIT_RESPONSE;
 			batt_state.state_next = BATT_MODE_INIT_BALANCE_H;
 		break;
 
 		case BATT_MODE_INIT_BALANCE_H:
-			uvx_comm_bq_force_balance(&comm_bq_h, 0);
+			uvx_comm_bq_force_balance(&comm_bq_2, 0);
 			batt_state.state_current = BATT_MODE_WAIT_RESPONSE;
-			batt_state.state_next = BATT_MODE_READ_BQ_L;			
+			batt_state.state_next = BATT_MODE_READ_BQ_1;			
 			batt_reg_cnt = 0;
 		break;		
 
-		case BATT_MODE_READ_BQ_L:
-			if(uvx_comm_bq_read_list(&comm_bq_l, batt_reg_cnt) == UVX_BQ_REG_END)
+		case BATT_MODE_READ_BQ_1:
+			if(uvx_comm_bq_read_list(&comm_bq_1, batt_reg_cnt) == UVX_BQ_REG_END)
 			{
 				batt_reg_cnt = 0;
-				batt_state.state_current = BATT_MODE_READ_BQ_H;
+				batt_state.state_current = BATT_MODE_READ_BQ_2;
 				uvx_batt_parse_data();
 
 				if(drone_state.state_current == DRONE_CHECK_BUTTON_PRESS_ONCE)
@@ -818,14 +818,14 @@ void         UVX_APP_Batt(void)
 			else
 			{
 				batt_state.state_current = BATT_MODE_WAIT_RESPONSE;
-				batt_state.state_next = BATT_MODE_READ_BQ_L;
+				batt_state.state_next = BATT_MODE_READ_BQ_1;
 				batt_state.state_previous = BATT_MODE_WAIT_RESPONSE;
 				HAL_Delay(1);
 			}
 		break;
 
-		case BATT_MODE_READ_BQ_H:
-			if(uvx_comm_bq_read_list(&comm_bq_h, batt_reg_cnt) == UVX_BQ_REG_END)
+		case BATT_MODE_READ_BQ_2:
+			if(uvx_comm_bq_read_list(&comm_bq_2, batt_reg_cnt) == UVX_BQ_REG_END)
 			{
 				batt_reg_cnt = 0;
 				batt_state.state_current = BATT_MODE_CHECK_STATUS;
@@ -834,7 +834,7 @@ void         UVX_APP_Batt(void)
 			else
 			{
 				batt_state.state_current = BATT_MODE_WAIT_RESPONSE;
-				batt_state.state_next = BATT_MODE_READ_BQ_H;
+				batt_state.state_next = BATT_MODE_READ_BQ_2;
 				batt_state.state_previous = BATT_MODE_WAIT_RESPONSE;
 				HAL_Delay(1);
 			}
@@ -843,13 +843,13 @@ void         UVX_APP_Batt(void)
 		case BATT_MODE_CHECK_STATUS:
 			if(batt_data.CHG_fet_en)
 			{
-				uvx_comm_bq_write_mba_register(&comm_bq_h, BQ_MA_FET_CONTROL, NULL, 0);
+				uvx_comm_bq_write_mba_register(&comm_bq_2, BQ_MA_FET_CONTROL, NULL, 0);
 			}
 			else
 			{
 				if(batt_data.tc)
 				{
-					uvx_comm_bq_charge_fet(&comm_bq_h, 0);
+					uvx_comm_bq_charge_fet(&comm_bq_2, 0);
 				//UVX_APP_PWR_FET(0); // PWR off
 				}
 				else
@@ -862,11 +862,11 @@ void         UVX_APP_Batt(void)
 							uvx_gpio_set_pin(GPIO_OUTPUT_PWR_LED, GPIO_PIN_RESET);
 						}
 
-						uvx_comm_bq_charge_fet(&comm_bq_h, 1);
+						uvx_comm_bq_charge_fet(&comm_bq_2, 1);
 					}
 					else
 					{
-						uvx_comm_bq_charge_fet(&comm_bq_h, 0);
+						uvx_comm_bq_charge_fet(&comm_bq_2, 0);
 					}		
 				}
 
@@ -874,24 +874,24 @@ void         UVX_APP_Batt(void)
 				{
 					if((batt_data.voltage_diff_pack > BATT_CELL_VOLTAGE_DIFF) && (batt_data.CHG_fet_stat))
 					{
-						if(bq_data_h.voltage_per_cell < bq_data_l.voltage_per_cell)
+						if(bq_data_2.voltage_per_cell < bq_data_1.voltage_per_cell)
 						{
-							uvx_comm_bq_force_balance(&comm_bq_l, 1);
+							uvx_comm_bq_force_balance(&comm_bq_1, 1);
 							batt_state.state_next = BATT_MODE_READ_CHECK_PACK_V;
 						}
-						else if (bq_data_h.voltage_per_cell > bq_data_l.voltage_per_cell)
+						else if (bq_data_2.voltage_per_cell > bq_data_1.voltage_per_cell)
 						{
-							uvx_comm_bq_force_balance(&comm_bq_h, 1);
+							uvx_comm_bq_force_balance(&comm_bq_2, 1);
 							batt_state.state_next = BATT_MODE_READ_CHECK_PACK_V;
 						}
 					}
 					else
 					{
-						if(comm_bq_h.Force_balance)
+						if(comm_bq_2.Force_balance)
 						{
 							batt_state.state_next = BATT_MODE_OFF_BALANCE_H;
 						}
-						else if(comm_bq_l.Force_balance)
+						else if(comm_bq_1.Force_balance)
 						{
 							batt_state.state_next = BATT_MODE_OFF_BALANCE_L;
 						}
@@ -903,11 +903,11 @@ void         UVX_APP_Batt(void)
 				}
 				else
 				{
-					if(comm_bq_h.Force_balance)
+					if(comm_bq_2.Force_balance)
 					{
 						batt_state.state_next = BATT_MODE_OFF_BALANCE_H;
 					}
-					else if(comm_bq_l.Force_balance)
+					else if(comm_bq_1.Force_balance)
 					{
 						batt_state.state_next = BATT_MODE_OFF_BALANCE_L;
 					}
@@ -922,13 +922,13 @@ void         UVX_APP_Batt(void)
 		break;
 
 		case BATT_MODE_OFF_BALANCE_L:
-			uvx_comm_bq_force_balance(&comm_bq_l, 0);
+			uvx_comm_bq_force_balance(&comm_bq_1, 0);
 			batt_state.state_current = BATT_MODE_WAIT_RESPONSE;
 			batt_state.state_next = BATT_MODE_READ_CHECK_PACK_V;
 		break;
 
 		case BATT_MODE_OFF_BALANCE_H:
-			uvx_comm_bq_force_balance(&comm_bq_h, 0);
+			uvx_comm_bq_force_balance(&comm_bq_2, 0);
 			batt_state.state_current = BATT_MODE_WAIT_RESPONSE;
 			batt_state.state_next = BATT_MODE_READ_CHECK_PACK_V;			
 			batt_reg_cnt = 0;
@@ -936,7 +936,7 @@ void         UVX_APP_Batt(void)
 		
 		case BATT_MODE_READ_CHECK_PACK_V:
 			batt_data.init = true;
-			batt_state.state_current = BATT_MODE_READ_BQ_L;
+			batt_state.state_current = BATT_MODE_READ_BQ_1;
 			if((led_strip_state.state_current < LED_STRIP_MODE_BATTERY_LEVEL))
 			{
 				led_strip_state.state_next = LED_STRIP_MODE_BATTERY_LEVEL;				
@@ -972,25 +972,25 @@ void         UVX_APP_Batt(void)
 
 					case BATT_MODE_INIT_BALANCE_H:
 					case BATT_MODE_OFF_BALANCE_L:
-					case BATT_MODE_READ_ONCE_BQ_L:
-					case BATT_MODE_READ_BQ_L:
+					case BATT_MODE_READ_ONCE_BQ_1:
+					case BATT_MODE_READ_BQ_1:
 						if(batt_data.cnt_no_response > BQ_MAX_NO_RESPONSE)
 						{
-							bq_data_l.No_response = true;
+							bq_data_1.No_response = true;
 							batt_reg_cnt = 0;
-							comm_bq_l.RX_Ready = 1; // Force ready to avoid blocking
-							comm_bq_l.p_hal_i2c->RX_Ready = 1; // Force ready to avoid blocking
+							comm_bq_1.RX_Ready = 1; // Force ready to avoid blocking
+							comm_bq_1.p_hal_i2c->RX_Ready = 1; // Force ready to avoid blocking
 						}						
 						else
 						{
-							bq_data_l.No_response = false;
+							bq_data_1.No_response = false;
 						}
 
 						batt_data.cnt_no_response = 0;						
 						batt_state.state_current = batt_state.state_next;
-						comm_bq_l.RX_Ready = 1;
+						comm_bq_1.RX_Ready = 1;
 						
-						// if(bq_l_register_list_read[batt_reg_cnt].reg_addr == CBSTATUS)
+						// if(bq_1_register_list_read[batt_reg_cnt].reg_addr == CBSTATUS)
 						// {
 						// 	for_test = 0;
 						// }
@@ -1000,23 +1000,23 @@ void         UVX_APP_Batt(void)
 					break;
 					
 					case BATT_MODE_OFF_BALANCE_H:
-					case BATT_MODE_READ_ONCE_BQ_H:
-					case BATT_MODE_READ_BQ_H:
+					case BATT_MODE_READ_ONCE_BQ_2:
+					case BATT_MODE_READ_BQ_2:
 							if(batt_data.cnt_no_response > BQ_MAX_NO_RESPONSE)
 							{
-								bq_data_h.No_response = true;
+								bq_data_2.No_response = true;
 								batt_reg_cnt = 0;
-								comm_bq_h.RX_Ready = 1; // Force ready to avoid blocking
-								comm_bq_h.p_hal_i2c->RX_Ready = 1; // Force ready to avoid blocking
+								comm_bq_2.RX_Ready = 1; // Force ready to avoid blocking
+								comm_bq_2.p_hal_i2c->RX_Ready = 1; // Force ready to avoid blocking
 							}						
 							else
 							{
-								bq_data_h.No_response = false;
+								bq_data_2.No_response = false;
 							}				
 
 							batt_data.cnt_no_response = 0;
 							batt_state.state_current = batt_state.state_next;
-							comm_bq_h.RX_Ready = 1;
+							comm_bq_2.RX_Ready = 1;
 							batt_reg_cnt++;
 							HAL_Delay(1);
 					break;
@@ -1026,7 +1026,7 @@ void         UVX_APP_Batt(void)
 			{
 				batt_state.state_current = batt_state.state_previous;
 				batt_data.cnt_no_response++;
-				bq_data_l.No_response = false;
+				bq_data_1.No_response = false;
 			}	
 		break;
 
@@ -1034,7 +1034,7 @@ void         UVX_APP_Batt(void)
 			//batt_data.init = false;
 			if((batt_data.tc) && (batt_data.adc_pack_v_stable_high))
 			{
-				batt_state.state_current = BATT_MODE_READ_BQ_L;
+				batt_state.state_current = BATT_MODE_READ_BQ_1;
 			}
 			HAL_Delay(10);
 		break;		
@@ -1566,10 +1566,10 @@ void UVX_APP_Comm_m2m(void)
 	uvx_comm_m2m_init(&uart_1); // Initialize the M2M communication
 
 	i2c_bq = UVX_APP_SETUP_I2C_BQ; // Initialize the I2C HAL structure for BQ communication	
-	uvx_comm_bq_init(&comm_bq_l, &i2c_bq, BQ_L_I2C_ADDRESS, bq_l_register_list_read); // Initialize the BQ communication
+	uvx_comm_bq_init(&comm_bq_1, &i2c_bq, BQ_1_I2C_ADDRESS, bq_1_register_list_read); // Initialize the BQ communication
 
-	comm_bq_h.addr_i2c = BQ_H_I2C_ADDRESS; // Set the I2C address for BQ
-	uvx_comm_bq_init(&comm_bq_h, &i2c_bq, BQ_H_I2C_ADDRESS, bq_h_register_list_read); // Initialize the BQ communication
+	comm_bq_2.addr_i2c = BQ_2_I2C_ADDRESS; // Set the I2C address for BQ
+	uvx_comm_bq_init(&comm_bq_2, &i2c_bq, BQ_2_I2C_ADDRESS, bq_2_register_list_read); // Initialize the BQ communication
 
 	uart_2 = UVX_APP_SETUP_UART_2; // Initialize the UART HAL structure for M2JMB communication
 	uvx_comm_m2jmb_init(&uart_2); // Initialize the M2JMB communication
@@ -2539,14 +2539,14 @@ void I2C1_EV_IRQHandler(void)
 		
 		if(!( i2c_bq.hal_i2c.hi2c.Instance->ISR & I2C_ISR_BUSY ))
 		{
-			// if(comm_bq_l.RX_Ready == 0)
+			// if(comm_bq_1.RX_Ready == 0)
 			// {
-			// 	comm_bq_l.RX_Ready = 1;
+			// 	comm_bq_1.RX_Ready = 1;
 			// }
 
-			// if(comm_bq_h.RX_Ready == 0)
+			// if(comm_bq_2.RX_Ready == 0)
 			// {
-			// 	comm_bq_h.RX_Ready = 1;
+			// 	comm_bq_2.RX_Ready = 1;
 			// }
 
 			if(i2c_bq.hal_i2c.RX_Ready == 0)
@@ -2559,14 +2559,14 @@ void I2C1_EV_IRQHandler(void)
 				i2c_bq.hal_i2c.TX_Ready = 1;
 			}
 
-			// if(comm_bq_l.TX_Ready == 0)
+			// if(comm_bq_1.TX_Ready == 0)
 			// {
-			// 	comm_bq_l.TX_Ready = 1;
+			// 	comm_bq_1.TX_Ready = 1;
 			// }	
 
-			// if(comm_bq_h.TX_Ready == 0)
+			// if(comm_bq_2.TX_Ready == 0)
 			// {
-			// 	comm_bq_h.TX_Ready = 1;
+			// 	comm_bq_2.TX_Ready = 1;
 			// }			
 		}
 
@@ -2574,14 +2574,14 @@ void I2C1_EV_IRQHandler(void)
 	else if( ( i2c_bq.hal_i2c.hi2c.Instance->ISR & I2C_ISR_TXE ) && 
 	  		 (!( i2c_bq.hal_i2c.hi2c.Instance->ISR & I2C_ISR_STOPF )) )
 	{
-		// if(comm_bq_l.TX_Ready == 0)
+		// if(comm_bq_1.TX_Ready == 0)
 		// {
-		// 	comm_bq_l.TX_Ready = 1;
+		// 	comm_bq_1.TX_Ready = 1;
 		// }	
 
-		// if(comm_bq_h.TX_Ready == 0)
+		// if(comm_bq_2.TX_Ready == 0)
 		// {
-		// 	comm_bq_h.TX_Ready = 1;
+		// 	comm_bq_2.TX_Ready = 1;
 		// }		
 
 		if(i2c_bq.hal_i2c.TX_Ready == 0)
@@ -2591,14 +2591,14 @@ void I2C1_EV_IRQHandler(void)
 	}
 	else
 	{
-		// if(comm_bq_l.TX_Ready == 0)
+		// if(comm_bq_1.TX_Ready == 0)
 		// {
-		// 	comm_bq_l.TX_Ready = 0;
+		// 	comm_bq_1.TX_Ready = 0;
 		// }	
 
-		// if(comm_bq_h.TX_Ready == 0)
+		// if(comm_bq_2.TX_Ready == 0)
 		// {
-		// 	comm_bq_h.TX_Ready = 1;
+		// 	comm_bq_2.TX_Ready = 1;
 		// }
 		if(i2c_bq.hal_i2c.TX_Ready == 0)
 		{
@@ -2626,14 +2626,14 @@ void I2C1_EV_IRQHandler(void)
 			i2c_bq.hal_i2c.hi2c.Instance->CR1 &= ~I2C_CR1_PE;
 			i2c_bq.cnt_error_busy = 0;			
 			
-			if(comm_bq_l.RX_Ready == 0)
+			if(comm_bq_1.RX_Ready == 0)
 			{
-				comm_bq_l.RX_Ready = 1;
+				comm_bq_1.RX_Ready = 1;
 			}
 
-			if(comm_bq_h.RX_Ready == 0)
+			if(comm_bq_2.RX_Ready == 0)
 			{
-				comm_bq_h.RX_Ready = 1;
+				comm_bq_2.RX_Ready = 1;
 			}			
 
 			i2c_bq.hal_i2c.hi2c.Instance->CR1 = i2c_state;

@@ -206,8 +206,8 @@ UVX_COMM_M2JMB_STATE uvx_comm_m2jmb_send(uint8_t cmd, uint8_t* data, uint16_t si
 			buff_tx_m2jmb[header_size_offset + 70] = UVX_M2JMB_BATT_STATE_TIME_L; 		// 2 bytes  sum: 179 bytes buff index 258-259
 			buff_tx_m2jmb[header_size_offset + 71] = UVX_M2JMB_BATT_STATE_TIME_H; 		// 2 bytes  sum: 181 bytes buff index 260-261
 			buff_tx_m2jmb[header_size_offset + 72] = UVX_M2JMB_BATT_ERROR; 				// 1 byte  	sum: 182 bytes buff index 262
-			buff_tx_m2jmb[header_size_offset + 73] = UVX_M2JMB_BATT_QMAX_PASSED_BQ_L; 	// 2 byte  	sum: 184 bytes buff index 263-264
-			buff_tx_m2jmb[header_size_offset + 74] = UVX_M2JMB_BATT_QMAX_PASSED_BQ_H; 	// 2 byte  	sum: 186 bytes buff index 265-266
+			buff_tx_m2jmb[header_size_offset + 73] = UVX_M2JMB_BATT_QMAX_PASSED_BQ_1; 	// 2 byte  	sum: 184 bytes buff index 263-264
+			buff_tx_m2jmb[header_size_offset + 74] = UVX_M2JMB_BATT_QMAX_PASSED_BQ_2; 	// 2 byte  	sum: 186 bytes buff index 265-266
 
 			// for (uint16_t i = 0; i < size; i++)
 			// {
