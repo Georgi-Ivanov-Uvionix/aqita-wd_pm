@@ -425,10 +425,21 @@ UVX_I2C_STATE uvx_i2c_read_mem(UVX_I2C_HAL* p_i2c, uint8_t dev_addr, uint16_t re
                     dev_addr <<= 1; // Shift address
                     if(HAL_I2C_Mem_Read_IT(&p_i2c->hi2c, dev_addr, reg_addr, reg_size, data, size) != HAL_OK)
                     {
-                        if( !(p_i2c->hi2c.Instance->ISR & I2C_ISR_RXNE ) )
+                        uint32_t cr1 = p_i2c->hi2c.Instance->CR1;
+
+                        p_i2c->hi2c.Instance->ICR = I2C_ICR_STOPCF | I2C_ICR_NACKCF |
+                                                    I2C_ICR_BERRCF | I2C_ICR_ARLOCF;
+
+                        if(p_i2c->hi2c.Instance->ISR & I2C_ISR_BUSY)
                         {
-                            p_i2c->hi2c.State = HAL_I2C_STATE_READY;
-                        }  
+                            p_i2c->hi2c.Instance->CR1 &= ~I2C_CR1_PE;
+                            p_i2c->hi2c.Instance->CR1 = cr1;
+                        }
+
+                        p_i2c->hi2c.State = HAL_I2C_STATE_READY;
+                        p_i2c->hi2c.Mode = HAL_I2C_MODE_NONE;
+                        p_i2c->RX_Ready = 1;
+                        p_i2c->TX_Ready = 1;
 
                         return UVX_I2C_ERROR; // Return error if transmission fails
                     }                    

@@ -189,6 +189,7 @@ UVX_COMM_BQ_STATE uvx_comm_bq_read_list(UVX_COMM_BQ* p_comm_bq, uint16_t reg_ind
 			p_comm_bq->p_register_list[reg_index].p_data,
 			p_comm_bq->p_register_list[reg_index].size_data) != UVX_I2C_OK)
 		{
+			//p_comm_bq->RX_Ready = 1;
 			return UVX_BQ_ERROR;
 		}			
 		
