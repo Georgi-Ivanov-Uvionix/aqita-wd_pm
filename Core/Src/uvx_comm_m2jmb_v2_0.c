@@ -203,8 +203,8 @@ UVX_COMM_M2JMB_STATE uvx_comm_m2jmb_send(uint8_t cmd, uint8_t* data, uint16_t si
 			buff_tx_m2jmb[header_size_offset + 67] = UVX_M2JMB_BATT_PACK_V; 			// 2 bytes  sum: 173 bytes buff index 252-253
 			buff_tx_m2jmb[header_size_offset + 68] = UVX_M2JMB_BATT_AVG_TIME_TO_EMPTY; 	// 2 bytes  sum: 175 bytes buff index 254-255
 			buff_tx_m2jmb[header_size_offset + 69] = UVX_M2JMB_BATT_AVG_TIME_TO_FULL; 	// 2 bytes  sum: 177 bytes buff index 256-257
-			buff_tx_m2jmb[header_size_offset + 70] = UVX_M2JMB_BATT_STATE_TIME_L; 		// 2 bytes  sum: 179 bytes buff index 258-259
-			buff_tx_m2jmb[header_size_offset + 71] = UVX_M2JMB_BATT_STATE_TIME_H; 		// 2 bytes  sum: 181 bytes buff index 260-261
+			buff_tx_m2jmb[header_size_offset + 70] = UVX_M2JMB_BATT_STATE_TIME_1; 		// 2 bytes  sum: 179 bytes buff index 258-259
+			buff_tx_m2jmb[header_size_offset + 71] = UVX_M2JMB_BATT_STATE_TIME_2; 		// 2 bytes  sum: 181 bytes buff index 260-261
 			buff_tx_m2jmb[header_size_offset + 72] = UVX_M2JMB_BATT_ERROR; 				// 1 byte  	sum: 182 bytes buff index 262
 			buff_tx_m2jmb[header_size_offset + 73] = UVX_M2JMB_BATT_QMAX_PASSED_BQ_1; 	// 2 byte  	sum: 184 bytes buff index 263-264
 			buff_tx_m2jmb[header_size_offset + 74] = UVX_M2JMB_BATT_QMAX_PASSED_BQ_2; 	// 2 byte  	sum: 186 bytes buff index 265-266

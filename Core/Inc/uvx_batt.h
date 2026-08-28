@@ -55,16 +55,17 @@
 #define BATT_SUPPLY_STATUS_CHG_FET_BIT                 1
 #define BATT_SUPPLY_STATUS_TC_BIT                      2
 #define BATT_SUPPLY_STATUS_BALANCE_BIT                 3
-#define BATT_SUPPLY_STATUS_FORCE_BALANCE_L_BIT         4
-#define BATT_SUPPLY_STATUS_FORCE_BALANCE_H_BIT         5
+#define BATT_SUPPLY_STATUS_FORCE_BALANCE_1_BIT         4
+#define BATT_SUPPLY_STATUS_FORCE_BALANCE_2_BIT         5
 #define BATT_SUPPLY_STATUS_STABLE_L_BIT                6
 #define BATT_SUPPLY_STATUS_STABLE_H_BIT                7
 
 #define BATT_ERROR_BQ_1_NO_RESPONSE_BIT                0
 #define BATT_ERROR_BQ_2_NO_RESPONSE_BIT                1
-#define BATT_ERROR_BATT_MAX_TEMP_BIT                   2
-#define BATT_ERROR_CHARGE_OVERVOLTAGE_BIT              3
-#define BATT_ERROR_CHARGE_CELL_COUNT_ERROR_BIT         4
+#define BATT_ERROR_BQ_3_NO_RESPONSE_BIT                2
+#define BATT_ERROR_BATT_MAX_TEMP_BIT                   3
+#define BATT_ERROR_CHARGE_OVERVOLTAGE_BIT              4
+#define BATT_ERROR_CHARGE_CELL_COUNT_ERROR_BIT         5
 
 #define MAX_CELL_TEMPERATURE                        650
 #define MAX_HIS_CELL_TEMPERATURE                    600 //max histeresis cell temperature for power on after high temp cutoff
@@ -101,8 +102,8 @@ typedef packed_struct
                                         //bit 1 - chg fet
                                         //bit 2 - tc
                                         //bit 3 - balance
-                                        //bit 4 - force balance l
-                                        //bit 5 - force balance h
+                                        //bit 4 - force balance BQ 1
+                                        //bit 5 - force balance BQ 2
                                         //bit 6 - stable l
                                         //bit 7 - stable h
     uint16_t cell_voltage_1;            // Cell Voltage 1 in millivolts
@@ -123,8 +124,8 @@ typedef packed_struct
     uint16_t temperature_cell_6;    
     uint16_t temperature_cell_7;    
     uint16_t temperature_cell_8;             //byte 50    
-    uint16_t temperature_l_int;       
-    uint16_t temperature_h_int;       
+    uint16_t temperature_1_int;       
+    uint16_t temperature_2_int;       
     int16_t  voltage_diff_pack;         // voltage difference between two packs in millivolts
     int16_t  voltage_delta_cell;        // voltage difference between cells in millivolts
     int16_t  voltage_min_cell;          // voltage difference between cells in millivolts byte 60
@@ -145,8 +146,9 @@ typedef packed_struct
     uint16_t adc_pack_v;                // measured pack voltage in millivolts byte 90 - 91
     uint16_t avg_time_to_empty_m;       // Average Time to Empty in minutes
     uint16_t avg_time_to_full_m;        // Average Time to Full in minutes    
-    uint16_t state_time_l_m;            // Time passed since last state change (DISCHARGE, CHARGE, REST)  
-    uint16_t state_time_h_m;            // Time passed since last state change (DISCHARGE, CHARGE, REST)        byte 99
+    uint16_t state_time_1_m;            // Time passed since last state change (DISCHARGE, CHARGE, REST)  
+    uint16_t state_time_2_m;            // Time passed since last state change (DISCHARGE, CHARGE, REST)        byte 99
+    uint16_t state_time_3_m;
     uint8_t  error;                     //bit 0 - BQ 1 no response      byte 100
                                         //bit 1 - BQ 2 no response
                                         //bit 2 - reserved
@@ -157,6 +159,7 @@ typedef packed_struct
                                         //bit 7 - reserved
     int16_t  Qmax_passed_BQ_1;              // Qmax value from BQ 1 in mAh byte 102                                        
     int16_t  Qmax_passed_BQ_2;              // Qmax value from BQ 2 in mAh byte 104                                       
+    int16_t  Qmax_passed_BQ_3;
 } BATT_DATA_PAYLOAD;
 
 typedef struct
@@ -180,8 +183,8 @@ typedef struct
                                         //bit 1 - chg fet
                                         //bit 2 - tc
                                         //bit 3 - balance
-                                        //bit 4 - force balance l
-                                        //bit 5 - force balance h
+                                        //bit 4 - force balance BQ 1
+                                        //bit 5 - force balance BQ 2
                                         //bit 6 - stable l
                                         //bit 7 - stable h
     uint16_t cell_voltage_1;            // Cell Voltage 1 in millivolts
@@ -202,8 +205,8 @@ typedef struct
     uint16_t temperature_cell_6;    
     uint16_t temperature_cell_7;    
     uint16_t temperature_cell_8;             //byte 50    
-    uint16_t temperature_l_int;       
-    uint16_t temperature_h_int;       
+    uint16_t temperature_1_int;       
+    uint16_t temperature_2_int;       
     int16_t  voltage_diff_pack;         // voltage difference between two packs in millivolts
     int16_t  voltage_delta_cell;        // voltage difference between cells in millivolts
     int16_t  voltage_min_cell;          // voltage difference between cells in millivolts byte 60
@@ -222,8 +225,9 @@ typedef struct
     uint16_t adc_pack_v;                // measured pack voltage in millivolts byte 90 - 91
     uint16_t avg_time_to_empty_m;       // Average Time to Empty in minutes
     uint16_t avg_time_to_full_m;        // Average Time to Full in minutes    
-    uint16_t state_time_l_m;            // Time passed since last state change (DISCHARGE, CHARGE, REST)  
-    uint16_t state_time_h_m;            // Time passed since last state change (DISCHARGE, CHARGE, REST)        byte 99
+    uint16_t state_time_1_m;            // Time passed since last state change (DISCHARGE, CHARGE, REST)  
+    uint16_t state_time_2_m;            // Time passed since last state change (DISCHARGE, CHARGE, REST)        byte 99
+    uint16_t state_time_3_m;
     uint8_t  error;                     //bit 0 - BQ 1 no response      byte 100
                                         //bit 1 - BQ 2 no response
                                         //bit 2 - reserved
@@ -234,13 +238,15 @@ typedef struct
                                         //bit 7 - reserved
     int16_t  Qmax_passed_BQ_1;              // Qmax value from BQ 1 in mAh byte 102                                        
     int16_t  Qmax_passed_BQ_2;              // Qmax value from BQ 2 in mAh byte 104  
+    int16_t  Qmax_passed_BQ_3;
 
 //--------------------------------DATA FOR JETSON-------------------------------------------    
     BATT_DATA_PAYLOAD payload;                                    
     uint16_t size_payload;
 //-----------------------------------------------------------------------------------
-    uint16_t temperature_cell_l;    //lowest cell temperature in 0.1 degree Celsius
-    uint16_t temperature_cell_h;    //highest cell temperature in 0.1 degree Celsius  
+    uint16_t temperature_bq_1;    // BQ 1 temperature in 0.1 degree Celsius
+    uint16_t temperature_bq_2;    // BQ 2 temperature in 0.1 degree Celsius
+    uint16_t temperature_bq_3;    // BQ 3 temperature in 0.1 degree Celsius
     uint16_t design_voltage;      
     int16_t cell_current_1;          // Cell Current 1 in milliamps
     int16_t cell_current_2;          // Cell Current 2 in milliamps
@@ -281,8 +287,9 @@ typedef struct
     uint32_t CHG_fet_stat : 1;
     uint32_t init     : 1;
     uint32_t tc       : 1; 
-    uint32_t cell_ball_h : 1;
-    uint32_t cell_ball_l : 1;
+    uint32_t cell_ball_1 : 1;
+    uint32_t cell_ball_2 : 1;
+    uint32_t cell_ball_3 : 1;
     uint32_t batt_max_temp : 1;
    
     uint16_t specification_info;       // Specification Information
@@ -311,13 +318,18 @@ typedef enum
 {
     BATT_MODE_INIT = 0x00,
     BATT_MODE_READ_ONCE_BQ_1,
-	BATT_MODE_READ_ONCE_BQ_2,
-    BATT_MODE_INIT_BALANCE_L,
-    BATT_MODE_INIT_BALANCE_H,    
-    BATT_MODE_OFF_BALANCE_L,    
-    BATT_MODE_OFF_BALANCE_H,     
+    BATT_MODE_READ_ONCE_BQ_2,
+	BATT_MODE_READ_ONCE_BQ_3,
+    BATT_MODE_INIT_BALANCE_1,
+    BATT_MODE_INIT_BALANCE_2,    
+    BATT_MODE_INIT_BALANCE_3,
+    BATT_MODE_INIT_BALANCE_DONE,
+    BATT_MODE_OFF_BALANCE_1,    
+    BATT_MODE_OFF_BALANCE_2,     
+    BATT_MODE_OFF_BALANCE_3,
     BATT_MODE_READ_BQ_1,
 	BATT_MODE_READ_BQ_2,	
+	BATT_MODE_READ_BQ_3,
     BATT_MODE_CHECK_STATUS,
 	BATT_MODE_READ_CHECK_PACK_V,	
 	BATT_MODE_READ_CHECK_PACK_V_STABLE,	
@@ -330,6 +342,7 @@ typedef struct
   UVX_BATT_MODE state_previous; // Previous state of the M2JMB communication
   UVX_BATT_MODE state_current;  // Current state of the M2JMB communication
   UVX_BATT_MODE state_next; // Next state of the M2JMB communication
+  UVX_BATT_MODE state_when_fail; // Next state of the M2JMB communication
 } UVX_BATT_STATE_MACHINE;
 
 extern UVX_BATT_STATE_MACHINE batt_state;

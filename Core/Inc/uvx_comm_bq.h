@@ -53,10 +53,12 @@
 #define BYTE_SIZE_LSB   4 // Payload size LSB index in the packet
 #define BYTE_DATA       5 // Data byte index in the packet
 
-#define BQ_2_I2C_ADDRESS    0x0B // I2C address for BQ communication
-#define BQ_1_I2C_ADDRESS    0x0D // I2C address for BQ communication
 
-#define BQ_DEVICES          2
+#define BQ_1_I2C_ADDRESS    0x0D // I2C address for BQ communication
+#define BQ_2_I2C_ADDRESS    0x0B // I2C address for BQ communication
+#define BQ_3_I2C_ADDRESS    0x0C // I2C address for BQ communication
+
+#define BQ_DEVICES          3
 #define BQ_MAX_NO_RESPONSE  1000 
 
 #define SRAM1 __attribute__((section(".sram1")))
@@ -644,8 +646,10 @@ typedef struct
 
 extern SRAM1 UVX_BQ_DATA bq_data_1;
 extern SRAM1 UVX_BQ_DATA bq_data_2;
+extern SRAM1 UVX_BQ_DATA bq_data_3;
 extern SRAM1 UVX_COMM_BQ comm_bq_1; // BQ communication structure
 extern SRAM1 UVX_COMM_BQ comm_bq_2; // BQ communication structure
+extern SRAM1 UVX_COMM_BQ comm_bq_3; // BQ communication structure
 extern SRAM1 UVX_COMM_BQ_STATE_MACHINE comm_bq_state;
 extern UVX_COMM_BQ_STATE_MACHINE comm_state; // BQ communication state machine
 
@@ -655,6 +659,8 @@ extern UVX_BQ_REGISTER bq_1_register_list_read[]; // Array of BQ registers for r
 extern UVX_BQ_REGISTER bq_1_register_list_read_once[]; // Array of BQ registers for one-time read operations
 extern UVX_BQ_REGISTER bq_2_register_list_read[]; // Array of BQ registers for read operations
 extern UVX_BQ_REGISTER bq_2_register_list_read_once[]; // Array of BQ registers for one-time read operations
+extern UVX_BQ_REGISTER bq_3_register_list_read[]; // Array of BQ registers for read operations
+extern UVX_BQ_REGISTER bq_3_register_list_read_once[]; // Array of BQ registers for one-time read operations
 extern UVX_BQ_DATA bq_data[BQ_DEVICES]; // BQ data structure
 /* Function prototypes */
 UVX_COMM_BQ_STATE uvx_comm_bq_init(UVX_COMM_BQ* p_comm_bq, UVX_I2C* i2c, uint8_t i2c_addr, UVX_BQ_REGISTER* p_register_list);
