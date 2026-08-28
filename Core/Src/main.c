@@ -2619,6 +2619,27 @@ void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 	}
 }
 
+void HAL_I2C_MemRxCpltCallback(I2C_HandleTypeDef *hi2c)
+{
+	if(hi2c->Instance == i2c_bq.hal_i2c.hi2c.Instance)
+	{
+		/* HAL has copied the complete memory response to the register-list
+		 * destination (bq_data_1/2/3). Only now may the state machine advance. */
+		i2c_bq.hal_i2c.RX_Ready = 1;
+	}
+}
+
+void HAL_I2C_ErrorCallback(I2C_HandleTypeDef *hi2c)
+{
+	if(hi2c->Instance == i2c_bq.hal_i2c.hi2c.Instance)
+	{
+		/* Do not report a failed transfer as RX complete. WAIT_RESPONSE will
+		 * time out the active BQ and continue with the next one. */
+		i2c_bq.hal_i2c.RX_Ready = 0;
+		i2c_bq.hal_i2c.TX_Ready = 1;
+	}
+}
+
 void I2C1_EV_IRQHandler(void)
 {
 	uint32_t i2c_state = 0;
@@ -2644,11 +2665,6 @@ void I2C1_EV_IRQHandler(void)
 			// {
 			// 	comm_bq_2.RX_Ready = 1;
 			// }
-
-			if(i2c_bq.hal_i2c.RX_Ready == 0)
-			{
-				i2c_bq.hal_i2c.RX_Ready = 1;
-			}
 
 			if(i2c_bq.hal_i2c.TX_Ready == 0)
 			{
