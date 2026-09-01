@@ -1,0 +1,164 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Attach to Keil-Flashed App",
+      "type": "cortex-debug",
+      "request": "attach",
+      "servertype": "openocd",
+      "executable": "${workspaceFolder}/build/AQITA-PM.axf",
+      "device": "STM32L471VG",
+      "interface": "swd",
+      "configFiles": [
+        "interface/stlink.cfg",
+        "target/stm32l4x.cfg"
+      ],
+      "svdFile": "C:/Program Files (x86)/Keil_v5/ARM/PACK/Keil/STM32L4xx_DFP/2.5.0/CMSIS/SVD/STM32L4x1.svd",
+      "runToEntryPoint": "main",
+      "loadMode": "none",
+      "liveWatch": {
+        "enabled": true,
+        "samplesPerSecond": 4
+      }
+    },
+    {
+      "name": "J-Link (Ultra) GXO",
+      "type": "cortex-debug",
+      "request": "attach",
+      "servertype": "jlink",
+      //"preLaunchTask": "Keil: Build",
+      "serverpath": "C:/Program Files/SEGGER/JLink_V962/JLinkGDBServerCL.exe",
+      "executable": "${workspaceFolder}/MDK-ARM/build/AQITA-PM.axf",
+      "device": "STM32L471VG",
+      "serialNumber": "507000366",
+      "interface": "swd",
+      "svdFile": "C:/Program Files (x86)/Keil_v5/ARM/PACK/Keil/STM32L4xx_DFP/2.5.0/CMSIS/SVD/STM32L4x1.svd",
+      "runToEntryPoint": "main",
+      "loadMode": "none",
+      "liveWatch": {
+        "enabled": true,
+        "samplesPerSecond": 10
+      },
+      "serverArgs": [
+        "-if",
+        "SWD",
+        "-speed",
+        "15000"
+      ],
+      "swoConfig": {
+        "enabled": false,
+        "cpuFrequency": 80000000,
+        "swoFrequency": 12500000,
+        "source": "probe",
+        "decoders": [
+          {
+            "type": "console",
+            "label": "ITM",
+            "port": 0
+          }
+        ]
+      }
+    },    
+    {
+      "name": "J-Link (wi-Fi) 950",
+      "type": "cortex-debug",
+      "request": "attach",
+      "servertype": "jlink",
+      //"preLaunchTask": "Keil: Build",
+      "serverpath": "C:/Program Files/SEGGER/JLink_V950/JLinkGDBServerCL.exe",
+      "executable": "${workspaceFolder}/build/AQITA-PM.axf",
+      "device": "STM32L471VG",
+      "serialNumber": "942000151",
+      "interface": "swd",
+      "svdFile": "C:/Program Files (x86)/Keil_v5/ARM/PACK/Keil/STM32L4xx_DFP/2.5.0/CMSIS/SVD/STM32L4x1.svd",
+      "runToEntryPoint": "main",
+      "loadMode": "none",
+      "liveWatch": {
+        "enabled": true,
+        "samplesPerSecond": 10
+      },
+      "serverArgs": [
+        "-if",
+        "SWD",
+        "-speed",
+        "15000"
+      ],
+      "swoConfig": {
+        "enabled": false,
+        "cpuFrequency": 80000000,
+        "swoFrequency": 12500000,
+        "source": "probe",
+        "decoders": [
+          {
+            "type": "console",
+            "label": "ITM",
+            "port": 0
+          }
+        ]
+      }
+    },
+    {
+      "name": "J-Link (wi-Fi) 844a",
+      "type": "cortex-debug",
+      "request": "attach",
+      "servertype": "jlink",
+      //"preLaunchTask": "Keil: Build",
+      "serverpath": "C:/Program Files/SEGGER/JLink_V844a/JLinkGDBServerCL.exe",
+      "executable": "${workspaceFolder}/MDK-ARM/build/AQITA-PM.axf",
+      "device": "STM32L471VG",
+      "serialNumber": "942000151",
+      "interface": "swd",
+      "svdFile": "C:/Program Files (x86)/Keil_v5/ARM/PACK/Keil/STM32L4xx_DFP/2.5.0/CMSIS/SVD/STM32L4x1.svd",
+      "runToEntryPoint": "main",
+      "loadMode": "none",
+      "liveWatch": {
+        "enabled": true,
+        "samplesPerSecond": 10
+      },
+      "serverArgs": [
+        "-if",
+        "SWD",
+        "-speed",
+        "15000"
+      ],
+      "swoConfig": {
+        "enabled": false,
+        "cpuFrequency": 80000000,
+        "swoFrequency": 12500000,
+        "source": "probe",
+        "decoders": [
+          {
+            "type": "console",
+            "label": "ITM",
+            "port": 0
+          }
+        ]
+      }
+    },    
+    {
+      "name": "Build + Flash + Debug (J-Link)",
+      "type": "cortex-debug",
+      "request": "launch",
+      "servertype": "jlink",
+      "serverpath": "C:/Program Files/SEGGER/JLink_V830/JLinkGDBServerCL.exe",
+      "preLaunchTask": "Keil: Build",
+      "executable": "${workspaceFolder}/build/AQITA-PM.axf",
+      "device": "STM32L471VG",
+      "serialNumber": "942000151",
+      "interface": "swd",
+      "svdFile": "C:/Program Files (x86)/Keil_v5/ARM/PACK/Keil/STM32L4xx_DFP/2.5.0/CMSIS/SVD/STM32L4x1.svd",
+      "runToEntryPoint": "main",
+      "loadMode": "always",
+      "liveWatch": {
+        "enabled": true,
+        "samplesPerSecond": 10
+      },
+      "serverArgs": [
+        "-if",
+        "SWD",
+        "-speed",
+        "15000"
+      ]
+    }
+  ]
+}
