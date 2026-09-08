@@ -11,15 +11,15 @@
 #define WS2812_RESET_BYTES      500   // Reset time > 50us (10 bytes at 5Mbps)
 
 /* LED strip configuration */
-#define WS2812_LED_COUNT        180                                             // Number of LEDs in the strip
+#define WS2812_LED_COUNT        23                                              // Number of LEDs in the strip
 #define WS2812_LED_HALFCOUNT    WS2812_LED_COUNT/2                              // Half Number of LEDs in the strip (where is mirroring center)
 #define WS2812_COLOR_BYTES      3                                               // RGB color bytes per LED
 #define WS2812_BITS_PER_BYTE    8                                               // Bits per color byte
 #define WS2812_BYTES_PER_LED    (WS2812_COLOR_BYTES * WS2812_BITS_PER_BYTE)     // 24 bytes per LED
 /**
  * WS2812 Buffer Structure:
- * [500 reset bytes (0x00)] + [LED data: 15 LEDs * 24 bytes each] + [500 reset bytes (0x00)]
- * Total: 860 bytes
+ * [500 reset bytes (0x00)] + [LED data: 23 LEDs * 24 bytes each] + [500 reset bytes (0x00)]
+ * Total: 1150 bytes
  * 
  * Each LED uses 24 bytes (8 bytes per color component):
  * - Byte 0-7: Green (MSB first)

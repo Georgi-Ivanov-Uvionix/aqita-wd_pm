@@ -70,7 +70,7 @@
 #define TIME_FOR_ERROR_LED_TOGGLE				500		//250
 #define CLOCK_READY_TIMEOUT						1000000U
 
-#define APP_JETSON_PWR_FC
+//#define APP_JETSON_PWR_FC
 //#define APP_NO_BATTERY_MODE
 #define APP_HALL_POWER_ENABLE
 /* USER CODE END PD */
@@ -278,7 +278,7 @@ int main(void)
 	uvx_gpio_set_pin(GPIO_OUTPUT_RED_LED, GPIO_PIN_SET);	
 	uvx_gpio_set_pin(GPIO_OUTPUT_GREEN_LED, GPIO_PIN_SET);	
 	uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_SET);
-	uvx_gpio_set_pin(GPIO_OUTPUT_PWR_LED, GPIO_PIN_SET);
+	uvx_app_pwr_led_init();
 	uvx_gpio_set_pin(GPIO_OUTPUT_BQH_I2C_EN, GPIO_PIN_SET); // bqh turn off
 	uvx_gpio_set_pin(GPIO_OUTPUT_BQH_I2C_EN, GPIO_PIN_RESET);
 	UVX_APP_PWR_FET(0); // power off
@@ -315,7 +315,7 @@ void UVX_APP(void)
 				timer_app_drone.Enable = true; 
 				drone_state.state_current = DRONE_CHECK_BUTTON_TIMEOUT;
 				drone_state.state_next = DRONE_CHECK_BUTTON_PRESS_TWICE;
-				uvx_gpio_set_pin(GPIO_OUTPUT_PWR_LED, GPIO_PIN_RESET);
+				uvx_app_pwr_led(GPIO_PIN_RESET);
 				led_strip_state.state_next = LED_STRIP_MODE_BTN_PRESS;
 				btn_percent = 0;		
 			}
@@ -349,7 +349,7 @@ void UVX_APP(void)
 		case DRONE_CHECK_BUTTON_PRESS_TWICE:
 			if(timer_app_drone.Timeout == 0) // If timeout occurs
 			{
-				uvx_gpio_set_pin(GPIO_OUTPUT_PWR_LED, GPIO_PIN_RESET);
+				uvx_app_pwr_led(GPIO_PIN_RESET);
 				led_strip_state.state_next = LED_STRIP_MODE_BTN_PRESS;
 				btn_percent = 0;					
 				if(drone_status.btn_state)
@@ -400,7 +400,7 @@ void UVX_APP(void)
 		case DRONE_CHECK_BUTTON_TIMEOUT:
 			if(timer_app_drone.Timeout == 0) 
 			{
-				uvx_gpio_set_pin(GPIO_OUTPUT_PWR_LED, GPIO_PIN_SET);				
+				uvx_app_pwr_led(GPIO_PIN_SET);
 				led_strip_state.state_next = LED_STRIP_MODE_OFF;
 				if(uvx_gpio_read_pin(GPIO_INPUT_EXTI8_DRONE_START))
 				{
@@ -811,7 +811,7 @@ void         UVX_APP_Batt(void)
 
 				if(drone_state.state_current == DRONE_CHECK_BUTTON_PRESS_ONCE)
 				{
-					uvx_gpio_set_pin(GPIO_OUTPUT_PWR_LED, GPIO_PIN_SET);
+					uvx_app_pwr_led(GPIO_PIN_SET);
 				}
 				uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_SET);
 			}
@@ -859,7 +859,7 @@ void         UVX_APP_Batt(void)
 						uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_RESET);
 						if(drone_state.state_current == DRONE_CHECK_BUTTON_PRESS_ONCE)
 						{
-							uvx_gpio_set_pin(GPIO_OUTPUT_PWR_LED, GPIO_PIN_RESET);
+							uvx_app_pwr_led(GPIO_PIN_RESET);
 						}
 
 						uvx_comm_bq_charge_fet(&comm_bq_h, 1);
@@ -1064,6 +1064,17 @@ void UVX_APP_PWR_FET(uint8_t state)
 
 }
 
+void uvx_app_pwr_led(uint8_t state)
+{
+	uvx_gpio_set_pin(GPIO_OUTPUT_PWR_LED,
+		state ? GPIO_PIN_RESET : GPIO_PIN_SET);
+}
+
+void uvx_app_pwr_led_init(void)
+{
+	uvx_app_pwr_led(GPIO_PIN_SET);
+}
+
 void UVX_APP_Shutdown_JMB(void)
 {	
 	if(drone_status.esc_arm || drone_status.esc_psys_arm)
@@ -1079,11 +1090,11 @@ void UVX_APP_Shutdown_JMB(void)
 	while(uvx_gpio_read_pin(GPIO_INPUT_EXTI1_JETSON)) // Wait until the JMB is powered off
 	{
 		uvx_gpio_set_pin(GPIO_OUTPUT_RED_LED, GPIO_PIN_SET); // Turn off red LED to indicate waiting
-		uvx_gpio_set_pin(GPIO_OUTPUT_PWR_LED, GPIO_PIN_SET);
+		uvx_app_pwr_led(GPIO_PIN_SET);
 		uvx_led_strip_effect_solid_color(&ws2812_strip, 0, 0, 0);
 		HAL_Delay(210);
 		uvx_gpio_set_pin(GPIO_OUTPUT_RED_LED, GPIO_PIN_RESET); // Turn on red LED to indicate waiting
-		uvx_gpio_set_pin(GPIO_OUTPUT_PWR_LED, GPIO_PIN_RESET);
+		uvx_app_pwr_led(GPIO_PIN_RESET);
 		uvx_led_strip_effect_solid_color(&ws2812_strip, 120, 255, 255);
 		HAL_Delay(90);
 
@@ -1141,7 +1152,7 @@ void UVX_APP_Comm_m2jmb(void)
 				timer_app_comm_jmb.Enable = true; 
 				HAL_UART_Receive_IT(&uart_2.hal_uart.huart, &uart_2.byte_rx, 1); // Start receiving data
 				uvx_gpio_set_pin(GPIO_OUTPUT_RED_LED, GPIO_PIN_RESET);
-				uvx_gpio_set_pin(GPIO_OUTPUT_PWR_LED, GPIO_PIN_RESET);
+				uvx_app_pwr_led(GPIO_PIN_RESET);
 				led_strip_state.state_next = LED_STRIP_MODE_WAITING;
 			}
 		break;
@@ -1963,14 +1974,14 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 	UNUSED(htim);
 	if(drone_state.state_current == DRONE_SLEEP)
 	{
-		uvx_gpio_set_pin(GPIO_OUTPUT_PWR_LED, GPIO_PIN_RESET);
+		uvx_app_pwr_led(GPIO_PIN_RESET);
 	}
 
 	uvx_timer_callback(htim);
 
 	if(drone_state.state_current == DRONE_SLEEP)
 	{
-		uvx_gpio_set_pin(GPIO_OUTPUT_PWR_LED, GPIO_PIN_SET);
+		uvx_app_pwr_led(GPIO_PIN_SET);
 	}
 
 	/* NOTE: This function should not be modified, when the callback is needed,
