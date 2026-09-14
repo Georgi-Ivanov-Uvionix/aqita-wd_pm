@@ -288,6 +288,7 @@ void UVX_APP_PWR_FET(uint8_t state);
 void UVX_APP_Shutdown_JMB(void);
 void uvx_app_pwr_led(uint8_t state);
 void uvx_app_pwr_led_init(void);
+void uvx_app_led_strip_enable(uint8_t state);
 
 /* USER CODE END Private defines */
 
