@@ -73,16 +73,16 @@ UVX_BATT_STATE uvx_batt_parse_data(void)
     batt_data.cell_voltage_10 = bq_data_h.cell_voltage_5 - (bq_data_h.current * CELL_10_INTERCONNECT_RESISTANCE)/1000;
 
 	//convert to little endian 
-	batt_data.payload.cell_voltage_1  = uvx_comm_bq_swap_u16_value(bq_data_l.cell_voltage_1);
-	batt_data.payload.cell_voltage_2  = uvx_comm_bq_swap_u16_value(bq_data_l.cell_voltage_2);
-	batt_data.payload.cell_voltage_3  = uvx_comm_bq_swap_u16_value(bq_data_l.cell_voltage_3);
-	batt_data.payload.cell_voltage_4  = uvx_comm_bq_swap_u16_value(bq_data_l.cell_voltage_4);
-	batt_data.payload.cell_voltage_5  = uvx_comm_bq_swap_u16_value(bq_data_l.cell_voltage_5);
-	batt_data.payload.cell_voltage_6  = uvx_comm_bq_swap_u16_value(bq_data_h.cell_voltage_1);
-	batt_data.payload.cell_voltage_7  = uvx_comm_bq_swap_u16_value(bq_data_h.cell_voltage_2);
-	batt_data.payload.cell_voltage_8  = uvx_comm_bq_swap_u16_value(bq_data_h.cell_voltage_3);
-	batt_data.payload.cell_voltage_9  = uvx_comm_bq_swap_u16_value(bq_data_h.cell_voltage_4);
-    batt_data.payload.cell_voltage_10 = uvx_comm_bq_swap_u16_value(bq_data_h.cell_voltage_5);
+	batt_data.payload.cell_voltage_1  = uvx_comm_bq_swap_u16_value(batt_data.cell_voltage_1);
+	batt_data.payload.cell_voltage_2  = uvx_comm_bq_swap_u16_value(batt_data.cell_voltage_2);
+	batt_data.payload.cell_voltage_3  = uvx_comm_bq_swap_u16_value(batt_data.cell_voltage_3);
+	batt_data.payload.cell_voltage_4  = uvx_comm_bq_swap_u16_value(batt_data.cell_voltage_4);
+	batt_data.payload.cell_voltage_5  = uvx_comm_bq_swap_u16_value(batt_data.cell_voltage_5);
+	batt_data.payload.cell_voltage_6  = uvx_comm_bq_swap_u16_value(batt_data.cell_voltage_6);
+	batt_data.payload.cell_voltage_7  = uvx_comm_bq_swap_u16_value(batt_data.cell_voltage_7);
+	batt_data.payload.cell_voltage_8  = uvx_comm_bq_swap_u16_value(batt_data.cell_voltage_8);
+	batt_data.payload.cell_voltage_9  = uvx_comm_bq_swap_u16_value(batt_data.cell_voltage_9);
+    batt_data.payload.cell_voltage_10 = uvx_comm_bq_swap_u16_value(batt_data.cell_voltage_10);
 
 	batt_data.cell_current_1  = bq_data_l.cell_current_1;
 	batt_data.cell_current_2  = bq_data_l.cell_current_2;
