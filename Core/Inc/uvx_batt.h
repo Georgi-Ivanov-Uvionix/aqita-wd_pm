@@ -67,6 +67,7 @@
 #define BATT_ERROR_CHARGE_CELL_COUNT_ERROR_BIT         4
 
 #define MAX_CELL_TEMPERATURE                        650
+#define MAX_CHARGE_START_CELL_TEMPERATURE            450 //0.1 degree Celsius; charge start requires strictly below
 #define MAX_HIS_CELL_TEMPERATURE                    600 //max histeresis cell temperature for power on after high temp cutoff
 #define MIN_HIS_CELL_TEMPERATURE                    500 //min histeresis cell temperature for power on after high temp cutoff
 #define SOC_START_LOW_POWER                         95
