@@ -67,6 +67,7 @@
 #define BATT_ERROR_CHARGE_CELL_COUNT_ERROR_BIT         4
 
 #define MAX_CELL_TEMPERATURE                        650
+#define MAX_CHARGE_START_CELL_TEMPERATURE            450 //0.1 degree Celsius; charge start requires strictly below
 #define MAX_HIS_CELL_TEMPERATURE                    600 //max histeresis cell temperature for power on after high temp cutoff
 #define MIN_HIS_CELL_TEMPERATURE                    500 //min histeresis cell temperature for power on after high temp cutoff
 #define SOC_START_LOW_POWER                         95
@@ -76,15 +77,15 @@
 #define SRAM1 __attribute__((section(".sram1")))
 #define SRAM2 __attribute__((section(".sram2")))
 
-#define CELL_1_INTERCONNECT_RESISTANCE 15 //mOhm
-#define CELL_2_INTERCONNECT_RESISTANCE 0 //mOhm
-#define CELL_3_INTERCONNECT_RESISTANCE 0 //mOhm
-#define CELL_4_INTERCONNECT_RESISTANCE 0 //mOhm
+#define CELL_1_INTERCONNECT_RESISTANCE 14 //mOhm
+#define CELL_2_INTERCONNECT_RESISTANCE 1 //mOhm
+#define CELL_3_INTERCONNECT_RESISTANCE 1 //mOhm
+#define CELL_4_INTERCONNECT_RESISTANCE 10 //mOhm
 #define CELL_5_INTERCONNECT_RESISTANCE 1 //mOhm
-#define CELL_6_INTERCONNECT_RESISTANCE 12 //mOhm
-#define CELL_7_INTERCONNECT_RESISTANCE 0 //mOhm
-#define CELL_8_INTERCONNECT_RESISTANCE 0 //mOhm
-#define CELL_9_INTERCONNECT_RESISTANCE 0 //mOhm
+#define CELL_6_INTERCONNECT_RESISTANCE 25 //mOhm
+#define CELL_7_INTERCONNECT_RESISTANCE 9 //mOhm
+#define CELL_8_INTERCONNECT_RESISTANCE 1 //mOhm
+#define CELL_9_INTERCONNECT_RESISTANCE 1 //mOhm
 #define CELL_10_INTERCONNECT_RESISTANCE 0 //mOhm
 
 

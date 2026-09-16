@@ -340,7 +340,9 @@ UVX_COMM_BQ_STATE uvx_comm_bq_charge_fet(UVX_COMM_BQ* p_comm_bq, uint8_t state)
 {
 	if(state)
 	{
-		if(!batt_data.CHG_fet_stat)
+		if(!batt_data.CHG_fet_stat &&
+		   (batt_data.temperature_cell_l < MAX_CHARGE_START_CELL_TEMPERATURE) &&
+		   (batt_data.temperature_cell_h < MAX_CHARGE_START_CELL_TEMPERATURE))
 		{
 			uvx_comm_bq_write_mba_register(&comm_bq_h, BQ_MA_CHG_FET_TOGGLE, NULL, 0);
 		}

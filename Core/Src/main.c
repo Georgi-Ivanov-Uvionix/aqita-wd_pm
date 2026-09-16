@@ -41,8 +41,6 @@
 #define	DISABLE_BATT_MEASURE					HAL_GPIO_WritePin(GPIOC, GPIO_OUTPUT_BATT_MEASURE_EN_Pin, GPIO_PIN_RESET)
 #define	PWR_DRONE								HAL_GPIO_WritePin(GPIOC, GPIO_OUTPUT_DRONE_START_FET_EN_Pin, GPIO_PIN_SET)
 #define	SHUTDWON_DRONE							HAL_GPIO_WritePin(GPIOC, GPIO_OUTPUT_DRONE_START_FET_EN_Pin, GPIO_PIN_RESET)
-#define PWR_JETSON								HAL_GPIO_WritePin(GPIO_OUTPUT_EN_JETSON_PS_GPIO_Port, GPIO_OUTPUT_EN_JETSON_PS_Pin, GPIO_PIN_SET)
-#define SHUTDOWN_JETSON							HAL_GPIO_WritePin(GPIO_OUTPUT_EN_JETSON_PS_GPIO_Port, GPIO_OUTPUT_EN_JETSON_PS_Pin, GPIO_PIN_RESET)
 #define PWR_PER								    HAL_GPIO_WritePin(GPIOD, GPIO_OUTPUT_PERIPHERIAL_EN_Pin, GPIO_PIN_SET)
 #define SHUDONW_PER				     			HAL_GPIO_WritePin(GPIOD, GPIO_OUTPUT_PERIPHERIAL_EN_Pin, GPIO_PIN_RESET)
 #define	DRONE_PWR_GOOD_SET						(HAL_GPIO_ReadPin(GPIOC,GPIO_INPUT_PG_DRONE_START_Pin) == GPIO_PIN_RESET)
@@ -278,11 +276,12 @@ int main(void)
 	uvx_gpio_set_pin(GPIO_OUTPUT_RED_LED, GPIO_PIN_SET);	
 	uvx_gpio_set_pin(GPIO_OUTPUT_GREEN_LED, GPIO_PIN_SET);	
 	uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_SET);
-	uvx_gpio_set_pin(GPIO_OUTPUT_PWR_LED, GPIO_PIN_SET);
+	uvx_app_pwr_led_init();
 	uvx_gpio_set_pin(GPIO_OUTPUT_BQH_I2C_EN, GPIO_PIN_SET); // bqh turn off
-	uvx_gpio_set_pin(GPIO_OUTPUT_BQH_I2C_EN, GPIO_PIN_RESET);
+	uvx_gpio_set_pin(GPIO_OUTPUT_BQH_I2C_EN, GPIO_PIN_RESET);	
 	UVX_APP_PWR_FET(0); // power off
-	uvx_gpio_set_pin(GPIO_OUT_LED_STRIP_ENABLE, GPIO_PIN_SET);
+	uvx_app_led_strip_enable(GPIO_PIN_SET);
+	uvx_gpio_set_pin(GPIO_OUTPUT_JETSON_EN, GPIO_PIN_RESET);
 
 	pclk1_freq = HAL_RCC_GetPCLK1Freq();
 
@@ -315,7 +314,7 @@ void UVX_APP(void)
 				timer_app_drone.Enable = true; 
 				drone_state.state_current = DRONE_CHECK_BUTTON_TIMEOUT;
 				drone_state.state_next = DRONE_CHECK_BUTTON_PRESS_TWICE;
-				uvx_gpio_set_pin(GPIO_OUTPUT_PWR_LED, GPIO_PIN_RESET);
+				uvx_app_pwr_led(GPIO_PIN_RESET);
 				led_strip_state.state_next = LED_STRIP_MODE_BTN_PRESS;
 				btn_percent = 0;		
 			}
@@ -349,7 +348,7 @@ void UVX_APP(void)
 		case DRONE_CHECK_BUTTON_PRESS_TWICE:
 			if(timer_app_drone.Timeout == 0) // If timeout occurs
 			{
-				uvx_gpio_set_pin(GPIO_OUTPUT_PWR_LED, GPIO_PIN_RESET);
+				uvx_app_pwr_led(GPIO_PIN_RESET);
 				led_strip_state.state_next = LED_STRIP_MODE_BTN_PRESS;
 				btn_percent = 0;					
 				if(drone_status.btn_state)
@@ -400,7 +399,7 @@ void UVX_APP(void)
 		case DRONE_CHECK_BUTTON_TIMEOUT:
 			if(timer_app_drone.Timeout == 0) 
 			{
-				uvx_gpio_set_pin(GPIO_OUTPUT_PWR_LED, GPIO_PIN_SET);				
+				uvx_app_pwr_led(GPIO_PIN_SET);
 				led_strip_state.state_next = LED_STRIP_MODE_OFF;
 				if(uvx_gpio_read_pin(GPIO_INPUT_EXTI8_DRONE_START))
 				{
@@ -515,7 +514,7 @@ void Process_Button_EXTI_Request(void)
 	if(g_Button_EXTI_Request)
 	{
 		g_Button_EXTI_Request = 0;
-		uvx_gpio_set_pin(GPIO_OUT_LED_STRIP_ENABLE, GPIO_PIN_SET);
+		uvx_app_led_strip_enable(GPIO_PIN_SET);
 		drone_status.btn_state = true;
 		if((drone_state.state_current != DRONE_CHECK_BUTTON_PRESS_ONCE)
 		&& (drone_state.state_current != DRONE_CHECK_BUTTON_PRESS_TWICE)
@@ -811,7 +810,7 @@ void         UVX_APP_Batt(void)
 
 				if(drone_state.state_current == DRONE_CHECK_BUTTON_PRESS_ONCE)
 				{
-					uvx_gpio_set_pin(GPIO_OUTPUT_PWR_LED, GPIO_PIN_SET);
+					uvx_app_pwr_led(GPIO_PIN_SET);
 				}
 				uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_SET);
 			}
@@ -859,7 +858,7 @@ void         UVX_APP_Batt(void)
 						uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_RESET);
 						if(drone_state.state_current == DRONE_CHECK_BUTTON_PRESS_ONCE)
 						{
-							uvx_gpio_set_pin(GPIO_OUTPUT_PWR_LED, GPIO_PIN_RESET);
+							uvx_app_pwr_led(GPIO_PIN_RESET);
 						}
 
 						uvx_comm_bq_charge_fet(&comm_bq_h, 1);
@@ -1064,6 +1063,23 @@ void UVX_APP_PWR_FET(uint8_t state)
 
 }
 
+void uvx_app_pwr_led(uint8_t state)
+{
+	uvx_gpio_set_pin(GPIO_OUTPUT_PWR_LED,
+		state ? GPIO_PIN_RESET : GPIO_PIN_SET);
+}
+
+void uvx_app_pwr_led_init(void)
+{
+	uvx_app_pwr_led(GPIO_PIN_SET);
+}
+
+void uvx_app_led_strip_enable(uint8_t state)
+{
+	uvx_gpio_set_pin(GPIO_OUT_LED_STRIP_ENABLE, state ? GPIO_PIN_SET : GPIO_PIN_RESET);
+
+}
+
 void UVX_APP_Shutdown_JMB(void)
 {	
 	if(drone_status.esc_arm || drone_status.esc_psys_arm)
@@ -1079,11 +1095,11 @@ void UVX_APP_Shutdown_JMB(void)
 	while(uvx_gpio_read_pin(GPIO_INPUT_EXTI1_JETSON)) // Wait until the JMB is powered off
 	{
 		uvx_gpio_set_pin(GPIO_OUTPUT_RED_LED, GPIO_PIN_SET); // Turn off red LED to indicate waiting
-		uvx_gpio_set_pin(GPIO_OUTPUT_PWR_LED, GPIO_PIN_SET);
+		uvx_app_pwr_led(GPIO_PIN_SET);
 		uvx_led_strip_effect_solid_color(&ws2812_strip, 0, 0, 0);
 		HAL_Delay(210);
 		uvx_gpio_set_pin(GPIO_OUTPUT_RED_LED, GPIO_PIN_RESET); // Turn on red LED to indicate waiting
-		uvx_gpio_set_pin(GPIO_OUTPUT_PWR_LED, GPIO_PIN_RESET);
+		uvx_app_pwr_led(GPIO_PIN_RESET);
 		uvx_led_strip_effect_solid_color(&ws2812_strip, 120, 255, 255);
 		HAL_Delay(90);
 
@@ -1093,8 +1109,8 @@ void UVX_APP_Shutdown_JMB(void)
 		}
 	}
 
-	SHUTDOWN_JETSON;
 	uvx_gpio_set_pin(GPIO_OUTPUT_DRONE_START_FET_EN, GPIO_PIN_RESET); // power off FC
+	uvx_gpio_set_pin(GPIO_OUTPUT_JETSON_EN, GPIO_PIN_RESET); // power off FC
 	uvx_gpio_set_pin(GPIO_OUTPUT_ESC_EN, GPIO_PIN_RESET); // power off FC
 	uvx_gpio_set_pin(GPIO_OUTPUT_5V_EN, GPIO_PIN_RESET); // power off FC
 	uvx_gpio_set_pin(GPIO_OUTPUT_CUBE_EN, GPIO_PIN_RESET); // power off FC
@@ -1120,8 +1136,8 @@ void UVX_APP_Comm_m2jmb(void)
 		case M2JMB_MODE_TURN_ON:
 			if(timer_app_comm_jmb.Timeout == 0) // If timeout occurs
 			{
-				PWR_JETSON; // Power on JMB peripheral
 				uvx_gpio_set_pin(GPIO_OUTPUT_DRONE_START_FET_EN, GPIO_PIN_SET);
+				uvx_gpio_set_pin(GPIO_OUTPUT_JETSON_EN, GPIO_PIN_SET);
 
 				#ifdef APP_JETSON_PWR_FC
 				comm_m2jmb_state.state_next = M2JMB_MODE_TURN_OFF; // Set next state to wait for response
@@ -1141,7 +1157,7 @@ void UVX_APP_Comm_m2jmb(void)
 				timer_app_comm_jmb.Enable = true; 
 				HAL_UART_Receive_IT(&uart_2.hal_uart.huart, &uart_2.byte_rx, 1); // Start receiving data
 				uvx_gpio_set_pin(GPIO_OUTPUT_RED_LED, GPIO_PIN_RESET);
-				uvx_gpio_set_pin(GPIO_OUTPUT_PWR_LED, GPIO_PIN_RESET);
+				uvx_app_pwr_led(GPIO_PIN_RESET);
 				led_strip_state.state_next = LED_STRIP_MODE_WAITING;
 			}
 		break;
@@ -1150,8 +1166,8 @@ void UVX_APP_Comm_m2jmb(void)
 			if(timer_app_comm_jmb.Timeout == 0) // If timeout occurs
 			{
 				#ifdef APP_JETSON_PWR_FC
-				SHUTDOWN_JETSON; // Power off JMB peripheral
 				uvx_gpio_set_pin(GPIO_OUTPUT_DRONE_START_FET_EN, GPIO_PIN_RESET); // power off FC
+				uvx_gpio_set_pin(GPIO_OUTPUT_JETSON_EN, GPIO_PIN_RESET); // power off FC
 				drone_status.pwr_fc = false;
 				comm_m2jmb.Heartbeat = 0; // Reset heartbeat flag
 				#else
@@ -1189,8 +1205,7 @@ void UVX_APP_Comm_m2jmb(void)
 				drone_status.pwr_fc = false;
 				drone_status.esc_comm = false;
 				comm_m2jmb_state.state_current = M2JMB_MODE_WAIT_RESPONSE; // Wait for response
-				uvx_gpio_set_pin(GPIO_OUTPUT_GREEN_LED, GPIO_PIN_SET);		
-				//uvx_gpio_set_pin(GPIO_OUTPUT_DRONE_START_FET_EN, GPIO_PIN_RESET);					
+				uvx_gpio_set_pin(GPIO_OUTPUT_GREEN_LED, GPIO_PIN_SET);				
 				uvx_gpio_set_pin(GPIO_OUTPUT_ESC_EN, GPIO_PIN_RESET);					
 				uvx_gpio_set_pin(GPIO_OUTPUT_5V_EN, GPIO_PIN_RESET);	
 				uvx_gpio_set_pin(GPIO_OUTPUT_CUBE_EN, GPIO_PIN_RESET); // power off FC
@@ -1963,14 +1978,14 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 	UNUSED(htim);
 	if(drone_state.state_current == DRONE_SLEEP)
 	{
-		uvx_gpio_set_pin(GPIO_OUTPUT_PWR_LED, GPIO_PIN_RESET);
+		uvx_app_pwr_led(GPIO_PIN_RESET);
 	}
 
 	uvx_timer_callback(htim);
 
 	if(drone_state.state_current == DRONE_SLEEP)
 	{
-		uvx_gpio_set_pin(GPIO_OUTPUT_PWR_LED, GPIO_PIN_SET);
+		uvx_app_pwr_led(GPIO_PIN_SET);
 	}
 
 	/* NOTE: This function should not be modified, when the callback is needed,
@@ -2281,7 +2296,7 @@ void enter_LPSleep( void )
 {
 	if (!g_Sleep)//G? pin config before enter sleep
 	{
-		uvx_gpio_set_pin(GPIO_OUT_LED_STRIP_ENABLE, GPIO_PIN_RESET);
+		uvx_app_led_strip_enable(GPIO_PIN_RESET);
 		__HAL_UART_DISABLE_IT(&uart_1.hal_uart.huart, UART_IT_RXNE); // Enable RXNE interrupt for USART1
 		__HAL_UART_DISABLE_IT(&uart_2.hal_uart.huart, UART_IT_RXNE); // Enable RXNE interrupt for USART2
 		HAL_ADC_Stop_DMA(&hadc1);
