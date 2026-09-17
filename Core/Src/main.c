@@ -848,8 +848,14 @@ void         UVX_APP_Batt(void)
 			{
 				if(batt_data.tc)
 				{
-					uvx_comm_bq_charge_fet(&comm_bq_h, 0);
-				//UVX_APP_PWR_FET(0); // PWR off
+					if(drone_status.esc_arm && drone_status.esc_psys_arm)
+					{
+						uvx_comm_bq_charge_fet(&comm_bq_h, 1);
+					}
+					else
+					{
+						uvx_comm_bq_charge_fet(&comm_bq_h, 0);
+					}
 				}
 				else
 				{
