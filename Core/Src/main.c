@@ -886,75 +886,78 @@ void         UVX_APP_Batt(void)
 		break;
 
 		case BATT_MODE_CHECK_STATUS:
-			if(batt_data.CHG_fet_en)
+			batt_state.state_current = BATT_MODE_WAIT_RESPONSE;
+			batt_state.state_when_fail = BATT_MODE_READ_CHECK_PACK_V;
+
+			if(bq_data_1.CHG_FET_STAT)
 			{
-				uvx_comm_bq_write_mba_register(&comm_bq_2, BQ_MA_FET_CONTROL, NULL, 0);
+				uvx_comm_bq_write_mba_register(&bq_data_1, BQ_MA_FET_CONTROL, NULL, 0);
 			}
 			else
 			{
-				if(batt_data.tc)
-				{
-					uvx_comm_bq_charge_fet(&comm_bq_2, 0);
-				//UVX_APP_PWR_FET(0); // PWR off
-				}
-				else
-				{
-					if((batt_data.adc_pack_v_stable_high) && (drone_status.pwr_fet))
-					{
-						uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_RESET);
-						if(drone_state.state_current == DRONE_CHECK_BUTTON_PRESS_ONCE)
-						{
-							uvx_gpio_set_pin(GPIO_OUTPUT_PWR_LED, GPIO_PIN_RESET);
-						}
+				// if(batt_data.tc)
+				// {
+				// 	uvx_comm_bq_charge_fet(&bq_data_1, 0);
 
-						uvx_comm_bq_charge_fet(&comm_bq_2, 1);
-					}
-					else
-					{
-						uvx_comm_bq_charge_fet(&comm_bq_2, 0);
-					}		
-				}
+				// }
+				// else
+				// {
+				// 	if((batt_data.adc_pack_v_stable_high) && (drone_status.pwr_fet))
+				// 	{
+				// 		uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_RESET);
+				// 		if(drone_state.state_current == DRONE_CHECK_BUTTON_PRESS_ONCE)
+				// 		{
+				// 			uvx_gpio_set_pin(GPIO_OUTPUT_PWR_LED, GPIO_PIN_RESET);
+				// 		}
+
+				// 		uvx_comm_bq_charge_fet(&bq_data_2, 1);
+				// 	}
+				// 	else
+				// 	{
+				// 		uvx_comm_bq_charge_fet(&bq_data_2, 0);
+				// 	}		
+				// }
 
 				if(!batt_data.cell_ball_2 && !batt_data.cell_ball_1 && !batt_data.cell_ball_3)
 				{
-					if((batt_data.voltage_diff_pack > BATT_CELL_VOLTAGE_DIFF) && (batt_data.CHG_fet_stat))
-					{
-						if((bq_data_1.voltage_per_cell >= bq_data_2.voltage_per_cell) &&
-						   (bq_data_1.voltage_per_cell >= bq_data_3.voltage_per_cell))
-						{
-							uvx_comm_bq_force_balance(&comm_bq_1, 1);
-							batt_state.state_next = BATT_MODE_READ_CHECK_PACK_V;
-						}
-						else if(bq_data_2.voltage_per_cell >= bq_data_3.voltage_per_cell)
-						{
-							uvx_comm_bq_force_balance(&comm_bq_2, 1);
-							batt_state.state_next = BATT_MODE_READ_CHECK_PACK_V;
-						}
-						else
-						{
-							uvx_comm_bq_force_balance(&comm_bq_3, 1);
-							batt_state.state_next = BATT_MODE_READ_CHECK_PACK_V;
-						}
-					}
-					else
-					{
-						if(comm_bq_3.Force_balance)
-						{
-							batt_state.state_next = BATT_MODE_OFF_BALANCE_3;
-						}
-						else if(comm_bq_2.Force_balance)
-						{
-							batt_state.state_next = BATT_MODE_OFF_BALANCE_2;
-						}
-						else if(comm_bq_1.Force_balance)
-						{
-							batt_state.state_next = BATT_MODE_OFF_BALANCE_1;
-						}
-						else
-						{
-							batt_state.state_next = BATT_MODE_READ_CHECK_PACK_V;
-						}					
-					}	
+					// if((batt_data.voltage_diff_pack > BATT_CELL_VOLTAGE_DIFF) && (batt_data.CHG_fet_stat))
+					// {
+					// 	if((bq_data_1.voltage_per_cell >= bq_data_2.voltage_per_cell) &&
+					// 	   (bq_data_1.voltage_per_cell >= bq_data_3.voltage_per_cell))
+					// 	{
+					// 		uvx_comm_bq_force_balance(&comm_bq_1, 1);
+					// 		batt_state.state_next = BATT_MODE_READ_CHECK_PACK_V;
+					// 	}
+					// 	else if(bq_data_2.voltage_per_cell >= bq_data_3.voltage_per_cell)
+					// 	{
+					// 		uvx_comm_bq_force_balance(&comm_bq_2, 1);
+					// 		batt_state.state_next = BATT_MODE_READ_CHECK_PACK_V;
+					// 	}
+					// 	else
+					// 	{
+					// 		uvx_comm_bq_force_balance(&comm_bq_3, 1);
+					// 		batt_state.state_next = BATT_MODE_READ_CHECK_PACK_V;
+					// 	}
+					// }
+					// else
+					// {
+					// 	if(comm_bq_3.Force_balance)
+					// 	{
+					// 		batt_state.state_next = BATT_MODE_OFF_BALANCE_3;
+					// 	}
+					// 	else if(comm_bq_2.Force_balance)
+					// 	{
+					// 		batt_state.state_next = BATT_MODE_OFF_BALANCE_2;
+					// 	}
+					// 	else if(comm_bq_1.Force_balance)
+					// 	{
+					// 		batt_state.state_next = BATT_MODE_OFF_BALANCE_1;
+					// 	}
+					// 	else
+					// 	{
+					// 		batt_state.state_next = BATT_MODE_READ_CHECK_PACK_V;
+					// 	}					
+					// }	
 				}
 				else
 				{
@@ -972,13 +975,10 @@ void         UVX_APP_Batt(void)
 					}
 					else
 					{
-						batt_state.state_next = BATT_MODE_READ_CHECK_PACK_V;
+						batt_state.state_current = BATT_MODE_READ_CHECK_PACK_V;
 					}		
 				}
-			}
-		
-			batt_state.state_current = BATT_MODE_WAIT_RESPONSE;
-			batt_state.state_when_fail = BATT_MODE_READ_CHECK_PACK_V;			
+			}			
 		break;
 
 		case BATT_MODE_OFF_BALANCE_1:
@@ -1029,13 +1029,13 @@ void         UVX_APP_Batt(void)
 						if(batt_data.cnt_no_response > BQ_MAX_NO_RESPONSE)
 						{
 							batt_data.cnt_no_response = 0;
-							batt_state.state_current = batt_state.state_next;
+							batt_state.state_current = batt_state.state_when_fail;
 							batt_reg_cnt = 0;
 							HAL_Delay(1);
 						}
 						else
 						{
-							batt_state.state_current = batt_state.state_previous;
+							batt_state.state_current = batt_state.state_when_fail;
 							batt_data.cnt_no_response++;
 						}
 					break;
@@ -1662,10 +1662,12 @@ void UVX_APP_Comm_m2m(void)
 
 	i2c_bq = UVX_APP_SETUP_I2C_BQ; // Initialize the I2C HAL structure for BQ communication	
 	uvx_comm_bq_init(&comm_bq_1, &i2c_bq, BQ_1_I2C_ADDRESS, bq_1_register_list_read); // Initialize the BQ communication
-
-	//comm_bq_2.addr_i2c = BQ_2_I2C_ADDRESS; // Set the I2C address for BQ
 	uvx_comm_bq_init(&comm_bq_2, &i2c_bq, BQ_2_I2C_ADDRESS, bq_2_register_list_read); // Initialize the BQ communication
 	uvx_comm_bq_init(&comm_bq_3, &i2c_bq, BQ_3_I2C_ADDRESS, bq_3_register_list_read); // Initialize the BQ communication
+
+	bq_data_1.p_comm_bq = &comm_bq_1; // Set the BQ communication structure for BQ1
+	bq_data_2.p_comm_bq = &comm_bq_2; // Set the BQ communication structure for BQ2
+	bq_data_3.p_comm_bq = &comm_bq_3; // Set the BQ communication structure for BQ3
 
 	uart_2 = UVX_APP_SETUP_UART_2; // Initialize the UART HAL structure for M2JMB communication
 	uvx_comm_m2jmb_init(&uart_2); // Initialize the M2JMB communication

@@ -63,385 +63,6 @@
 
 #define SRAM1 __attribute__((section(".sram1")))
 
-typedef union MANUFACTURE_STATUS_U
-{
-    uint16_t data;
-    struct {
-        /* Bits 0–7 */
-        uint16_t PCHG_EN   : 1;  // Bit 0 : Pre-charge enable
-        uint16_t CHG_EN    : 1;  // Bit 1 : Charge enable
-        uint16_t DSG_EN    : 1;  // Bit 2 : Discharge enable
-        uint16_t GAUGE_EN  : 1;  // Bit 3 : Gauging enable
-        uint16_t FET_EN    : 1;  // Bit 4 : FET enable
-        uint16_t LF_EN     : 1;  // Bit 5 : Lifetime data enable
-        uint16_t PF_EN     : 1;  // Bit 6 : Permanent failure enable
-        uint16_t BBR_EN    : 1;  // Bit 7 : Black-box recorder enable
-
-        /* Bits 8–15 */
-        uint16_t FUSE_EN   : 1;  // Bit 8  : Fuse enable
-        uint16_t LED_EN    : 1;  // Bit 9  : LED enable
-        uint16_t RSVD10    : 1;  // Bit 10 : Reserved
-        uint16_t RSVD11    : 1;  // Bit 11 : Reserved
-        uint16_t RSVD12    : 1;  // Bit 12 : Reserved
-        uint16_t PDSG_EN   : 1;  // Bit 13 : Permanent discharge enable
-        uint16_t LT_TEST   : 1;  // Bit 14 : Lifetime test enable
-        uint16_t CAL_EN    : 1;  // Bit 15 : Calibration enable
-    } bits;
-} MANUFACTURE_STATUS_U;
-
-typedef struct MANUFACTURE_STATUS_S
-{
-    uint8_t raw[3];
-    MANUFACTURE_STATUS_U reg;
-} MANUFACTURE_STATUS_S;
-
-typedef union OPERATION_STATUS_U
-{
-    uint32_t data;
-    struct {
-        /* Bits 0–7 */
-        uint32_t PRES      : 1;  // Bit 0  : System present (active low)
-        uint32_t DSG       : 1;  // Bit 2  : Discharge
-        uint32_t CHG       : 1;  // Bit 1  : Charge
-        uint32_t PCHG      : 1;  // Bit 3  : Pre-charge
-        uint32_t PDSG      : 1;  // Bit 4  : Pre-discharge
-        uint32_t FUSE      : 1;  // Bit 5  : Fuse status
-        uint32_t RSVD6     : 1;  // Bit 6  : Reserved
-        uint32_t BTP_INT   : 1;  // Bit 7  : Battery trip interrupt
-
-        /* Bits 8–15 */
-        uint32_t SEC0      : 1;  // Bit 8
-        uint32_t SEC1      : 1;  // Bit 9
-        uint32_t SDV       : 1;  // Bit 10
-        uint32_t SS        : 1;  // Bit 11
-        uint32_t PF        : 1;  // Bit 12
-        uint32_t XDSG      : 1;  // Bit 13
-        uint32_t XCHG      : 1;  // Bit 14
-        uint32_t SLEEP     : 1;  // Bit 15
-
-        /* Bits 16–23 */
-        uint32_t SDM       : 1;  // Bit 16 : Shutdown via command
-        uint32_t LED       : 1;  // Bit 17 : LED display
-        uint32_t AUTH      : 1;  // Bit 18 : Authentication in progress
-        uint32_t AUTOCALM  : 1;  // Bit 19 : Auto CC Offset calibration
-        uint32_t CAL       : 1;  // Bit 20 : Calibration output valid
-        uint32_t CAL_OFFSET: 1;  // Bit 21 : Raw CC offset calibration valid
-        uint32_t XL        : 1;  // Bit 22 : 400-kHz SMBus mode
-        uint32_t SLEEPM    : 1;  // Bit 23 : Sleep via command
-
-        /* Bits 24–31 */
-        uint32_t INIT      : 1;  // Bit 24 : Initialization after reset
-        uint32_t SMBLCAL   : 1;  // Bit 25 : Auto CC calibration on SMBus low
-        uint32_t SLPAD     : 1;  // Bit 26 : ADC active in sleep
-        uint32_t SLPCC     : 1;  // Bit 27 : CC active in sleep
-        uint32_t CB        : 1;  // Bit 28 : Cell balancing active
-        uint32_t EMSHUT    : 1;  // Bit 29 : Emergency FET shutdown
-        uint32_t RSVD30    : 1;  // Bit 30 : Reserved
-        uint32_t IATA_CTERM: 1;  // Bit 31 : IATA charge control
-    } bits;
-} OPERATION_STATUS_U;
-
-typedef struct OPERATION_STATUS_S
-{
-    uint8_t raw[5];
-    OPERATION_STATUS_U reg;
-} OPERATION_STATUS_S;
-
-typedef union GAUGING_STATUS_U
-{
-    uint32_t data;
-    struct {
-        /* Bits 0–7 */
-        uint32_t FD        : 1;  // Bit 0  : Full Discharge detected
-        uint32_t FC        : 1;  // Bit 1  : Full Charge detected
-        uint32_t TD        : 1;  // Bit 2  : Terminate Discharge
-        uint32_t TC        : 1;  // Bit 3  : Terminate Charge
-        uint32_t BAL_EN    : 1;  // Bit 4  : Cell balancing enabled
-        uint32_t EDV       : 1;  // Bit 5  : End-of-discharge detected
-        uint32_t DSG       : 1;  // Bit 6  : Discharge detected
-        uint32_t CF        : 1;  // Bit 7  : Charge fault
-
-        /* Bits 8–15 */
-        uint32_t REST      : 1;  // Bit 8  : Rest detected
-        uint32_t RSVD9     : 1;  // Bit 9  : Reserved
-        uint32_t R_DIS     : 1;  // Bit 10 : Resistance discharge
-        uint32_t VOK       : 1;  // Bit 11 : Voltage OK
-        uint32_t QEN       : 1;  // Bit 12 : QMax updates enabled
-        uint32_t SLP_QMAX  : 1;  // Bit 13 : QMax update in progress
-        uint32_t RSVD      : 1;  // Bit 14 : Reserved
-
-        /* Bits 16–23 */
-        uint32_t NSFM      : 1;  // Bit 15 : QMax status
-        uint32_t VDQ       : 1;  // Bit 16 : Resistance update active
-        uint32_t QMAX      : 1;  // Bit 17 : Load mode
-        uint32_t RX        : 1;  // Bit 18 : Fast relax
-        uint32_t LDMD      : 1;  // Bit 19 : Open-circuit voltage update
-        uint32_t OCV_FR    : 1;  // Bit 20 : Reserved
-        uint32_t RSVD21    : 1;  // Bit 21 : Reserved
-        uint32_t RSVD22    : 1;  // Bit 22 : Reserved
-        uint32_t RSVD23    : 1;  // Bit 23 : Reserved
-        uint32_t RSVD24    : 1;  // Bit 24 : Reserved
-        uint32_t RSVD25    : 1;  // Bit 25 : Reserved
-        uint32_t RSVD26    : 1;  // Bit 26 : Reserved
-        uint32_t RSVD27    : 1;  // Bit 27 : Reserved
-        uint32_t RSVD28    : 1;  // Bit 28 : Reserved
-        uint32_t RSVD29    : 1;  // Bit 29 : Reserved
-        uint32_t RSVD30    : 1;  // Bit 30 : Reserved
-        uint32_t RSVD31    : 1;  // Bit 31 : Reserved
-    } bits;
-} GAUGING_STATUS_U;
-
-typedef struct GAUGING_STATUS_S
-{
-    uint8_t raw[4];
-    GAUGING_STATUS_U reg;
-} GAUGING_STATUS_S;
-
-typedef struct UVX_BQ_DATA
-{
-    uint16_t temperature;               // Temperature in 0.1 Kelvin
-    uint16_t voltage;                   // Voltage in millivolts    
-    int16_t  current;                   // Current in milliamps
-    uint16_t relative_state_of_charge;  // Relative State of Charge in percentage (0-100%)
-    uint16_t absolute_state_of_charge;  // Absolute State of Charge in percentage (0-100%)
-    uint16_t remaining_capacity;        // Remaining Capacity in mAh
-    uint16_t full_charge_capacity;      // Full Charge Capacity in mAh
-    uint16_t average_time_to_empty;     // Average Time to Empty in minutes
-    uint16_t average_time_to_full;      // Average Time to Full in minutes
-    uint8_t  SOH;                       // State of Health in percentage (0-100%)
-    uint16_t  cycle_count;               // Cycle Count
-    int16_t  charging_current;          // Charging Current in milliamps
-    uint16_t charging_voltage;          // Charging Voltage in millivolts
-    uint16_t design_capacity;           // Design Capacity in mAh
-    uint16_t design_voltage;            // Design Voltage in millivolts 
-    uint16_t specification_info;       // Specification Information
-    uint16_t manufacturer_date;        // Manufacturer Date
-    uint16_t serial_number;            // Serial Number
-    uint16_t voltage_per_cell;         // Voltage per cell in millivolts batt voltage / cell count
-
-    //===========0x0071 DAStatus1======================================
-    uint8_t  dastatus1;
-    uint8_t  dastatus1_size;
-    uint16_t cell_voltage_1;          // Cell Voltage 1 in millivolts
-    uint16_t cell_voltage_2;          // Cell Voltage 2 in millivolts
-    uint16_t cell_voltage_3;          // Cell Voltage 3 in millivolts
-    uint16_t cell_voltage_4;          // Cell Voltage 4 in millivolts
-    uint16_t bat_voltage;              // Battery Voltage in millivolts
-    uint16_t pack_voltage;              // pack Voltage in millivolts
-    uint16_t cell_current_1;              // Cell Current 1 in milliamps  
-    uint16_t cell_current_2;              // Cell Current 2 in milliamps  
-    uint16_t cell_current_3;              // Cell Current 3 in milliamps  
-    uint16_t cell_current_4;              // Cell Current 4 in milliamps  
-    uint16_t cell_power_1;              // Cell Power 1 in milliwatts  
-    uint16_t cell_power_2;              // Cell Power 2 in milliwatts  
-    uint16_t cell_power_4;              // Cell Power 4 in milliwatts  
-    uint16_t cell_power_3;              // Cell Power 3 in milliwatts  
-    int16_t power;                  //Power calculated by Voltage() × Current()
-    uint16_t power_avg;                  //Average Power
-
-    //===========0x0072 DAStatus2======================================
-    uint8_t  dastatus2;
-    uint8_t  dastatus2_size;
-    uint16_t int_temperature;    
-    uint16_t ts1_temperature;    
-    uint16_t ts2_temperature;    
-    uint16_t ts3_temperature;    
-    uint16_t ts4_temperature;    
-    uint16_t cell_temperature;   
-    uint16_t fet_temperature;    
-    uint16_t gauging_temperature;
-
-    //===========0x0074 GAUGING_STATUS_2======================================
-    uint8_t gauging_status_2;
-    uint8_t gauging_status_2_size;
-    uint8_t pack_grid;          // Active pack grid point (minimum of CellGrid0 to Cell Grid3). This data is only valid during DISCHARGE mode when [R_DIS] = 0. If [R_DIS] = 1 or not discharging, this value is not updated.
-    uint8_t ls_status;          // LStatus—Learned status of resistance table
-    uint8_t cell_grid_1;        // Active grid point of Cell 1. This data is only valid during DISCHARGE mode when [R_DIS] = 0. If [R_DIS] = 1 or not discharging, this value is not updated.
-    uint8_t cell_grid_2;        // Active grid point of Cell 2. This data is only valid during DISCHARGE mode when [R_DIS] = 0. If [R_DIS] = 1 or not discharging, this value is not updated.
-    uint8_t cell_grid_3;        // Active grid point of Cell 3. This data is only valid during DISCHARGE mode when [R_DIS] = 0. If [R_DIS] = 1 or not discharging, this value is not updated.
-    uint8_t cell_grid_4;        // Active grid point of Cell 4. This data is only valid during DISCHARGE mode when [R_DIS] = 0. If [R_DIS] = 1 or not discharging, this value is not updated.
-    uint8_t state_time_s[4];    // Time passed since last state change (DISCHARGE, CHARGE, REST)
-    uint16_t DOD0_0;            // Depth of discharge for Cell 1
-    uint16_t DOD0_1;            // Depth of discharge for Cell 2
-    uint16_t DOD0_2;            // Depth of discharge for Cell 3
-    uint16_t DOD0_3;            // Depth of discharge for Cell 4
-    uint16_t DOD0_Q_mAh;        // Passed Q. Passed capacity since the last DOD0 update, mAh
-    uint16_t DOD0_E_cWh;        // Passed E. Passed capacity since the last DOD0 update, cWh
-    uint16_t DOD0_time_hr16;    // Passed time since the last DOD0 update, hours/16
-    uint16_t DOD0_EOC_0;        // Depth of discharge at end of charge of Cell 1
-    uint16_t DOD0_EOC_1;        // Depth of discharge at end of charge of Cell 2
-    uint16_t DOD0_EOC_2;        // Depth of discharge at end of charge of Cell 3
-    uint16_t DOD0_EOC_3;        // Depth of discharge at end of charge of Cell 4
-
-    //===========0x0075 GAUGING_STATUS_3======================================
-    uint8_t gauging_status_3;
-    uint8_t gauging_status_3_size;
-    uint16_t Qmax_cell_1;       //mAh
-    uint16_t Qmax_cell_2;       //mAh
-    uint16_t Qmax_cell_3;       //mAh
-    uint16_t Qmax_cell_4;       //mAh
-    uint16_t DOD_cell_1;        // Depth of discharge for Cell 1 
-    uint16_t DOD_cell_2;        // Depth of discharge for Cell 2 
-    uint16_t DOD_cell_3;        // Depth of discharge for Cell 3 
-    uint16_t DOD_cell_4;        // Depth of discharge for Cell 4 
-    uint16_t Qmax_passed;       // Pass capacity since last QMax DOD value is saved. mAh
-    uint16_t Qmax_time;         // Time passed since last QMax DOD value is saved. hr/16
-    uint16_t temp_k;            // Thermal Model temperature factor
-    uint16_t temp_a;            // Thermal Model temperature
-    uint16_t DOD0_raw_1;        // Raw Depth of discharge for Cell 1
-    uint16_t DOD0_raw_2;        // Raw Depth of discharge for Cell 2
-    uint16_t DOD0_raw_3;        // Raw Depth of discharge for Cell 3
-    uint16_t DOD0_raw_4;        // Raw Depth of discharge for Cell 4
-
-    //===========0x0076 CBSTATUS======================================
-    uint8_t  CBSTATUS;            //alling status bitfield (1 byte) + 30 bytes of cell balancing time and DoD data
-    uint8_t  CBSTATUS_size;
-    uint16_t cell_bal_time_1;     // Cell balancing time for cell 1 in minutes   
-    uint16_t cell_bal_time_2;     // Cell balancing time for cell 2 in minutes   
-    uint16_t cell_bal_time_3;     // Cell balancing time for cell 3 in minutes 
-    uint16_t cell_bal_time_4;     // Cell balancing time for cell 4 in minutes   
-    uint16_t cell_bal_time_5;     // Cell balancing time for cell 5 in minutes   
-    uint16_t cell_bal_time_6;     // Cell balancing time for cell 6 in minutes   
-    uint16_t cell_bal_time_7;     // Cell balancing time for cell 7 in minutes   
-    uint16_t cell_dod_1;          // Cell depth of discharge for cell 1 in percentage 
-    uint16_t cell_dod_2;          // Cell depth of discharge for cell 2 in percentage 
-    uint16_t cell_dod_3;          // Cell depth of discharge for cell 3 in percentage 
-    uint16_t cell_dod_4;          // Cell depth of discharge for cell 4 in percentage 
-    uint16_t cell_dod_5;          // Cell depth of discharge for cell 5 in percentage 
-    uint16_t cell_dod_6;          // Cell depth of discharge for cell 6 in percentage 
-    uint16_t cell_dod_7;          // Cell depth of discharge for cell 7 in percentage 
-    uint16_t cell_dod_total;      // Total depth of discharge in percentage
-
-
-    //===========0x007B DAStatus3======================================
-    uint8_t  dastatus3;
-    uint8_t  dastatus3_size;
-    uint16_t cell_voltage_5;    
-    uint16_t cell_current_5;    
-    uint16_t cell_power_5;    
-    uint16_t cell_voltage_6;    
-    uint16_t cell_current_6;    
-    uint16_t cell_power_6;   
-    uint16_t cell_voltage_7;    
-    uint16_t cell_current_7;    
-    uint16_t cell_power_7;
-
-    uint8_t No_response : 1; // Flag to indicate no response from BQ
-
-    MANUFACTURE_STATUS_S manufacturing_status;
-    OPERATION_STATUS_S operation_status; 
-    GAUGING_STATUS_S gauging_status;
-    uint8_t cells_count;               // Detected cells count for this BQ pack
-}UVX_BQ_DATA;
-
-typedef enum 
-{
-    /* --- Basic / Identification --- */
-    BQ_MA_CHEMICAL_ID                     = 0x0006,
-    BQ_MA_STATIC_CHEM_DF_SIGNATURE        = 0x0008,
-    BQ_MA_ALL_DF_SIGNATURE                = 0x0009,
-
-    /* --- Power / Modes --- */
-    BQ_MA_SHUTDOWN_MODE                   = 0x0010,
-    BQ_MA_SLEEP_MODE                      = 0x0011,
-    BQ_MA_AUTO_CC_OFFSET                  = 0x0013,
-
-    /* --- FET / Protection Control --- */
-    BQ_MA_PDSG_FET_TOGGLE                 = 0x001C,
-    BQ_MA_FUSE_TOGGLE                     = 0x001D,
-    BQ_MA_PCHG_FET_TOGGLE                 = 0x001E,
-    BQ_MA_CHG_FET_TOGGLE                  = 0x001F,
-    BQ_MA_DSG_FET_TOGGLE                  = 0x0020,
-    BQ_MA_GAUGING                         = 0x0021,
-    BQ_MA_FET_CONTROL                     = 0x0022,
-
-    /* --- Data / Logging --- */
-    BQ_MA_LIFETIME_DATA_COLLECTION        = 0x0023,
-    BQ_MA_PERMANENT_FAILURE               = 0x0024,
-    BQ_MA_BLACK_BOX_RECORDER              = 0x0025,
-    BQ_MA_FUSE                            = 0x0026,
-
-    /* --- LED / UI --- */
-    BQ_MA_LED_DISPLAY_ENABLE              = 0x0027,
-    BQ_MA_LIFETIME_DATA_RESET             = 0x0028,
-    BQ_MA_PF_DATA_RESET                   = 0x0029,
-    BQ_MA_BLACK_BOX_RESET                 = 0x002A,
-    BQ_MA_LED_TOGGLE                      = 0x002B,
-    BQ_MA_LED_DISPLAY_PRESS               = 0x002C,
-
-    /* --- Calibration / Test --- */
-    BQ_MA_CALIBRATION_MODE                = 0x002D,
-    BQ_MA_LIFETIME_DATA_FLUSH             = 0x002E,
-    BQ_MA_LIFETIME_DATA_SPEED_UP          = 0x002F,
-
-    /* --- Security --- */
-    BQ_MA_SEAL_DEVICE                     = 0x0030,
-    BQ_MA_SECURITY_KEYS                   = 0x0035,
-    BQ_MA_AUTHENTICATION_KEY              = 0x0037,
-
-    /* --- Reset --- */
-    BQ_MA_DEVICE_RESET                    = 0x0041,
-
-    /* --- Status / Alerts --- */
-    BQ_MA_SAFETY_ALERT                    = 0x0050,
-    BQ_MA_SAFETY_STATUS                   = 0x0051,
-    BQ_MA_PF_ALERT                        = 0x0052,
-    BQ_MA_PF_STATUS                       = 0x0053,
-    BQ_MA_OPERATION_STATUS                = 0x0054,
-    BQ_MA_CHARGING_STATUS                 = 0x0055,
-    BQ_MA_GAUGING_STATUS                  = 0x0056,
-    BQ_MA_MANUFACTURING_STATUS            = 0x0057,
-    BQ_MA_AFE_REGISTER                    = 0x0058,
-    BQ_MA_NO_LOAD_REM_CAP                 = 0x005A,
-
-    /* --- Lifetime Data Blocks --- */
-    BQ_MA_LIFETIME_DATA_BLOCK1             = 0x0060,
-    BQ_MA_LIFETIME_DATA_BLOCK2             = 0x0061,
-    BQ_MA_LIFETIME_DATA_BLOCK3             = 0x0062,
-    BQ_MA_LIFETIME_DATA_BLOCK4             = 0x0063,
-    BQ_MA_LIFETIME_DATA_BLOCK5             = 0x0064,
-
-    /* --- Manufacturer Info / DA --- */
-    BQ_MA_MANUFACTURER_INFO               = 0x0070,
-    BQ_MA_DA_STATUS1                      = 0x0071,
-    BQ_MA_DA_STATUS2                      = 0x0072,
-    BQ_MA_DA_STATUS3                      = 0x007B,
-
-    /* --- Gauging Status Extended --- */
-    BQ_MA_GAUGING_STATUS1                 = 0x0073,
-    BQ_MA_GAUGING_STATUS2                 = 0x0074,
-    BQ_MA_GAUGING_STATUS3                 = 0x0075,
-    BQ_MA_CB_STATUS                      = 0x0076,
-    BQ_MA_STATE_OF_HEALTH                = 0x0077,
-    BQ_MA_FILTER_CAPACITY                = 0x0078,
-    BQ_MA_RSOC_WRITE                     = 0x0079,
-    BQ_MA_MANUFACTURER_INFO_B            = 0x007A,
-    BQ_MA_GAUGING_STATUS4                = 0x007C,
-    BQ_MA_GAUGING_STATUS5                = 0x007D,
-
-    /* --- Manufacturer Info Extended --- */
-    BQ_MA_MANUFACTURER_INFO_C            = 0x0080,
-    BQ_MA_MANUFACTURER_INFO_D            = 0x0081,
-    BQ_MA_CURRENT_LONG                  = 0x0082,
-
-    /* --- IATA --- */
-    BQ_MA_IATA_SHUTDOWN                  = 0x00F0,
-    BQ_MA_IATA_RM                        = 0x00F1,
-    BQ_MA_IATA_FCC                       = 0x00F2,
-    BQ_MA_IATA_CHARGE                   = 0x00F3,
-
-    /* --- ROM / DF / Calibration Output --- */
-    BQ_MA_ROM_MODE                      = 0x0F00,
-    BQ_MA_WRITE_TEMP                    = 0x3008,
-    BQ_MA_DATAFLASH_ACCESS_START        = 0x4000,  // 0x4000–0x5FFF
-    BQ_MA_EXIT_CAL_OUTPUT_MODE          = 0xF080,
-    BQ_MA_OUTPUT_CADC_CAL               = 0xF081,
-    BQ_MA_OUTPUT_SHORTED_CCADC_CAL      = 0xF082,
-    BQ_MA_OUTPUT_CCADC_CAL              = 0xF083
-
-} UVX_BQ_MA_REGISTERS;
-
-
 typedef enum
 {
     /* 0x00–0x1F: Standard BQ Commands */
@@ -613,6 +234,391 @@ typedef struct UVX_COMM_BQ
 
 }UVX_COMM_BQ;
 
+typedef union MANUFACTURE_STATUS_U
+{
+    uint16_t data;
+    struct {
+        /* Bits 0–7 */
+        uint16_t PCHG_EN   : 1;  // Bit 0 : Pre-charge enable
+        uint16_t CHG_EN    : 1;  // Bit 1 : Charge enable
+        uint16_t DSG_EN    : 1;  // Bit 2 : Discharge enable
+        uint16_t GAUGE_EN  : 1;  // Bit 3 : Gauging enable
+        uint16_t FET_EN    : 1;  // Bit 4 : FET enable
+        uint16_t LF_EN     : 1;  // Bit 5 : Lifetime data enable
+        uint16_t PF_EN     : 1;  // Bit 6 : Permanent failure enable
+        uint16_t BBR_EN    : 1;  // Bit 7 : Black-box recorder enable
+
+        /* Bits 8–15 */
+        uint16_t FUSE_EN   : 1;  // Bit 8  : Fuse enable
+        uint16_t LED_EN    : 1;  // Bit 9  : LED enable
+        uint16_t RSVD10    : 1;  // Bit 10 : Reserved
+        uint16_t RSVD11    : 1;  // Bit 11 : Reserved
+        uint16_t RSVD12    : 1;  // Bit 12 : Reserved
+        uint16_t PDSG_EN   : 1;  // Bit 13 : Permanent discharge enable
+        uint16_t LT_TEST   : 1;  // Bit 14 : Lifetime test enable
+        uint16_t CAL_EN    : 1;  // Bit 15 : Calibration enable
+    } bits;
+} MANUFACTURE_STATUS_U;
+
+typedef struct MANUFACTURE_STATUS_S
+{
+    uint8_t raw[3];
+    MANUFACTURE_STATUS_U reg;
+} MANUFACTURE_STATUS_S;
+
+typedef union OPERATION_STATUS_U
+{
+    uint32_t data;
+    struct {
+        /* Bits 0–7 */
+        uint32_t PRES      : 1;  // Bit 0  : System present (active low)
+        uint32_t DSG       : 1;  // Bit 2  : Discharge
+        uint32_t CHG       : 1;  // Bit 1  : Charge
+        uint32_t PCHG      : 1;  // Bit 3  : Pre-charge
+        uint32_t PDSG      : 1;  // Bit 4  : Pre-discharge
+        uint32_t FUSE      : 1;  // Bit 5  : Fuse status
+        uint32_t RSVD6     : 1;  // Bit 6  : Reserved
+        uint32_t BTP_INT   : 1;  // Bit 7  : Battery trip interrupt
+
+        /* Bits 8–15 */
+        uint32_t SEC0      : 1;  // Bit 8
+        uint32_t SEC1      : 1;  // Bit 9
+        uint32_t SDV       : 1;  // Bit 10
+        uint32_t SS        : 1;  // Bit 11
+        uint32_t PF        : 1;  // Bit 12
+        uint32_t XDSG      : 1;  // Bit 13
+        uint32_t XCHG      : 1;  // Bit 14
+        uint32_t SLEEP     : 1;  // Bit 15
+
+        /* Bits 16–23 */
+        uint32_t SDM       : 1;  // Bit 16 : Shutdown via command
+        uint32_t LED       : 1;  // Bit 17 : LED display
+        uint32_t AUTH      : 1;  // Bit 18 : Authentication in progress
+        uint32_t AUTOCALM  : 1;  // Bit 19 : Auto CC Offset calibration
+        uint32_t CAL       : 1;  // Bit 20 : Calibration output valid
+        uint32_t CAL_OFFSET: 1;  // Bit 21 : Raw CC offset calibration valid
+        uint32_t XL        : 1;  // Bit 22 : 400-kHz SMBus mode
+        uint32_t SLEEPM    : 1;  // Bit 23 : Sleep via command
+
+        /* Bits 24–31 */
+        uint32_t INIT      : 1;  // Bit 24 : Initialization after reset
+        uint32_t SMBLCAL   : 1;  // Bit 25 : Auto CC calibration on SMBus low
+        uint32_t SLPAD     : 1;  // Bit 26 : ADC active in sleep
+        uint32_t SLPCC     : 1;  // Bit 27 : CC active in sleep
+        uint32_t CB        : 1;  // Bit 28 : Cell balancing active
+        uint32_t EMSHUT    : 1;  // Bit 29 : Emergency FET shutdown
+        uint32_t RSVD30    : 1;  // Bit 30 : Reserved
+        uint32_t IATA_CTERM: 1;  // Bit 31 : IATA charge control
+    } bits;
+} OPERATION_STATUS_U;
+
+typedef struct OPERATION_STATUS_S
+{
+    uint8_t raw[5];
+    OPERATION_STATUS_U reg;
+} OPERATION_STATUS_S;
+
+typedef union GAUGING_STATUS_U
+{
+    uint32_t data;
+    struct {
+        /* Bits 0–7 */
+        uint32_t FD        : 1;  // Bit 0  : Full Discharge detected
+        uint32_t FC        : 1;  // Bit 1  : Full Charge detected
+        uint32_t TD        : 1;  // Bit 2  : Terminate Discharge
+        uint32_t TC        : 1;  // Bit 3  : Terminate Charge
+        uint32_t BAL_EN    : 1;  // Bit 4  : Cell balancing enabled
+        uint32_t EDV       : 1;  // Bit 5  : End-of-discharge detected
+        uint32_t DSG       : 1;  // Bit 6  : Discharge detected
+        uint32_t CF        : 1;  // Bit 7  : Charge fault
+
+        /* Bits 8–15 */
+        uint32_t REST      : 1;  // Bit 8  : Rest detected
+        uint32_t RSVD9     : 1;  // Bit 9  : Reserved
+        uint32_t R_DIS     : 1;  // Bit 10 : Resistance discharge
+        uint32_t VOK       : 1;  // Bit 11 : Voltage OK
+        uint32_t QEN       : 1;  // Bit 12 : QMax updates enabled
+        uint32_t SLP_QMAX  : 1;  // Bit 13 : QMax update in progress
+        uint32_t RSVD      : 1;  // Bit 14 : Reserved
+
+        /* Bits 16–23 */
+        uint32_t NSFM      : 1;  // Bit 15 : QMax status
+        uint32_t VDQ       : 1;  // Bit 16 : Resistance update active
+        uint32_t QMAX      : 1;  // Bit 17 : Load mode
+        uint32_t RX        : 1;  // Bit 18 : Fast relax
+        uint32_t LDMD      : 1;  // Bit 19 : Open-circuit voltage update
+        uint32_t OCV_FR    : 1;  // Bit 20 : Reserved
+        uint32_t RSVD21    : 1;  // Bit 21 : Reserved
+        uint32_t RSVD22    : 1;  // Bit 22 : Reserved
+        uint32_t RSVD23    : 1;  // Bit 23 : Reserved
+        uint32_t RSVD24    : 1;  // Bit 24 : Reserved
+        uint32_t RSVD25    : 1;  // Bit 25 : Reserved
+        uint32_t RSVD26    : 1;  // Bit 26 : Reserved
+        uint32_t RSVD27    : 1;  // Bit 27 : Reserved
+        uint32_t RSVD28    : 1;  // Bit 28 : Reserved
+        uint32_t RSVD29    : 1;  // Bit 29 : Reserved
+        uint32_t RSVD30    : 1;  // Bit 30 : Reserved
+        uint32_t RSVD31    : 1;  // Bit 31 : Reserved
+    } bits;
+} GAUGING_STATUS_U;
+
+typedef struct GAUGING_STATUS_S
+{
+    uint8_t raw[4];
+    GAUGING_STATUS_U reg;
+} GAUGING_STATUS_S;
+
+typedef struct UVX_BQ_DATA
+{
+    UVX_COMM_BQ* p_comm_bq;             // Pointer to the communication structure for BQ
+    uint16_t temperature;               // Temperature in 0.1 Kelvin
+    uint16_t voltage;                   // Voltage in millivolts    
+    int16_t  current;                   // Current in milliamps
+    uint16_t relative_state_of_charge;  // Relative State of Charge in percentage (0-100%)
+    uint16_t absolute_state_of_charge;  // Absolute State of Charge in percentage (0-100%)
+    uint16_t remaining_capacity;        // Remaining Capacity in mAh
+    uint16_t full_charge_capacity;      // Full Charge Capacity in mAh
+    uint16_t average_time_to_empty;     // Average Time to Empty in minutes
+    uint16_t average_time_to_full;      // Average Time to Full in minutes
+    uint8_t  SOH;                       // State of Health in percentage (0-100%)
+    uint16_t  cycle_count;               // Cycle Count
+    int16_t  charging_current;          // Charging Current in milliamps
+    uint16_t charging_voltage;          // Charging Voltage in millivolts
+    uint16_t design_capacity;           // Design Capacity in mAh
+    uint16_t design_voltage;            // Design Voltage in millivolts 
+    uint16_t specification_info;       // Specification Information
+    uint16_t manufacturer_date;        // Manufacturer Date
+    uint16_t serial_number;            // Serial Number
+    uint16_t voltage_per_cell;         // Voltage per cell in millivolts batt voltage / cell count
+
+    //===========0x0071 DAStatus1======================================
+    uint8_t  dastatus1;
+    uint8_t  dastatus1_size;
+    uint16_t cell_voltage_1;          // Cell Voltage 1 in millivolts
+    uint16_t cell_voltage_2;          // Cell Voltage 2 in millivolts
+    uint16_t cell_voltage_3;          // Cell Voltage 3 in millivolts
+    uint16_t cell_voltage_4;          // Cell Voltage 4 in millivolts
+    uint16_t bat_voltage;              // Battery Voltage in millivolts
+    uint16_t pack_voltage;              // pack Voltage in millivolts
+    uint16_t cell_current_1;              // Cell Current 1 in milliamps  
+    uint16_t cell_current_2;              // Cell Current 2 in milliamps  
+    uint16_t cell_current_3;              // Cell Current 3 in milliamps  
+    uint16_t cell_current_4;              // Cell Current 4 in milliamps  
+    uint16_t cell_power_1;              // Cell Power 1 in milliwatts  
+    uint16_t cell_power_2;              // Cell Power 2 in milliwatts  
+    uint16_t cell_power_4;              // Cell Power 4 in milliwatts  
+    uint16_t cell_power_3;              // Cell Power 3 in milliwatts  
+    int16_t power;                  //Power calculated by Voltage() × Current()
+    uint16_t power_avg;                  //Average Power
+
+    //===========0x0072 DAStatus2======================================
+    uint8_t  dastatus2;
+    uint8_t  dastatus2_size;
+    uint16_t int_temperature;    
+    uint16_t ts1_temperature;    
+    uint16_t ts2_temperature;    
+    uint16_t ts3_temperature;    
+    uint16_t ts4_temperature;    
+    uint16_t cell_temperature;   
+    uint16_t fet_temperature;    
+    uint16_t gauging_temperature;
+
+    //===========0x0074 GAUGING_STATUS_2======================================
+    uint8_t gauging_status_2;
+    uint8_t gauging_status_2_size;
+    uint8_t pack_grid;          // Active pack grid point (minimum of CellGrid0 to Cell Grid3). This data is only valid during DISCHARGE mode when [R_DIS] = 0. If [R_DIS] = 1 or not discharging, this value is not updated.
+    uint8_t ls_status;          // LStatus—Learned status of resistance table
+    uint8_t cell_grid_1;        // Active grid point of Cell 1. This data is only valid during DISCHARGE mode when [R_DIS] = 0. If [R_DIS] = 1 or not discharging, this value is not updated.
+    uint8_t cell_grid_2;        // Active grid point of Cell 2. This data is only valid during DISCHARGE mode when [R_DIS] = 0. If [R_DIS] = 1 or not discharging, this value is not updated.
+    uint8_t cell_grid_3;        // Active grid point of Cell 3. This data is only valid during DISCHARGE mode when [R_DIS] = 0. If [R_DIS] = 1 or not discharging, this value is not updated.
+    uint8_t cell_grid_4;        // Active grid point of Cell 4. This data is only valid during DISCHARGE mode when [R_DIS] = 0. If [R_DIS] = 1 or not discharging, this value is not updated.
+    uint8_t state_time_s[4];    // Time passed since last state change (DISCHARGE, CHARGE, REST)
+    uint16_t DOD0_0;            // Depth of discharge for Cell 1
+    uint16_t DOD0_1;            // Depth of discharge for Cell 2
+    uint16_t DOD0_2;            // Depth of discharge for Cell 3
+    uint16_t DOD0_3;            // Depth of discharge for Cell 4
+    uint16_t DOD0_Q_mAh;        // Passed Q. Passed capacity since the last DOD0 update, mAh
+    uint16_t DOD0_E_cWh;        // Passed E. Passed capacity since the last DOD0 update, cWh
+    uint16_t DOD0_time_hr16;    // Passed time since the last DOD0 update, hours/16
+    uint16_t DOD0_EOC_0;        // Depth of discharge at end of charge of Cell 1
+    uint16_t DOD0_EOC_1;        // Depth of discharge at end of charge of Cell 2
+    uint16_t DOD0_EOC_2;        // Depth of discharge at end of charge of Cell 3
+    uint16_t DOD0_EOC_3;        // Depth of discharge at end of charge of Cell 4
+
+    //===========0x0075 GAUGING_STATUS_3======================================
+    uint8_t gauging_status_3;
+    uint8_t gauging_status_3_size;
+    uint16_t Qmax_cell_1;       //mAh
+    uint16_t Qmax_cell_2;       //mAh
+    uint16_t Qmax_cell_3;       //mAh
+    uint16_t Qmax_cell_4;       //mAh
+    uint16_t DOD_cell_1;        // Depth of discharge for Cell 1 
+    uint16_t DOD_cell_2;        // Depth of discharge for Cell 2 
+    uint16_t DOD_cell_3;        // Depth of discharge for Cell 3 
+    uint16_t DOD_cell_4;        // Depth of discharge for Cell 4 
+    uint16_t Qmax_passed;       // Pass capacity since last QMax DOD value is saved. mAh
+    uint16_t Qmax_time;         // Time passed since last QMax DOD value is saved. hr/16
+    uint16_t temp_k;            // Thermal Model temperature factor
+    uint16_t temp_a;            // Thermal Model temperature
+    uint16_t DOD0_raw_1;        // Raw Depth of discharge for Cell 1
+    uint16_t DOD0_raw_2;        // Raw Depth of discharge for Cell 2
+    uint16_t DOD0_raw_3;        // Raw Depth of discharge for Cell 3
+    uint16_t DOD0_raw_4;        // Raw Depth of discharge for Cell 4
+
+    //===========0x0076 CBSTATUS======================================
+    uint8_t  CBSTATUS;            //alling status bitfield (1 byte) + 30 bytes of cell balancing time and DoD data
+    uint8_t  CBSTATUS_size;
+    uint16_t cell_bal_time_1;     // Cell balancing time for cell 1 in minutes   
+    uint16_t cell_bal_time_2;     // Cell balancing time for cell 2 in minutes   
+    uint16_t cell_bal_time_3;     // Cell balancing time for cell 3 in minutes 
+    uint16_t cell_bal_time_4;     // Cell balancing time for cell 4 in minutes   
+    uint16_t cell_bal_time_5;     // Cell balancing time for cell 5 in minutes   
+    uint16_t cell_bal_time_6;     // Cell balancing time for cell 6 in minutes   
+    uint16_t cell_bal_time_7;     // Cell balancing time for cell 7 in minutes   
+    uint16_t cell_dod_1;          // Cell depth of discharge for cell 1 in percentage 
+    uint16_t cell_dod_2;          // Cell depth of discharge for cell 2 in percentage 
+    uint16_t cell_dod_3;          // Cell depth of discharge for cell 3 in percentage 
+    uint16_t cell_dod_4;          // Cell depth of discharge for cell 4 in percentage 
+    uint16_t cell_dod_5;          // Cell depth of discharge for cell 5 in percentage 
+    uint16_t cell_dod_6;          // Cell depth of discharge for cell 6 in percentage 
+    uint16_t cell_dod_7;          // Cell depth of discharge for cell 7 in percentage 
+    uint16_t cell_dod_total;      // Total depth of discharge in percentage
+
+
+    //===========0x007B DAStatus3======================================
+    uint8_t  dastatus3;
+    uint8_t  dastatus3_size;
+    uint16_t cell_voltage_5;    
+    uint16_t cell_current_5;    
+    uint16_t cell_power_5;    
+    uint16_t cell_voltage_6;    
+    uint16_t cell_current_6;    
+    uint16_t cell_power_6;   
+    uint16_t cell_voltage_7;    
+    uint16_t cell_current_7;    
+    uint16_t cell_power_7;
+
+    uint8_t No_response     : 1; // Flag to indicate no response from BQ
+    uint8_t DSG_CHG_FET_EN  : 1; // Flag to indicate if the charge FET is enabled
+    uint8_t CHG_FET_STAT    : 1; // Flag to indicate the status of the charge FET
+    uint8_t DSG_FET_STAT    : 1; // Flag to indicate the status of the discharge FET
+
+    MANUFACTURE_STATUS_S manufacturing_status;
+    OPERATION_STATUS_S operation_status; 
+    GAUGING_STATUS_S gauging_status;
+    uint8_t cells_count;               // Detected cells count for this BQ pack
+}UVX_BQ_DATA;
+
+typedef enum 
+{
+    /* --- Basic / Identification --- */
+    BQ_MA_CHEMICAL_ID                     = 0x0006,
+    BQ_MA_STATIC_CHEM_DF_SIGNATURE        = 0x0008,
+    BQ_MA_ALL_DF_SIGNATURE                = 0x0009,
+
+    /* --- Power / Modes --- */
+    BQ_MA_SHUTDOWN_MODE                   = 0x0010,
+    BQ_MA_SLEEP_MODE                      = 0x0011,
+    BQ_MA_AUTO_CC_OFFSET                  = 0x0013,
+
+    /* --- FET / Protection Control --- */
+    BQ_MA_PDSG_FET_TOGGLE                 = 0x001C,
+    BQ_MA_FUSE_TOGGLE                     = 0x001D,
+    BQ_MA_PCHG_FET_TOGGLE                 = 0x001E,
+    BQ_MA_CHG_FET_TOGGLE                  = 0x001F,
+    BQ_MA_DSG_FET_TOGGLE                  = 0x0020,
+    BQ_MA_GAUGING                         = 0x0021,
+    BQ_MA_FET_CONTROL                     = 0x0022,
+
+    /* --- Data / Logging --- */
+    BQ_MA_LIFETIME_DATA_COLLECTION        = 0x0023,
+    BQ_MA_PERMANENT_FAILURE               = 0x0024,
+    BQ_MA_BLACK_BOX_RECORDER              = 0x0025,
+    BQ_MA_FUSE                            = 0x0026,
+
+    /* --- LED / UI --- */
+    BQ_MA_LED_DISPLAY_ENABLE              = 0x0027,
+    BQ_MA_LIFETIME_DATA_RESET             = 0x0028,
+    BQ_MA_PF_DATA_RESET                   = 0x0029,
+    BQ_MA_BLACK_BOX_RESET                 = 0x002A,
+    BQ_MA_LED_TOGGLE                      = 0x002B,
+    BQ_MA_LED_DISPLAY_PRESS               = 0x002C,
+
+    /* --- Calibration / Test --- */
+    BQ_MA_CALIBRATION_MODE                = 0x002D,
+    BQ_MA_LIFETIME_DATA_FLUSH             = 0x002E,
+    BQ_MA_LIFETIME_DATA_SPEED_UP          = 0x002F,
+
+    /* --- Security --- */
+    BQ_MA_SEAL_DEVICE                     = 0x0030,
+    BQ_MA_SECURITY_KEYS                   = 0x0035,
+    BQ_MA_AUTHENTICATION_KEY              = 0x0037,
+
+    /* --- Reset --- */
+    BQ_MA_DEVICE_RESET                    = 0x0041,
+
+    /* --- Status / Alerts --- */
+    BQ_MA_SAFETY_ALERT                    = 0x0050,
+    BQ_MA_SAFETY_STATUS                   = 0x0051,
+    BQ_MA_PF_ALERT                        = 0x0052,
+    BQ_MA_PF_STATUS                       = 0x0053,
+    BQ_MA_OPERATION_STATUS                = 0x0054,
+    BQ_MA_CHARGING_STATUS                 = 0x0055,
+    BQ_MA_GAUGING_STATUS                  = 0x0056,
+    BQ_MA_MANUFACTURING_STATUS            = 0x0057,
+    BQ_MA_AFE_REGISTER                    = 0x0058,
+    BQ_MA_NO_LOAD_REM_CAP                 = 0x005A,
+
+    /* --- Lifetime Data Blocks --- */
+    BQ_MA_LIFETIME_DATA_BLOCK1             = 0x0060,
+    BQ_MA_LIFETIME_DATA_BLOCK2             = 0x0061,
+    BQ_MA_LIFETIME_DATA_BLOCK3             = 0x0062,
+    BQ_MA_LIFETIME_DATA_BLOCK4             = 0x0063,
+    BQ_MA_LIFETIME_DATA_BLOCK5             = 0x0064,
+
+    /* --- Manufacturer Info / DA --- */
+    BQ_MA_MANUFACTURER_INFO               = 0x0070,
+    BQ_MA_DA_STATUS1                      = 0x0071,
+    BQ_MA_DA_STATUS2                      = 0x0072,
+    BQ_MA_DA_STATUS3                      = 0x007B,
+
+    /* --- Gauging Status Extended --- */
+    BQ_MA_GAUGING_STATUS1                 = 0x0073,
+    BQ_MA_GAUGING_STATUS2                 = 0x0074,
+    BQ_MA_GAUGING_STATUS3                 = 0x0075,
+    BQ_MA_CB_STATUS                      = 0x0076,
+    BQ_MA_STATE_OF_HEALTH                = 0x0077,
+    BQ_MA_FILTER_CAPACITY                = 0x0078,
+    BQ_MA_RSOC_WRITE                     = 0x0079,
+    BQ_MA_MANUFACTURER_INFO_B            = 0x007A,
+    BQ_MA_GAUGING_STATUS4                = 0x007C,
+    BQ_MA_GAUGING_STATUS5                = 0x007D,
+
+    /* --- Manufacturer Info Extended --- */
+    BQ_MA_MANUFACTURER_INFO_C            = 0x0080,
+    BQ_MA_MANUFACTURER_INFO_D            = 0x0081,
+    BQ_MA_CURRENT_LONG                  = 0x0082,
+
+    /* --- IATA --- */
+    BQ_MA_IATA_SHUTDOWN                  = 0x00F0,
+    BQ_MA_IATA_RM                        = 0x00F1,
+    BQ_MA_IATA_FCC                       = 0x00F2,
+    BQ_MA_IATA_CHARGE                   = 0x00F3,
+
+    /* --- ROM / DF / Calibration Output --- */
+    BQ_MA_ROM_MODE                      = 0x0F00,
+    BQ_MA_WRITE_TEMP                    = 0x3008,
+    BQ_MA_DATAFLASH_ACCESS_START        = 0x4000,  // 0x4000–0x5FFF
+    BQ_MA_EXIT_CAL_OUTPUT_MODE          = 0xF080,
+    BQ_MA_OUTPUT_CADC_CAL               = 0xF081,
+    BQ_MA_OUTPUT_SHORTED_CCADC_CAL      = 0xF082,
+    BQ_MA_OUTPUT_CCADC_CAL              = 0xF083
+
+} UVX_BQ_MA_REGISTERS;
+
+
+
+
  typedef enum
  {
    UVX_BQ_OK = 0x00,
@@ -670,13 +676,13 @@ UVX_COMM_BQ_STATE uvx_comm_bq_read_register (UVX_COMM_BQ* p_comm_bq, UVX_BQ_REGI
 UVX_COMM_BQ_STATE uvx_comm_bq_read_ma_register(UVX_COMM_BQ* p_comm_bq, UVX_BQ_REGISTERS reg_addr);
 UVX_COMM_BQ_STATE uvx_comm_bq_get_index_register(UVX_BQ_REGISTER *list, UVX_BQ_REGISTERS reg_addr, uint8_t* p_index);
 UVX_COMM_BQ_STATE uvx_comm_bq_write_register(UVX_COMM_BQ* p_comm_bq, uint16_t reg_addr, uint8_t* data, uint16_t size) ;
-UVX_COMM_BQ_STATE uvx_comm_bq_write_mba_register(UVX_COMM_BQ* p_comm_bq, UVX_BQ_MA_REGISTERS reg_addr, uint8_t* data, uint16_t size);
+UVX_COMM_BQ_STATE uvx_comm_bq_write_mba_register(UVX_BQ_DATA* p_bq_data, UVX_BQ_MA_REGISTERS reg_addr, uint8_t* data, uint16_t size);
 UVX_COMM_BQ_STATE uvx_comm_bq_send(uint8_t cmd_echo, uint8_t* data, uint16_t size);
 UVX_COMM_BQ_STATE uvx_comm_bq_send_error(uint8_t data);
 UVX_COMM_BQ_STATE uvx_comm_bq_process_rx(uint8_t byte_rx);
 UVX_COMM_BQ_STATE uvx_comm_bq_process_rx_data(void);
 UVX_COMM_BQ_STATE uvx_comm_bq_force_balance(UVX_COMM_BQ* p_comm_bq, uint8_t enable);
-UVX_COMM_BQ_STATE uvx_comm_bq_charge_fet(UVX_COMM_BQ* p_comm_bq, uint8_t state);
+UVX_COMM_BQ_STATE uvx_comm_bq_charge_fet(UVX_BQ_DATA* p_bq_data, uint8_t state);
 uint8_t uvx_comm_bq_swap_u8(uint8_t* v);
 uint16_t uvx_comm_bq_swap_u16_pointer(uint16_t* v);
 uint16_t uvx_comm_bq_swap_u16_value(uint16_t v);

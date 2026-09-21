@@ -282,9 +282,12 @@ typedef struct
     uint16_t cell_dod_9;               // Cell depth of discharge for cell 9 in percentage
     uint16_t cell_dod_10;              // Cell depth of discharge for cell 10 in percentage
 
-
-    uint32_t CHG_fet_en   : 1;
-    uint32_t CHG_fet_stat : 1;
+    uint32_t CHG_FET_1_STAT : 1;
+    uint32_t CHG_FET_2_STAT : 1;
+    uint32_t CHG_FET_3_STAT : 1;
+    uint32_t DSG_FET_1_STAT : 1;
+    uint32_t DSG_FET_2_STAT : 1;
+    uint32_t DSG_FET_3_STAT : 1;    
     uint32_t init     : 1;
     uint32_t tc       : 1; 
     uint32_t cell_ball_1 : 1;

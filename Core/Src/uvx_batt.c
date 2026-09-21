@@ -32,7 +32,7 @@ static UVX_BATT_STATE uvx_batt_send_learn_commands(UVX_COMM_BQ* p_comm_bq)
 
 	for(i = 0U; i < (sizeof(learn_commands) / sizeof(learn_commands[0])); i++)
 	{
-		if(uvx_comm_bq_write_mba_register(p_comm_bq, learn_commands[i], NULL, 0U) != UVX_BQ_OK)
+		if(uvx_comm_bq_write_mba_register(&bq_data_1, learn_commands[i], NULL, 0U) != UVX_BQ_OK)
 		{
 			return UVX_BATT_ERROR;
 		}
@@ -226,8 +226,21 @@ UVX_BATT_STATE uvx_batt_parse_data(void)
 	bq_data_3.operation_status.reg.data = uvx_comm_bq_swap_u32_pointer((uint32_t *)&bq_data_3.operation_status.raw[1]);
 	bq_data_3.gauging_status.reg.data = uvx_comm_bq_swap_u32_pointer((uint32_t *)&bq_data_3.gauging_status.raw[1]);
 
-	batt_data.CHG_fet_en = bq_data_2.manufacturing_status.reg.bits.FET_EN;
-	batt_data.CHG_fet_stat = bq_data_2.operation_status.reg.bits.CHG;
+	bq_data_1.DSG_CHG_FET_EN = bq_data_1.manufacturing_status.reg.bits.FET_EN;
+	bq_data_2.DSG_CHG_FET_EN = bq_data_2.manufacturing_status.reg.bits.FET_EN;
+	bq_data_3.DSG_CHG_FET_EN = bq_data_3.manufacturing_status.reg.bits.FET_EN;
+
+	bq_data_1.CHG_FET_STAT = bq_data_1.operation_status.reg.bits.CHG;
+	bq_data_2.CHG_FET_STAT = bq_data_2.operation_status.reg.bits.CHG;
+	bq_data_3.CHG_FET_STAT = bq_data_3.operation_status.reg.bits.CHG;
+
+	bq_data_1.DSG_FET_STAT = bq_data_1.operation_status.reg.bits.DSG;
+	bq_data_2.DSG_FET_STAT = bq_data_2.operation_status.reg.bits.DSG;
+	bq_data_3.DSG_FET_STAT = bq_data_3.operation_status.reg.bits.DSG;
+
+	batt_data.CHG_FET_1_STAT = bq_data_1.CHG_FET_STAT;
+	batt_data.CHG_FET_2_STAT = bq_data_2.CHG_FET_STAT;
+	batt_data.CHG_FET_3_STAT = bq_data_3.CHG_FET_STAT;
 
 	batt_data.payload.error = 	bq_data_1.No_response << BATT_ERROR_BQ_1_NO_RESPONSE_BIT |
 							 	bq_data_2.No_response << BATT_ERROR_BQ_2_NO_RESPONSE_BIT |
@@ -384,7 +397,7 @@ UVX_BATT_STATE uvx_batt_parse_data(void)
 	}
 
 	batt_data.payload.supply_status = 	drone_status.pwr_fet 								<< BATT_SUPPLY_STATUS_PWR_FET_BIT |
-										batt_data.CHG_fet_stat 								<< BATT_SUPPLY_STATUS_CHG_FET_BIT |
+										batt_data.CHG_FET_1_STAT							<< BATT_SUPPLY_STATUS_CHG_FET_BIT |
 										batt_data.tc 										<< BATT_SUPPLY_STATUS_TC_BIT |
 										((batt_data.cell_ball_1 || batt_data.cell_ball_2 || batt_data.cell_ball_3) << BATT_SUPPLY_STATUS_BALANCE_BIT) |
 										((comm_bq_1.Force_balance) 							<< BATT_SUPPLY_STATUS_FORCE_BALANCE_1_BIT) |
