@@ -35,6 +35,7 @@ UVX_BQ_REGISTER bq_l_register_list_read[] = {
 	{CBSTATUS,   			   30, (uint8_t*) &bq_data_l.CBSTATUS_size},	
 	{STATE_OF_HEALTH,   	    1, (uint8_t*) &bq_data_l.SOH},	
 	{CYCLE_COUNT,   	    	2, (uint8_t*) &bq_data_l.cycle_count},
+	{GPIO_READ,   	    		2, (uint8_t*) &bq_data_l.gpio_status},
     {END_REGISTER, 				0, NULL} // End marker
 };
 
@@ -74,6 +75,7 @@ UVX_BQ_REGISTER bq_h_register_list_read[] = {
 	{CBSTATUS,   			   30, (uint8_t*) &bq_data_h.CBSTATUS_size},
 	{STATE_OF_HEALTH,   	    1, (uint8_t*) &bq_data_h.SOH},
 	{CYCLE_COUNT,   	    	2, (uint8_t*) &bq_data_h.cycle_count},
+	{GPIO_READ,   	    		2, (uint8_t*) &bq_data_h.gpio_status},
     {END_REGISTER, 				0, NULL} // End marker
 };
 
@@ -315,20 +317,19 @@ UVX_COMM_BQ_STATE uvx_comm_bq_force_balance(UVX_COMM_BQ* p_comm_bq, uint8_t enab
 	{
 		data[0] = 0x00;
 		data[1] = 0x10;
-		p_comm_bq->Force_balance = true;
+		//p_comm_bq->Force_balance = true;
 	}
 	else
 	{
 		data[0] = 0xFF;
 		data[1] = 0xFF;
-		p_comm_bq->Force_balance = false;
+		//p_comm_bq->Force_balance = false;
 	}
 
 	if(p_comm_bq->Force_balance_old != p_comm_bq->Force_balance)
 	{
 		p_comm_bq->Force_balance_old = p_comm_bq->Force_balance;
 		return uvx_comm_bq_write_register(p_comm_bq, GPIO_WRITE, data, 2);
-
 	}
 	else
 	{

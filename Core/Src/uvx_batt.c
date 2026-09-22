@@ -171,6 +171,7 @@ UVX_BATT_STATE uvx_batt_parse_data(void)
 	batt_data.cell_bal_time_8 =  bq_data_h.cell_bal_time_3;
 	batt_data.cell_bal_time_9 =  bq_data_h.cell_bal_time_4;
 	batt_data.cell_bal_time_10 = bq_data_h.cell_bal_time_5;	
+	comm_bq_l.Force_balance = !bq_data_l.gpio_pin_15;
 
 	batt_data.payload.cell_bal_time_1 =  uvx_comm_bq_swap_u16_value(batt_data.cell_bal_time_1);
 	batt_data.payload.cell_bal_time_2 =  uvx_comm_bq_swap_u16_value(batt_data.cell_bal_time_2);
@@ -183,8 +184,6 @@ UVX_BATT_STATE uvx_batt_parse_data(void)
 	batt_data.payload.cell_bal_time_9 =  uvx_comm_bq_swap_u16_value(batt_data.cell_bal_time_9);
 	batt_data.payload.cell_bal_time_10 = uvx_comm_bq_swap_u16_value(batt_data.cell_bal_time_10);
 
-
-
 	batt_data.cell_dod_1 = bq_data_l.cell_dod_1;
 	batt_data.cell_dod_2 = bq_data_l.cell_dod_2;
 	batt_data.cell_dod_3 = bq_data_l.cell_dod_3;
@@ -194,15 +193,33 @@ UVX_BATT_STATE uvx_batt_parse_data(void)
 	batt_data.cell_dod_7 = bq_data_h.cell_dod_2;
 	batt_data.cell_dod_8 = bq_data_h.cell_dod_3;
 	batt_data.cell_dod_9 = bq_data_h.cell_dod_4;
-	batt_data.cell_dod_10 =bq_data_h.cell_dod_5;
+	batt_data.cell_dod_10 =bq_data_h.cell_dod_5;	
+	comm_bq_h.Force_balance = !bq_data_h.gpio_pin_15;
 
 	bq_data_l.manufacturing_status.reg.data = uvx_comm_bq_swap_u16_pointer((uint16_t*)&bq_data_l.manufacturing_status.raw[1]);
 	bq_data_l.operation_status.reg.data = uvx_comm_bq_swap_u32_pointer((uint32_t *)&bq_data_l.operation_status.raw[1]);
 	bq_data_l.gauging_status.reg.data = uvx_comm_bq_swap_u32_pointer((uint32_t *)&bq_data_l.gauging_status.raw[1]);
+	bq_data_l.gpio_pin_12 = (bq_data_l.gpio_status & BQ_GPIO_PIN12_MASK) >> 0x00;
+	bq_data_l.gpio_pin_13 = (bq_data_l.gpio_status & BQ_GPIO_PIN13_MASK) >> 0x01;
+	bq_data_l.gpio_pin_17 = (bq_data_l.gpio_status & BQ_GPIO_PIN17_MASK) >> 0x02;
+	bq_data_l.gpio_pin_16 = (bq_data_l.gpio_status & BQ_GPIO_PIN16_MASK) >> 0x03;
+	bq_data_l.gpio_pin_15 = (bq_data_l.gpio_status & BQ_GPIO_PIN15_MASK) >> 0x04;
+	bq_data_l.gpio_pin_20 = (bq_data_l.gpio_status & BQ_GPIO_PIN20_MASK) >> 0x05;
+	bq_data_l.gpio_pin_21 = (bq_data_l.gpio_status & BQ_GPIO_PIN21_MASK) >> 0x06;
+	bq_data_l.gpio_pin_22 = (bq_data_l.gpio_status & BQ_GPIO_PIN22_MASK) >> 0x07;
 
 	bq_data_h.manufacturing_status.reg.data = uvx_comm_bq_swap_u16_pointer((uint16_t*)&bq_data_h.manufacturing_status.raw[1]);
 	bq_data_h.operation_status.reg.data = uvx_comm_bq_swap_u32_pointer((uint32_t *)&bq_data_h.operation_status.raw[1]);	
 	bq_data_h.gauging_status.reg.data = uvx_comm_bq_swap_u32_pointer((uint32_t *)&bq_data_h.gauging_status.raw[1]);
+	bq_data_h.gpio_pin_12 = (bq_data_h.gpio_status & BQ_GPIO_PIN12_MASK) >> 0x00;
+	bq_data_h.gpio_pin_13 = (bq_data_h.gpio_status & BQ_GPIO_PIN13_MASK) >> 0x01;
+	bq_data_h.gpio_pin_17 = (bq_data_h.gpio_status & BQ_GPIO_PIN17_MASK) >> 0x02;
+	bq_data_h.gpio_pin_16 = (bq_data_h.gpio_status & BQ_GPIO_PIN16_MASK) >> 0x03;
+	bq_data_h.gpio_pin_15 = (bq_data_h.gpio_status & BQ_GPIO_PIN15_MASK) >> 0x04;
+	bq_data_h.gpio_pin_20 = (bq_data_h.gpio_status & BQ_GPIO_PIN20_MASK) >> 0x05;
+	bq_data_h.gpio_pin_21 = (bq_data_h.gpio_status & BQ_GPIO_PIN21_MASK) >> 0x06;
+	bq_data_h.gpio_pin_22 = (bq_data_h.gpio_status & BQ_GPIO_PIN22_MASK) >> 0x07;
+
 
 	batt_data.CHG_fet_en = bq_data_h.manufacturing_status.reg.bits.FET_EN;
 	batt_data.CHG_fet_stat = bq_data_h.operation_status.reg.bits.CHG;
@@ -425,6 +442,8 @@ UVX_BATT_STATE uvx_batt_parse_data(void)
 	{
 		uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_RESET); //charging
 	}	
+
+	
 
 	return UVX_BATT_OK;
 }
