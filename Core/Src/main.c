@@ -873,12 +873,12 @@ void         UVX_APP_Batt(void)
 				{
 					if((batt_data.voltage_diff_pack > BATT_CELL_VOLTAGE_DIFF) && (batt_data.CHG_fet_stat))
 					{
-						if(bq_data_h.voltage_per_cell < bq_data_l.voltage_per_cell)
+						if((bq_data_h.voltage_per_cell < bq_data_l.voltage_per_cell) && (!comm_bq_h.Force_balance))
 						{
 							uvx_comm_bq_force_balance(&comm_bq_l, 1);
 							batt_state.state_next = BATT_MODE_READ_CHECK_PACK_V;
 						}
-						else if (bq_data_h.voltage_per_cell > bq_data_l.voltage_per_cell)
+						else if ((bq_data_h.voltage_per_cell > bq_data_l.voltage_per_cell) && (!comm_bq_l.Force_balance))
 						{
 							uvx_comm_bq_force_balance(&comm_bq_h, 1);
 							batt_state.state_next = BATT_MODE_READ_CHECK_PACK_V;
@@ -893,6 +893,10 @@ void         UVX_APP_Batt(void)
 						else if(comm_bq_l.Force_balance)
 						{
 							batt_state.state_next = BATT_MODE_OFF_BALANCE_L;
+						}
+						else if((comm_bq_h.Force_balance) && (comm_bq_l.Force_balance))
+						{
+							batt_state.state_next = BATT_MODE_INIT_BALANCE_L;
 						}
 						else
 						{
