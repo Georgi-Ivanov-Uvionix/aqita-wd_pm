@@ -224,6 +224,7 @@ UVX_I2C_STATE uvx_i2c_init(UVX_I2C* i2c/*, uint8_t* p_buff_tx, uint8_t* p_buff_r
                 i2c->is_Initilized = 1;
                 i2c->hal_i2c.I2C_RX_Ready = 1;
                 i2c->hal_i2c.I2C_TX_Ready = 1;
+                i2c->hal_i2c.STOP_Detected = 0U;
                 i2c->hal_i2c.p_lock_owner = NULL;
                 i2c->hal_i2c.p_locker = NULL;
                 res = UVX_I2C_OK;
@@ -279,6 +280,7 @@ UVX_I2C_STATE uvx_i2c_send_mem(UVX_I2C_HAL* p_i2c, uint8_t dev_addr, uint16_t re
                     {
                         p_i2c->I2C_TX_Ready = 0;
                         dev_addr <<= 1; // Shift address            
+                        p_i2c->STOP_Detected = 0U;
                         res = HAL_I2C_Mem_Write_IT(&p_i2c->hi2c, dev_addr, reg_addr, reg_size, data, size);
                         //res = HAL_I2C_Master_Transmit(&p_i2c->hi2c, dev_addr, data, size, HAL_MAX_DELAY);
                         if(res != HAL_OK)
@@ -366,6 +368,7 @@ UVX_I2C_STATE uvx_i2c_send(UVX_I2C_HAL* p_i2c, uint8_t dev_addr, uint8_t* data, 
                         //res = HAL_I2C_Mem_Write_IT(&p_i2c->hi2c, dev_addr, reg_addr, reg_size, data, size); 
                         //res = HAL_I2C_Master_Transmit(&p_i2c->hi2c, dev_addr, data, size, HAL_MAX_DELAY);
                         memcpy(p_i2c->tx_it_buffer, data, size);
+                        p_i2c->STOP_Detected = 0U;
                         res = HAL_I2C_Master_Transmit_IT(&p_i2c->hi2c, dev_addr, p_i2c->tx_it_buffer, size);
                         if(res != HAL_OK)
                         {
@@ -437,6 +440,7 @@ UVX_I2C_STATE uvx_i2c_read_mem(UVX_I2C_HAL* p_i2c, uint8_t dev_addr, uint16_t re
                 {
                     p_i2c->I2C_RX_Ready = 0;
                     dev_addr <<= 1; // Shift address
+                    p_i2c->STOP_Detected = 0U;
                     if(HAL_I2C_Mem_Read_IT(&p_i2c->hi2c, dev_addr, reg_addr, reg_size, data, size) != HAL_OK)
                     {
                         uint32_t cr1 = p_i2c->hi2c.Instance->CR1;
@@ -534,6 +538,7 @@ UVX_I2C_STATE uvx_i2c_read(UVX_I2C_HAL* p_i2c, uint8_t dev_addr, uint8_t* data, 
                 {
                     p_i2c->I2C_RX_Ready = 0;
                     dev_addr <<= 1; // Shift address
+                    p_i2c->STOP_Detected = 0U;
                     if(HAL_I2C_Master_Receive_IT(&p_i2c->hi2c, dev_addr, data, size) != HAL_OK)
                     {
                         if( !(p_i2c->hi2c.Instance->ISR & I2C_ISR_RXNE ) )
@@ -648,6 +653,8 @@ UVX_I2C_STATE uvx_i2c_unlock(UVX_I2C_HAL* p_i2c, uint32_t* p_locker)
     if(p_i2c->p_lock_owner == p_locker)
     {
         p_i2c->p_lock_owner = NULL; // Release the lock
+        p_i2c->I2C_RX_Ready = 1;
+        p_i2c->I2C_TX_Ready = 1;
         return UVX_I2C_OK;
     }
     else
@@ -658,24 +665,29 @@ UVX_I2C_STATE uvx_i2c_unlock(UVX_I2C_HAL* p_i2c, uint32_t* p_locker)
 
 UVX_I2C_STATE uvx_i2c_check_response(UVX_I2C_HAL* p_i2c, uint32_t* p_locker)
 {
-    if((p_i2c == NULL) || (p_locker == NULL))
+    if((p_i2c == NULL) || (p_locker == NULL) || (p_i2c->hi2c.Instance == NULL))
     {
-        return UVX_I2C_ERROR; // Return error if there is no lock owner
+        return UVX_I2C_ERROR;
     }
 
-    if((p_i2c->I2C_RX_Ready))
+    if(p_i2c->p_lock_owner != p_locker)
     {
-        if(uvx_i2c_unlock(p_i2c, p_locker) == UVX_I2C_OK) // Release the lock if the I2C is ready
-        {
-            return UVX_I2C_OK; // Return OK if the I2C is ready
-        }
-        else
-        {
-            return UVX_I2C_LOCK_ERROR; // Return error if the locker pointer does not match the lock owner
-        }
+        return UVX_I2C_LOCK_ERROR;
     }
-    else
+
+    /* STOPF may already have been cleared by HAL in the event interrupt.
+     * Wait for HAL to finish processing STOP and the final received byte. */
+    if((p_i2c->STOP_Detected == 0U) || (HAL_I2C_GetState(&p_i2c->hi2c) != HAL_I2C_STATE_READY))
     {
-        return UVX_I2C_BUSY; // Return busy if the I2C is still processing
+        return UVX_I2C_BUSY;
     }
+
+    /* A NACK or bus error can also end with STOP; it is not a valid response. */
+    if(HAL_I2C_GetError(&p_i2c->hi2c) != HAL_I2C_ERROR_NONE)
+    {
+        return UVX_I2C_ERROR;
+    }
+
+    p_i2c->STOP_Detected = 0U;
+    return uvx_i2c_unlock(p_i2c, p_locker);
 }

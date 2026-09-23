@@ -74,6 +74,8 @@ typedef struct UVX_I2C_HAL
     uint8_t I2C_RX_Ready 	            : 1; // RX byte ready
     uint8_t I2C_TX_Ready 	            : 1; // TX byte ready    
 
+    volatile uint8_t STOP_Detected; // Latched by the event IRQ before HAL clears STOPF
+
     uint32_t *p_lock_owner; // Pointer to the lock owner
     uint32_t *p_locker; // Pointer to the locker
 }UVX_I2C_HAL;

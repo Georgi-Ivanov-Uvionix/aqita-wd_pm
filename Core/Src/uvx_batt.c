@@ -546,7 +546,7 @@ UVX_BATT_STATE uvx_batt_read_pack_v(void)
 					}
 					else
 					{
-						batt_state.state_current = BATT_MODE_READ_BQ_1;
+						batt_state.state_current = BATT_MODE_READ_BQ;
 					}
 				}				
 				else if(drone_status.pwr_fc == 1)

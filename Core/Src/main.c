@@ -366,7 +366,7 @@ void UVX_APP(void)
 						}
 						else
 						{
-							batt_state.state_current = BATT_MODE_READ_BQ_1;
+							batt_state.state_current = BATT_MODE_READ_BQ;
 						}
 						comm_m2jmb.Heartbeat = 0;
 						memset(buff_rx_m2jmb, 0, sizeof(buff_rx_m2jmb));
@@ -525,7 +525,7 @@ void Process_Button_EXTI_Request(void)
 
 		if(batt_state.state_current == BATT_MODE_STOP)
 		{
-			batt_state.state_current = BATT_MODE_READ_BQ_1;
+			batt_state.state_current = BATT_MODE_READ_BQ;
 		}
 	}
 }
@@ -543,7 +543,7 @@ void UVX_APP_HALL_LAND(void)
 				uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_RESET);
 				if(batt_data.init)
 				{
-					batt_state.state_current = BATT_MODE_READ_BQ_1;
+					batt_state.state_current = BATT_MODE_READ_BQ;
 				}				
 			}
 
@@ -2248,6 +2248,11 @@ void HAL_I2C_ErrorCallback(I2C_HandleTypeDef *hi2c)
 void I2C1_EV_IRQHandler(void)
 {
 	uint32_t i2c_state = 0;
+	/* Preserve STOP detection before HAL acknowledges the hardware flag. */
+	if((i2c_bq.hal_i2c.hi2c.Instance->ISR & I2C_ISR_STOPF) != 0U)
+	{
+		i2c_bq.hal_i2c.STOP_Detected = 1U;
+	}
 	HAL_I2C_EV_IRQHandler(&i2c_bq.hal_i2c.hi2c);
 
 	if( ( i2c_bq.hal_i2c.hi2c.Instance->ISR & I2C_ISR_TXE ) && 
