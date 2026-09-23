@@ -660,9 +660,12 @@ typedef struct
 extern SRAM1 UVX_BQ_DATA bq_data_1;
 extern SRAM1 UVX_BQ_DATA bq_data_2;
 extern SRAM1 UVX_BQ_DATA bq_data_3;
-extern SRAM1 UVX_COMM_BQ comm_bq_1; // BQ communication structure
-extern SRAM1 UVX_COMM_BQ comm_bq_2; // BQ communication structure
-extern SRAM1 UVX_COMM_BQ comm_bq_3; // BQ communication structure
+extern SRAM1 UVX_COMM_BQ comm_bq[BQ_DEVICES];
+
+// Keep existing device names mapped to the shared communication array.
+#define comm_bq_1 (comm_bq[0])
+#define comm_bq_2 (comm_bq[1])
+#define comm_bq_3 (comm_bq[2])
 extern SRAM1 UVX_COMM_BQ_STATE_MACHINE comm_bq_state;
 extern UVX_COMM_BQ_STATE_MACHINE comm_state; // BQ communication state machine
 

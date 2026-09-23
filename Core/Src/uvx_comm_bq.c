@@ -8,9 +8,7 @@ SRAM1 UVX_BQ_DATA bq_data_1;
 SRAM1 UVX_BQ_DATA bq_data_2;
 SRAM1 UVX_BQ_DATA bq_data_3;
 
-SRAM1 UVX_COMM_BQ comm_bq_1; // BQ communication structure
-SRAM1 UVX_COMM_BQ comm_bq_2; // BQ communication structure
-SRAM1 UVX_COMM_BQ comm_bq_3; // BQ communication structure
+SRAM1 UVX_COMM_BQ comm_bq[BQ_DEVICES]; // BQ communication structure
 SRAM1 UVX_COMM_BQ_STATE_MACHINE comm_bq_state;
 
 // Array of all BQ_1 registers with address and size
@@ -156,13 +154,7 @@ UVX_COMM_BQ_STATE uvx_comm_bq_change_list(UVX_COMM_BQ* p_comm_bq, UVX_BQ_REGISTE
 	if((p_comm_bq != NULL) && (p_register_list != NULL))
 	{
 		p_comm_bq->p_register_list = p_register_list; // Set the pointer to the register list
-
-		// #ifdef PROJECT_AQITA_PM
-		// 	if(uvx_i2c_init(p_comm_bq->i2c/*, buff_tx_bq, buff_rx_bq*/)) // Initialize the I2C peripheral
-		// 	{
-		// 		return UVX_BQ_ERROR_INIT_I2C; // Return error if initialization fails
-		// 	}
-		// #endif
+		p_comm_bq->batt_reg_cnt = 0; // Reset the register counter
 	}
 
 	return UVX_BQ_OK; // Return success
