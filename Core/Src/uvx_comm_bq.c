@@ -182,7 +182,9 @@ UVX_COMM_BQ_STATE uvx_comm_bq_read_list(UVX_COMM_BQ* p_comm_bq, uint16_t reg_ind
 			p_comm_bq->RX_Ready = 1; // Reset TX ready flag	
 		}		
 		
-		p_comm_bq->RX_Ready = 0; // Reset TX ready flag	
+		p_comm_bq->RX_Ready = 0; // Reset TX ready flag			
+
+		uvx_i2c_lock(p_comm_bq->p_hal_i2c, (uint32_t*)p_comm_bq); // Lock the I2C bus for this communication instance
 
 		if(uvx_i2c_read_mem(p_comm_bq->p_hal_i2c, p_comm_bq->addr_i2c,
 			p_comm_bq->p_register_list[reg_index].reg_addr, 1,
@@ -191,8 +193,7 @@ UVX_COMM_BQ_STATE uvx_comm_bq_read_list(UVX_COMM_BQ* p_comm_bq, uint16_t reg_ind
 		{
 			//p_comm_bq->RX_Ready = 1;
 			return UVX_BQ_ERROR;
-		}			
-		
+		}					
 	}
 	else
 	{

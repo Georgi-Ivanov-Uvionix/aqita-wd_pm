@@ -204,9 +204,10 @@ typedef struct
 
 typedef struct UVX_COMM_BQ
 {
-	  uint8_t 		            ID;		  // I2C ID 
+	uint8_t 		            ID;		  // I2C ID 
     UVX_I2C_HAL*            p_hal_i2c; // HAL I2C structure
     UVX_I2C*                i2c; // I2C structure
+    UVX_I2C_STATE           i2c_state; // I2C state
     uint8_t                 addr_i2c; // I2C device address
     UVX_BQ_REGISTER*       p_register_list; // Pointer to the register list
 
@@ -217,6 +218,8 @@ typedef struct UVX_COMM_BQ
     uint8_t TX_Ready 	        : 1; // TX byte ready
     uint8_t TX_Ready_Buffer     : 1; // TX buffer ready
     uint8_t RX_Ready_Buffer     : 1; // RX buffer ready        
+    uint8_t RX_Pending          : 1; // Flag to indicate if RX is pending
+    uint8_t TX_Pending          : 1; // Flag to indicate if TX is pending
     uint8_t Force_balance       : 1; // Reserved for future use
     uint8_t Force_balance_old   : 1; // Reserved for future use
 
@@ -231,6 +234,9 @@ typedef struct UVX_COMM_BQ
     uint8_t                 i2c_tx_staging[UVX_BQ_I2C_TX_STAGING_SIZE]; // Must persist for HAL_I2C_Mem_Write_IT
     uint16_t                size_frame;
     uint16_t                size_payload;
+    uint16_t                batt_reg_cnt;
+
+    uint32_t                cnt_no_response;
 
 }UVX_COMM_BQ;
 

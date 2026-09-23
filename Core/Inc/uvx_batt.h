@@ -297,9 +297,7 @@ typedef struct
    
     uint16_t specification_info;       // Specification Information
     uint16_t manufacturer_date;        // Manufacturer Date
-    uint16_t serial_number;            // Serial Number
-    uint32_t cnt_no_response;
-        
+    uint16_t serial_number;            // Serial Number        
 }UVX_BATT_DATA;
 
  typedef enum

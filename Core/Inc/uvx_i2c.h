@@ -27,6 +27,8 @@ typedef enum
     UVX_I2C_INIT_ERROR_DMA,
     UVX_I2C_TX_READY,
     UVX_I2C_RX_READY,
+    UVX_I2C_LOCKED,
+    UVX_I2C_LOCK_ERROR,
     UVX_I2C_ALREADY_INITIALIZED
 } UVX_I2C_STATE;
 
@@ -69,9 +71,11 @@ typedef struct UVX_I2C_HAL
     uint8_t dma_interrupt_rx 	    : 1; // Flag to indicate if RX DMA interrupt is enabled
     uint8_t dma_interrupt_tx 	    : 1; // Flag to indicate if TX DMA interrupt is enabled
 
-    uint8_t RX_Ready 	            : 1; // RX byte ready
-    uint8_t TX_Ready 	            : 1; // TX byte ready    
+    uint8_t I2C_RX_Ready 	            : 1; // RX byte ready
+    uint8_t I2C_TX_Ready 	            : 1; // TX byte ready    
 
+    uint32_t *p_lock_owner; // Pointer to the lock owner
+    uint32_t *p_locker; // Pointer to the locker
 }UVX_I2C_HAL;
 
 typedef struct UVX_I2C
@@ -243,7 +247,9 @@ UVX_I2C_STATE uvx_i2c_send(UVX_I2C_HAL* p_i2c, uint8_t dev_addr, uint8_t* data, 
 UVX_I2C_STATE uvx_i2c_read_mem(UVX_I2C_HAL* p_i2c, uint8_t dev_addr, uint16_t reg_addr, uint16_t reg_size, uint8_t* data, uint16_t size);
 UVX_I2C_STATE uvx_i2c_read(UVX_I2C_HAL* p_i2c, uint8_t dev_addr, uint8_t* data, uint16_t size);
 UVX_I2C_STATE uvx_i2c_check_state(UVX_I2C_HAL* p_i2c);
-
+UVX_I2C_STATE uvx_i2c_lock(UVX_I2C_HAL* p_i2c, uint32_t* p_locker);
+UVX_I2C_STATE uvx_i2c_unlock(UVX_I2C_HAL* p_i2c, uint32_t* p_locker);
+UVX_I2C_STATE uvx_i2c_check_response(UVX_I2C_HAL* p_i2c, uint32_t* p_locker);
 
 #define I2C_START_BYTE								0x0F
 #define BATT_I2C_BAUDRATE							19200

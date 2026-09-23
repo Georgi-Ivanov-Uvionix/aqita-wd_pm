@@ -221,38 +221,11 @@ UVX_I2C_STATE uvx_i2c_init(UVX_I2C* i2c/*, uint8_t* p_buff_tx, uint8_t* p_buff_r
 
             if(uvx_i2c_hal_init(&i2c->hal_i2c) == UVX_I2C_OK)
             {                
-                // if(i2c->buff_size_tx > 0)
-                // {
-                //     i2c->p_buff_tx_start = p_buff_tx;
-                //     if(i2c->p_buff_tx_start == NULL) //
-                //     {
-                //         return UVX_I2C_INIT_ERROR_TX_MEMORY;
-                //     }
-                //     i2c->p_buff_tx = i2c->p_buff_tx_start;                    
-                // }
-                // else
-                // {
-                //     return UVX_I2C_INIT_ERROR_TX_MEMORY;
-                // }
-
-                // if(i2c->buff_size_rx > 0)
-                // {
-                //     i2c->p_buff_rx_start = p_buff_rx;// Allocate memory for RX buffer
-                //     if(i2c->p_buff_rx_start == NULL)
-                //     {
-                //         return UVX_I2C_INIT_ERROR_RX_MEMORY;
-                //     }
-                //     i2c->p_buff_rx = i2c->p_buff_rx_start;
-                //     // HAL_I2C_Receive_IT(&i2c->hal_i2c.hi2c, &i2c->byte_rx, 1);
-                // }
-                // else
-                // {
-                //     return UVX_I2C_INIT_ERROR_RX_MEMORY;
-                // }
-
                 i2c->is_Initilized = 1;
-                i2c->hal_i2c.RX_Ready = 1;
-                i2c->hal_i2c.TX_Ready = 1;
+                i2c->hal_i2c.I2C_RX_Ready = 1;
+                i2c->hal_i2c.I2C_TX_Ready = 1;
+                i2c->hal_i2c.p_lock_owner = NULL;
+                i2c->hal_i2c.p_locker = NULL;
                 res = UVX_I2C_OK;
             }
             else
@@ -280,6 +253,19 @@ UVX_I2C_STATE uvx_i2c_send_mem(UVX_I2C_HAL* p_i2c, uint8_t dev_addr, uint16_t re
 		// Check if the I2C handle is initialized
 		if (p_i2c != NULL && p_i2c->hi2c.Instance != NULL)
 		{
+            if((p_i2c->p_lock_owner == NULL))
+            {
+                if(p_i2c->p_locker == NULL)
+                {
+                    return UVX_I2C_LOCK_ERROR; // Return error if the locker pointer is NULL
+                }
+
+                p_i2c->p_lock_owner = p_i2c->p_locker; // Set the lock owner to the locker pointer
+            }
+            else if(p_i2c->p_lock_owner != (uint32_t*)data)
+            {
+                return UVX_I2C_LOCKED; // Return locked if another operation is in progress
+            }
             
             if( !( p_i2c->hi2c.Instance->ISR & I2C_ISR_STOPF ) && 
                 !( p_i2c->hi2c.Instance->ISR & I2C_ISR_NACKF ) &&
@@ -289,9 +275,9 @@ UVX_I2C_STATE uvx_i2c_send_mem(UVX_I2C_HAL* p_i2c, uint8_t dev_addr, uint16_t re
                     ( ( p_i2c->hi2c.Instance->ISR & I2C_ISR_TXE ) &&
                       ( p_i2c->hi2c.Instance->ISR & I2C_ISR_TXIS ) ) )
                 {
-                    if(p_i2c->TX_Ready)
+                    if(p_i2c->I2C_TX_Ready)
                     {
-                        p_i2c->TX_Ready = 0;
+                        p_i2c->I2C_TX_Ready = 0;
                         dev_addr <<= 1; // Shift address            
                         res = HAL_I2C_Mem_Write_IT(&p_i2c->hi2c, dev_addr, reg_addr, reg_size, data, size);
                         //res = HAL_I2C_Master_Transmit(&p_i2c->hi2c, dev_addr, data, size, HAL_MAX_DELAY);
@@ -345,6 +331,20 @@ UVX_I2C_STATE uvx_i2c_send(UVX_I2C_HAL* p_i2c, uint8_t dev_addr, uint8_t* data, 
 		// Check if the I2C handle is initialized
 		if (p_i2c != NULL && p_i2c->hi2c.Instance != NULL && data != NULL)
 		{
+            if((p_i2c->p_lock_owner == NULL))
+            {
+                if(p_i2c->p_locker == NULL)
+                {
+                    return UVX_I2C_LOCK_ERROR; // Return error if the locker pointer is NULL
+                }
+
+                p_i2c->p_lock_owner = p_i2c->p_locker; // Set the lock owner to the locker pointer
+            }
+            else if(p_i2c->p_lock_owner != (uint32_t*)data)
+            {
+                return UVX_I2C_LOCKED; // Return locked if another operation is in progress
+            }
+
             if((size == 0U) || (size > UVX_I2C_TX_IT_BUFFER_SIZE))
             {
                 return UVX_I2C_ERROR;
@@ -358,9 +358,9 @@ UVX_I2C_STATE uvx_i2c_send(UVX_I2C_HAL* p_i2c, uint8_t dev_addr, uint8_t* data, 
                     ( ( p_i2c->hi2c.Instance->ISR & I2C_ISR_TXE ) &&
                       ( p_i2c->hi2c.Instance->ISR & I2C_ISR_TXIS ) ) )
                 {
-                    if(p_i2c->TX_Ready)
+                    if(p_i2c->I2C_TX_Ready)
                     {
-                        p_i2c->TX_Ready = 0;
+                        p_i2c->I2C_TX_Ready = 0;
 
                         dev_addr <<= 1; // Shift address            
                         //res = HAL_I2C_Mem_Write_IT(&p_i2c->hi2c, dev_addr, reg_addr, reg_size, data, size); 
@@ -415,13 +415,27 @@ UVX_I2C_STATE uvx_i2c_read_mem(UVX_I2C_HAL* p_i2c, uint8_t dev_addr, uint16_t re
 		// Check if the I2C handle is initialized
 		if (p_i2c != NULL && p_i2c->hi2c.Instance != NULL)
 		{
+            if((p_i2c->p_lock_owner == NULL))
+            {
+                if(p_i2c->p_locker == NULL)
+                {
+                    return UVX_I2C_LOCK_ERROR; // Return error if the locker pointer is NULL
+                }
+
+                p_i2c->p_lock_owner = p_i2c->p_locker; // Set the lock owner to the locker pointer
+            }
+            else if(p_i2c->p_lock_owner != (uint32_t*)data)
+            {
+                return UVX_I2C_LOCKED; // Return locked if another operation is in progress
+            }
+
             if(!( p_i2c->hi2c.Instance->ISR & I2C_ISR_STOPF ) && 
                 !( p_i2c->hi2c.Instance->ISR & I2C_ISR_NACKF ) &&
                 !( p_i2c->hi2c.Instance->ISR & I2C_ISR_RXNE ) )
             {
-                if(p_i2c->RX_Ready)
+                if(p_i2c->I2C_RX_Ready)
                 {
-                    p_i2c->RX_Ready = 0;
+                    p_i2c->I2C_RX_Ready = 0;
                     dev_addr <<= 1; // Shift address
                     if(HAL_I2C_Mem_Read_IT(&p_i2c->hi2c, dev_addr, reg_addr, reg_size, data, size) != HAL_OK)
                     {
@@ -438,8 +452,8 @@ UVX_I2C_STATE uvx_i2c_read_mem(UVX_I2C_HAL* p_i2c, uint8_t dev_addr, uint16_t re
 
                         p_i2c->hi2c.State = HAL_I2C_STATE_READY;
                         p_i2c->hi2c.Mode = HAL_I2C_MODE_NONE;
-                        p_i2c->RX_Ready = 1;
-                        p_i2c->TX_Ready = 1;
+                        p_i2c->I2C_RX_Ready = 1;
+                        p_i2c->I2C_TX_Ready = 1;
 
                         return UVX_I2C_ERROR; // Return error if transmission fails
                     }                    
@@ -498,13 +512,27 @@ UVX_I2C_STATE uvx_i2c_read(UVX_I2C_HAL* p_i2c, uint8_t dev_addr, uint8_t* data, 
 		// Check if the I2C handle is initialized
 		if (p_i2c != NULL && p_i2c->hi2c.Instance != NULL)
 		{
+            if((p_i2c->p_lock_owner == NULL))
+            {
+                if(p_i2c->p_locker == NULL)
+                {
+                    return UVX_I2C_LOCK_ERROR; // Return error if the locker pointer is NULL
+                }
+
+                p_i2c->p_lock_owner = p_i2c->p_locker; // Set the lock owner to the locker pointer
+            }
+            else if(p_i2c->p_lock_owner != (uint32_t*)data)
+            {
+                return UVX_I2C_LOCKED; // Return locked if another operation is in progress
+            }
+
             if(!( p_i2c->hi2c.Instance->ISR & I2C_ISR_STOPF ) && 
                 !( p_i2c->hi2c.Instance->ISR & I2C_ISR_NACKF ) &&
                 !( p_i2c->hi2c.Instance->ISR & I2C_ISR_RXNE ) )
             {
-                if(p_i2c->RX_Ready)
+                if(p_i2c->I2C_RX_Ready)
                 {
-                    p_i2c->RX_Ready = 0;
+                    p_i2c->I2C_RX_Ready = 0;
                     dev_addr <<= 1; // Shift address
                     if(HAL_I2C_Master_Receive_IT(&p_i2c->hi2c, dev_addr, data, size) != HAL_OK)
                     {
@@ -585,4 +613,69 @@ UVX_I2C_STATE uvx_i2c_check_state(UVX_I2C_HAL* p_i2c)
     #endif
 
     return UVX_I2C_ERROR; // Return error
+}
+
+UVX_I2C_STATE uvx_i2c_lock(UVX_I2C_HAL* p_i2c, uint32_t* p_locker)
+{
+    if((p_i2c == NULL) || (p_locker == NULL))
+    {
+        return UVX_I2C_ERROR; // Return error if there is no lock owner
+    }
+
+    if((p_i2c->p_lock_owner == NULL))
+    {
+        if(p_locker == NULL)
+        {
+            return UVX_I2C_LOCK_ERROR; // Return error if the locker pointer is NULL
+        }
+
+        p_i2c->p_lock_owner = p_locker; // Set the lock owner to the locker pointer
+        return UVX_I2C_OK;
+    }
+    else
+    {
+        return UVX_I2C_LOCKED; // Return locked if another operation is in progress
+    }
+}
+
+UVX_I2C_STATE uvx_i2c_unlock(UVX_I2C_HAL* p_i2c, uint32_t* p_locker)
+{
+    if((p_i2c == NULL) || (p_locker == NULL))
+    {
+        return UVX_I2C_ERROR; // Return error if there is no lock owner
+    }
+
+    if(p_i2c->p_lock_owner == p_locker)
+    {
+        p_i2c->p_lock_owner = NULL; // Release the lock
+        return UVX_I2C_OK;
+    }
+    else
+    {
+        return UVX_I2C_LOCK_ERROR; // Return error if the locker pointer does not match the lock owner
+    }
+}
+
+UVX_I2C_STATE uvx_i2c_check_response(UVX_I2C_HAL* p_i2c, uint32_t* p_locker)
+{
+    if((p_i2c == NULL) || (p_locker == NULL))
+    {
+        return UVX_I2C_ERROR; // Return error if there is no lock owner
+    }
+
+    if((p_i2c->I2C_RX_Ready))
+    {
+        if(uvx_i2c_unlock(p_i2c, p_locker) == UVX_I2C_OK) // Release the lock if the I2C is ready
+        {
+            return UVX_I2C_OK; // Return OK if the I2C is ready
+        }
+        else
+        {
+            return UVX_I2C_LOCK_ERROR; // Return error if the locker pointer does not match the lock owner
+        }
+    }
+    else
+    {
+        return UVX_I2C_BUSY; // Return busy if the I2C is still processing
+    }
 }

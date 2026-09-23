@@ -411,6 +411,11 @@
               <FilePath>../Core/Src/stm32l4xx_hal_msp.c</FilePath>
             </File>
             <File>
+              <FileName>uvx_app_battery.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Core\Src\uvx_app_battery.c</FilePath>
+            </File>
+            <File>
               <FileName>uvx_batt.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\Core\Src\uvx_batt.c</FilePath>

@@ -3,7 +3,51 @@
 
 extern UVX_I2C i2c_bq;
 
-static uint16_t batt_reg_cnt = 0;
+static void batt_mode_read_once_BQ_1(void)
+{
+	if(!comm_bq_1.RX_Pending)
+	{
+		if(uvx_comm_bq_read_list(&comm_bq_1, comm_bq_1.batt_reg_cnt) == UVX_BQ_REG_END)
+		{
+			comm_bq_1.batt_reg_cnt = 0;
+			batt_state.state_current = BATT_MODE_READ_ONCE_BQ_2;
+			uvx_batt_parse_data();
+		}
+
+		batt_state.state_next = BATT_MODE_READ_ONCE_BQ_2;
+		batt_state.state_when_fail = BATT_MODE_READ_ONCE_BQ_2;
+		comm_bq_1.RX_Pending = 1; // Set RX pending flag to indicate that a read operation is in progress
+	}
+	else
+	{
+		comm_bq_1.i2c_state = uvx_i2c_check_response(&i2c_bq.hal_i2c, (uint32_t*)&comm_bq_1);
+
+		if(comm_bq_1.i2c_state == UVX_I2C_OK)
+		{
+			comm_bq_1.batt_reg_cnt++;
+			comm_bq_1.cnt_no_response = 0;
+			comm_bq_1.RX_Pending = 0;
+			comm_bq_1.RX_Ready = 1;
+		}
+		else
+		{
+			comm_bq_1.cnt_no_response++;
+			if(comm_bq_1.cnt_no_response > BQ_MAX_NO_RESPONSE)
+			{
+				bq_data_1.No_response = true;
+				comm_bq_1.batt_reg_cnt = 0;
+				batt_state.state_current = batt_state.state_when_fail;
+				comm_bq_1.RX_Pending = 0;
+				comm_bq_1.RX_Ready = 1;				
+			}						
+			else
+			{
+				bq_data_1.No_response = false;
+				batt_state.state_current = batt_state.state_next;
+			}			
+		}	
+	}	
+}
 
 void UVX_APP_Batt(void)
 {
@@ -13,30 +57,18 @@ void UVX_APP_Batt(void)
 			uvx_comm_bq_change_list(&comm_bq_1, bq_1_register_list_read_once);
 			uvx_comm_bq_change_list(&comm_bq_2, bq_2_register_list_read_once);
 			uvx_comm_bq_change_list(&comm_bq_3, bq_3_register_list_read_once);
-			batt_reg_cnt = 0;
+			comm_bq_1.batt_reg_cnt = 0;
 			batt_state.state_current = BATT_MODE_READ_ONCE_BQ_1;
 		break;
 
 		case BATT_MODE_READ_ONCE_BQ_1:
-			if(uvx_comm_bq_read_list(&comm_bq_1, batt_reg_cnt) == UVX_BQ_REG_END)
-			{
-				batt_reg_cnt = 0;
-				batt_state.state_current = BATT_MODE_READ_ONCE_BQ_2;
-				uvx_batt_parse_data();
-			}
-			else
-			{
-				batt_state.state_current = BATT_MODE_WAIT_RESPONSE;
-				batt_state.state_next = BATT_MODE_READ_ONCE_BQ_1;
-				batt_state.state_when_fail = BATT_MODE_READ_ONCE_BQ_2;
-				HAL_Delay(1);
-			}
+			batt_mode_read_once_BQ_1();
 		break;
 
 		case BATT_MODE_READ_ONCE_BQ_2:
-			if(uvx_comm_bq_read_list(&comm_bq_2, batt_reg_cnt) == UVX_BQ_REG_END)
+			if(uvx_comm_bq_read_list(&comm_bq_2, comm_bq_2.batt_reg_cnt) == UVX_BQ_REG_END)
 			{
-				batt_reg_cnt = 0;
+				comm_bq_2.batt_reg_cnt = 0;
 				batt_state.state_current = BATT_MODE_READ_ONCE_BQ_3;
 				uvx_batt_parse_data();
 			}
@@ -50,9 +82,9 @@ void UVX_APP_Batt(void)
 		break;
 
 		case BATT_MODE_READ_ONCE_BQ_3:
-			if(uvx_comm_bq_read_list(&comm_bq_3, batt_reg_cnt) == UVX_BQ_REG_END)
+			if(uvx_comm_bq_read_list(&comm_bq_3, comm_bq_3.batt_reg_cnt) == UVX_BQ_REG_END)
 			{
-				batt_reg_cnt = 0;
+				comm_bq_3.batt_reg_cnt = 0;
 				batt_data.design_capacity = (bq_data_1.design_capacity + bq_data_2.design_capacity + bq_data_3.design_capacity) / 3U;
 				batt_data.design_voltage = bq_data_1.design_voltage + bq_data_2.design_voltage + bq_data_3.design_voltage;
 				uvx_comm_bq_change_list(&comm_bq_1, bq_1_register_list_read);
@@ -89,13 +121,13 @@ void UVX_APP_Batt(void)
 			batt_state.state_current = BATT_MODE_WAIT_RESPONSE;
 			batt_state.state_next = BATT_MODE_READ_BQ_1;
 			batt_state.state_when_fail = BATT_MODE_READ_BQ_1;
-			batt_reg_cnt = 0;
+			comm_bq_1.batt_reg_cnt = 0;
 		break;
 
 		case BATT_MODE_READ_BQ_1:
-			if(uvx_comm_bq_read_list(&comm_bq_1, batt_reg_cnt) == UVX_BQ_REG_END)
+			if(uvx_comm_bq_read_list(&comm_bq_1, comm_bq_1.batt_reg_cnt) == UVX_BQ_REG_END)
 			{
-				batt_reg_cnt = 0;
+				comm_bq_1.batt_reg_cnt = 0;
 				batt_state.state_current = BATT_MODE_READ_BQ_2;
 				uvx_batt_parse_data();
 
@@ -115,9 +147,9 @@ void UVX_APP_Batt(void)
 		break;
 
 		case BATT_MODE_READ_BQ_2:
-			if(uvx_comm_bq_read_list(&comm_bq_2, batt_reg_cnt) == UVX_BQ_REG_END)
+			if(uvx_comm_bq_read_list(&comm_bq_2, comm_bq_2.batt_reg_cnt) == UVX_BQ_REG_END)
 			{
-				batt_reg_cnt = 0;
+				comm_bq_2.batt_reg_cnt = 0;
 				batt_state.state_current = BATT_MODE_READ_BQ_3;
 				uvx_batt_parse_data();
 			}
@@ -131,9 +163,9 @@ void UVX_APP_Batt(void)
 		break;	
 
 		case BATT_MODE_READ_BQ_3:
-			if(uvx_comm_bq_read_list(&comm_bq_3, batt_reg_cnt) == UVX_BQ_REG_END)
+			if(uvx_comm_bq_read_list(&comm_bq_3, comm_bq_3.batt_reg_cnt) == UVX_BQ_REG_END)
 			{
-				batt_reg_cnt = 0;
+				comm_bq_3.batt_reg_cnt = 0;
 				batt_state.state_current = BATT_MODE_CHECK_STATUS;
 				uvx_batt_parse_data();
 			}
@@ -254,7 +286,7 @@ void UVX_APP_Batt(void)
 			batt_state.state_current = BATT_MODE_WAIT_RESPONSE;
 			batt_state.state_next = BATT_MODE_READ_CHECK_PACK_V;
 			batt_state.state_when_fail = BATT_MODE_READ_CHECK_PACK_V;
-			batt_reg_cnt = 0;
+			comm_bq_2.batt_reg_cnt = 0;
 		break;				
 
 		case BATT_MODE_OFF_BALANCE_3:
@@ -262,7 +294,7 @@ void UVX_APP_Batt(void)
 			batt_state.state_current = BATT_MODE_WAIT_RESPONSE;
 			batt_state.state_next = BATT_MODE_READ_CHECK_PACK_V;
 			batt_state.state_when_fail = BATT_MODE_READ_CHECK_PACK_V;
-			batt_reg_cnt = 0;
+			comm_bq_3.batt_reg_cnt = 0;
 		break;
 		
 		case BATT_MODE_READ_CHECK_PACK_V:
@@ -282,108 +314,108 @@ void UVX_APP_Batt(void)
 		break;
 
 		case BATT_MODE_WAIT_RESPONSE:
-			if((i2c_bq.hal_i2c.RX_Ready) || (batt_data.cnt_no_response > BQ_MAX_NO_RESPONSE))
-			{
-				switch(batt_state.state_next)
-				{
-					case BATT_MODE_READ_CHECK_PACK_V:
-						if(batt_data.cnt_no_response > BQ_MAX_NO_RESPONSE)
-						{
-							batt_data.cnt_no_response = 0;
-							batt_state.state_current = batt_state.state_when_fail;
-							batt_reg_cnt = 0;
-							HAL_Delay(1);
-						}
-						else
-						{
-							batt_state.state_current = batt_state.state_when_fail;
-							batt_data.cnt_no_response++;
-						}
-					break;
+			// if((i2c_bq.hal_i2c.I2C_RX_Ready) || (batt_data.cnt_no_response > BQ_MAX_NO_RESPONSE))
+			// {
+			// 	switch(batt_state.state_next)
+			// 	{
+			// 		case BATT_MODE_READ_CHECK_PACK_V:
+			// 			if(batt_data.cnt_no_response > BQ_MAX_NO_RESPONSE)
+			// 			{
+			// 				batt_data.cnt_no_response = 0;
+			// 				batt_state.state_current = batt_state.state_when_fail;
+			// 				batt_reg_cnt = 0;
+			// 				HAL_Delay(1);
+			// 			}
+			// 			else
+			// 			{
+			// 				batt_state.state_current = batt_state.state_when_fail;
+			// 				batt_data.cnt_no_response++;
+			// 			}
+			// 		break;
 
-					case BATT_MODE_INIT_BALANCE_2:
-					case BATT_MODE_OFF_BALANCE_1:
-					case BATT_MODE_READ_ONCE_BQ_1:
-					case BATT_MODE_READ_BQ_1:
-						if(batt_data.cnt_no_response > BQ_MAX_NO_RESPONSE)
-						{
-							bq_data_1.No_response = true;
-							batt_reg_cnt = 0;
-							comm_bq_1.RX_Ready = 1; // Force ready to avoid blocking
-							comm_bq_1.p_hal_i2c->RX_Ready = 1; // Force ready to avoid blocking
-							batt_state.state_current = batt_state.state_when_fail;
-						}						
-						else
-						{
-							bq_data_1.No_response = false;
-							batt_state.state_current = batt_state.state_next;
-						}
+			// 		case BATT_MODE_INIT_BALANCE_2:
+			// 		case BATT_MODE_OFF_BALANCE_1:
+			// 		case BATT_MODE_READ_ONCE_BQ_1:
+			// 		case BATT_MODE_READ_BQ_1:
+			// 			if(batt_data.cnt_no_response > BQ_MAX_NO_RESPONSE)
+			// 			{
+			// 				bq_data_1.No_response = true;
+			// 				batt_reg_cnt = 0;
+			// 				comm_bq_1.RX_Ready = 1; // Force ready to avoid blocking
+			// 				comm_bq_1.p_hal_i2c->I2C_RX_Ready = 1; // Force ready to avoid blocking
+			// 				batt_state.state_current = batt_state.state_when_fail;
+			// 			}						
+			// 			else
+			// 			{
+			// 				bq_data_1.No_response = false;
+			// 				batt_state.state_current = batt_state.state_next;
+			// 			}
 
-						batt_data.cnt_no_response = 0;						
+			// 			batt_data.cnt_no_response = 0;						
 						
-						comm_bq_1.RX_Ready = 1;
+			// 			comm_bq_1.RX_Ready = 1;
 						
-						// if(bq_1_register_list_read[batt_reg_cnt].reg_addr == CBSTATUS)
-						// {
-						// 	for_test = 0;
-						// }
+			// 			// if(bq_1_register_list_read[batt_reg_cnt].reg_addr == CBSTATUS)
+			// 			// {
+			// 			// 	for_test = 0;
+			// 			// }
 
-						batt_reg_cnt++;							
-						HAL_Delay(1);						
-					break;
+			// 			batt_reg_cnt++;							
+			// 			HAL_Delay(1);						
+			// 		break;
 					
-					case BATT_MODE_OFF_BALANCE_2:
-					case BATT_MODE_INIT_BALANCE_3:
-					case BATT_MODE_READ_ONCE_BQ_2:
-					case BATT_MODE_READ_BQ_2:
-							if(batt_data.cnt_no_response > BQ_MAX_NO_RESPONSE)
-							{
-								bq_data_2.No_response = true;
-								batt_reg_cnt = 0;
-								comm_bq_2.RX_Ready = 1; // Force ready to avoid blocking
-								comm_bq_2.p_hal_i2c->RX_Ready = 1; // Force ready to avoid blocking
-								batt_state.state_current = batt_state.state_when_fail;
-							}						
-							else
-							{
-								bq_data_2.No_response = false;
-								batt_state.state_current = batt_state.state_next;
-							}				
+			// 		case BATT_MODE_OFF_BALANCE_2:
+			// 		case BATT_MODE_INIT_BALANCE_3:
+			// 		case BATT_MODE_READ_ONCE_BQ_2:
+			// 		case BATT_MODE_READ_BQ_2:
+			// 				if(batt_data.cnt_no_response > BQ_MAX_NO_RESPONSE)
+			// 				{
+			// 					bq_data_2.No_response = true;
+			// 					batt_reg_cnt = 0;
+			// 					comm_bq_2.RX_Ready = 1; // Force ready to avoid blocking
+			// 					comm_bq_2.p_hal_i2c->I2C_RX_Ready = 1; // Force ready to avoid blocking
+			// 					batt_state.state_current = batt_state.state_when_fail;
+			// 				}						
+			// 				else
+			// 				{
+			// 					bq_data_2.No_response = false;
+			// 					batt_state.state_current = batt_state.state_next;
+			// 				}				
 
-							batt_data.cnt_no_response = 0;							
-							comm_bq_2.RX_Ready = 1;
-							batt_reg_cnt++;
-							HAL_Delay(1);
-					break;
+			// 				batt_data.cnt_no_response = 0;							
+			// 				comm_bq_2.RX_Ready = 1;
+			// 				batt_reg_cnt++;
+			// 				HAL_Delay(1);
+			// 		break;
 
-					case BATT_MODE_INIT_BALANCE_DONE:
-					case BATT_MODE_OFF_BALANCE_3:
-					case BATT_MODE_READ_ONCE_BQ_3:
-					case BATT_MODE_READ_BQ_3:
-						if(batt_data.cnt_no_response > BQ_MAX_NO_RESPONSE)
-						{
-							bq_data_3.No_response = true;
-							batt_reg_cnt = 0;
-							comm_bq_3.RX_Ready = 1;
-							comm_bq_3.p_hal_i2c->RX_Ready = 1;
-							batt_state.state_current = batt_state.state_when_fail;
-						}
-						else
-						{
-							bq_data_3.No_response = false;
-							batt_state.state_current = batt_state.state_next;
-						}
-						batt_data.cnt_no_response = 0;						
-						comm_bq_3.RX_Ready = 1;
-						batt_reg_cnt++;
-						HAL_Delay(1);
-					break;
-				}			
-			}
-			else
-			{
-				batt_data.cnt_no_response++;
-			}	
+			// 		case BATT_MODE_INIT_BALANCE_DONE:
+			// 		case BATT_MODE_OFF_BALANCE_3:
+			// 		case BATT_MODE_READ_ONCE_BQ_3:
+			// 		case BATT_MODE_READ_BQ_3:
+			// 			if(batt_data.cnt_no_response > BQ_MAX_NO_RESPONSE)
+			// 			{
+			// 				bq_data_3.No_response = true;
+			// 				batt_reg_cnt = 0;
+			// 				comm_bq_3.RX_Ready = 1;
+			// 				comm_bq_3.p_hal_i2c->I2C_RX_Ready = 1;
+			// 				batt_state.state_current = batt_state.state_when_fail;
+			// 			}
+			// 			else
+			// 			{
+			// 				bq_data_3.No_response = false;
+			// 				batt_state.state_current = batt_state.state_next;
+			// 			}
+			// 			batt_data.cnt_no_response = 0;						
+			// 			comm_bq_3.RX_Ready = 1;
+			// 			batt_reg_cnt++;
+			// 			HAL_Delay(1);
+			// 		break;
+			// 	}			
+			// }
+			// else
+			// {
+			// 	batt_data.cnt_no_response++;
+			// }	
 		break;
 
 		case BATT_MODE_STOP:

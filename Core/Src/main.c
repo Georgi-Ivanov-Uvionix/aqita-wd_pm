@@ -2230,7 +2230,7 @@ void HAL_I2C_MemRxCpltCallback(I2C_HandleTypeDef *hi2c)
 	{
 		/* HAL has copied the complete memory response to the register-list
 		 * destination (bq_data_1/2/3). Only now may the state machine advance. */
-		i2c_bq.hal_i2c.RX_Ready = 1;
+		i2c_bq.hal_i2c.I2C_RX_Ready = 1;
 	}
 }
 
@@ -2240,8 +2240,8 @@ void HAL_I2C_ErrorCallback(I2C_HandleTypeDef *hi2c)
 	{
 		/* Do not report a failed transfer as RX complete. WAIT_RESPONSE will
 		 * time out the active BQ and continue with the next one. */
-		i2c_bq.hal_i2c.RX_Ready = 0;
-		i2c_bq.hal_i2c.TX_Ready = 1;
+		i2c_bq.hal_i2c.I2C_RX_Ready = 0;
+		i2c_bq.hal_i2c.I2C_TX_Ready = 1;
 	}
 }
 
@@ -2271,19 +2271,19 @@ void I2C1_EV_IRQHandler(void)
 			// 	comm_bq_2.RX_Ready = 1;
 			// }
 
-			if(i2c_bq.hal_i2c.TX_Ready == 0)
+			if(i2c_bq.hal_i2c.I2C_TX_Ready == 0)
 			{
-				i2c_bq.hal_i2c.TX_Ready = 1;
+				i2c_bq.hal_i2c.I2C_TX_Ready = 1;
 			}
 
-			// if(comm_bq_1.TX_Ready == 0)
+			// if(comm_bq_1.I2C_TX_Ready == 0)
 			// {
-			// 	comm_bq_1.TX_Ready = 1;
+			// 	comm_bq_1.I2C_TX_Ready = 1;
 			// }	
 
-			// if(comm_bq_2.TX_Ready == 0)
+			// if(comm_bq_2.I2C_TX_Ready == 0)
 			// {
-			// 	comm_bq_2.TX_Ready = 1;
+			// 	comm_bq_2.I2C_TX_Ready = 1;
 			// }			
 		}
 
@@ -2301,9 +2301,9 @@ void I2C1_EV_IRQHandler(void)
 		// 	comm_bq_2.TX_Ready = 1;
 		// }		
 
-		if(i2c_bq.hal_i2c.TX_Ready == 0)
+		if(i2c_bq.hal_i2c.I2C_TX_Ready == 0)
 		{
-			i2c_bq.hal_i2c.TX_Ready = 1;
+			i2c_bq.hal_i2c.I2C_TX_Ready = 1;
 		}
 	}
 	else
@@ -2317,9 +2317,9 @@ void I2C1_EV_IRQHandler(void)
 		// {
 		// 	comm_bq_2.TX_Ready = 1;
 		// }
-		if(i2c_bq.hal_i2c.TX_Ready == 0)
+		if(i2c_bq.hal_i2c.I2C_TX_Ready == 0)
 		{
-			i2c_bq.hal_i2c.TX_Ready = 1;
+			i2c_bq.hal_i2c.I2C_TX_Ready = 1;
 		}
 
 	}
