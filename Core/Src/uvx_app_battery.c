@@ -3,50 +3,53 @@
 
 extern UVX_I2C i2c_bq;
 
-static void batt_mode_read_once_BQ_1(void)
+static UVX_COMM_BQ_STATE batt_mode_read_once_BQ_1(UVX_COMM_BQ *p_comm_bq)
 {
-	if(!comm_bq_1.RX_Pending)
+	if(!p_comm_bq->RX_Pending)
 	{
-		if(uvx_comm_bq_read_list(&comm_bq_1, comm_bq_1.batt_reg_cnt) == UVX_BQ_REG_END)
+		if(uvx_comm_bq_read_list(p_comm_bq, p_comm_bq->batt_reg_cnt) == UVX_BQ_REG_END)
 		{
-			comm_bq_1.batt_reg_cnt = 0;
+			p_comm_bq->batt_reg_cnt = 0;
 			batt_state.state_current = BATT_MODE_READ_ONCE_BQ_2;
 			uvx_batt_parse_data();
+			return UVX_BQ_OK;
 		}
-
-		batt_state.state_next = BATT_MODE_READ_ONCE_BQ_2;
+		
 		batt_state.state_when_fail = BATT_MODE_READ_ONCE_BQ_2;
-		comm_bq_1.RX_Pending = 1; // Set RX pending flag to indicate that a read operation is in progress
+		p_comm_bq->RX_Pending = 1; // Set RX pending flag to indicate that a read operation is in progress
 	}
 	else
 	{
-		comm_bq_1.i2c_state = uvx_i2c_check_response(&i2c_bq.hal_i2c, (uint32_t*)&comm_bq_1);
+		p_comm_bq->i2c_state = uvx_i2c_check_response(&i2c_bq.hal_i2c, (uint32_t*)p_comm_bq);
 
-		if(comm_bq_1.i2c_state == UVX_I2C_OK)
+		if(p_comm_bq->i2c_state == UVX_I2C_OK)
 		{
-			comm_bq_1.batt_reg_cnt++;
-			comm_bq_1.cnt_no_response = 0;
-			comm_bq_1.RX_Pending = 0;
-			comm_bq_1.RX_Ready = 1;
+			p_comm_bq->batt_reg_cnt++;
+			p_comm_bq->cnt_no_response = 0;
+			p_comm_bq->RX_Pending = 0;
+			p_comm_bq->RX_Ready = 1;
 		}
 		else
 		{
-			comm_bq_1.cnt_no_response++;
-			if(comm_bq_1.cnt_no_response > BQ_MAX_NO_RESPONSE)
+			p_comm_bq->cnt_no_response++;
+			if(p_comm_bq->cnt_no_response > BQ_MAX_NO_RESPONSE)
 			{
-				bq_data_1.No_response = true;
-				comm_bq_1.batt_reg_cnt = 0;
+				p_comm_bq->No_response = true;
+				p_comm_bq->batt_reg_cnt = 0;
 				batt_state.state_current = batt_state.state_when_fail;
-				comm_bq_1.RX_Pending = 0;
-				comm_bq_1.RX_Ready = 1;				
+				p_comm_bq->RX_Pending = 0;
+				p_comm_bq->RX_Ready = 1;				
+				return UVX_BQ_TIMEOUT;
 			}						
 			else
 			{
-				bq_data_1.No_response = false;
-				batt_state.state_current = batt_state.state_next;
+				p_comm_bq->No_response = false;
+				//batt_state.state_current = batt_state.state_next;
 			}			
-		}	
+		}			
 	}	
+
+	return UVX_BQ_ERROR_BUSY;
 }
 
 void UVX_APP_Batt(void)
@@ -62,7 +65,7 @@ void UVX_APP_Batt(void)
 		break;
 
 		case BATT_MODE_READ_ONCE_BQ_1:
-			batt_mode_read_once_BQ_1();
+			batt_mode_read_once_BQ_1(&comm_bq_1);
 		break;
 
 		case BATT_MODE_READ_ONCE_BQ_2:

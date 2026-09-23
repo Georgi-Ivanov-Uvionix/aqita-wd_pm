@@ -220,8 +220,9 @@ typedef struct UVX_COMM_BQ
     uint8_t RX_Ready_Buffer     : 1; // RX buffer ready        
     uint8_t RX_Pending          : 1; // Flag to indicate if RX is pending
     uint8_t TX_Pending          : 1; // Flag to indicate if TX is pending
-    uint8_t Force_balance       : 1; // Reserved for future use
-    uint8_t Force_balance_old   : 1; // Reserved for future use
+    uint8_t Force_balance       : 1; //
+    uint8_t Force_balance_old   : 1; //
+    uint8_t No_response         : 1; //
 
     uint16_t                buff_size_rx; // RX buffer size
     uint16_t                buff_size_tx; // TX buffer size

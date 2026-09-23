@@ -629,7 +629,7 @@ UVX_I2C_STATE uvx_i2c_lock(UVX_I2C_HAL* p_i2c, uint32_t* p_locker)
             return UVX_I2C_LOCK_ERROR; // Return error if the locker pointer is NULL
         }
 
-        p_i2c->p_lock_owner = p_locker; // Set the lock owner to the locker pointer
+        p_i2c->p_locker = p_locker; // Set the lock owner to the locker pointer
         return UVX_I2C_OK;
     }
     else
