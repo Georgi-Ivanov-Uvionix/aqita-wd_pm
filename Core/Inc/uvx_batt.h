@@ -48,7 +48,7 @@
 #define BATT_CELL_CHARGE_RESUME_VOLTAGE             4100 //mv
 #define BATT_CELL_DETECT_THRESHOLD_MV               1500 //mv
 #define BATT_CELL_VOLTAGE_DIFF                      10  //mv
-#define BATT_DELTA_VOLTAGE                          500  //mv
+#define BATT_DELTA_VOLTAGE                          1300  //mv
 #define BATT_ADC_PACK_V_LOW_MIN_MS                  5000U
 
 #define BATT_SUPPLY_STATUS_PWR_FET_BIT                 0
@@ -207,6 +207,7 @@ typedef struct
     uint16_t temperature_cell_8;             //byte 50    
     uint16_t temperature_1_int;       
     uint16_t temperature_2_int;       
+    uint16_t temperature_3_int;       
     int16_t  voltage_diff_pack;         // voltage difference between two packs in millivolts
     int16_t  voltage_delta_cell;        // voltage difference between cells in millivolts
     int16_t  voltage_min_cell;          // voltage difference between cells in millivolts byte 60
@@ -319,6 +320,7 @@ typedef enum
 {
     BATT_MODE_INIT = 0x00,
     BATT_MODE_READ_ONCE_BQ,
+    BATT_MODE_INIT_BYPASS,
     BATT_MODE_INIT_BALANCE_1,
     BATT_MODE_INIT_BALANCE_2,    
     BATT_MODE_INIT_BALANCE_3,

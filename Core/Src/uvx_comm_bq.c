@@ -291,6 +291,8 @@ UVX_COMM_BQ_STATE uvx_comm_bq_write_register(UVX_COMM_BQ* p_comm_bq, uint16_t re
 		p_comm_bq->TX_Ready = 0; // Reset TX ready flag
 
 		memcpy(p_comm_bq->i2c_tx_staging, data, size);
+		
+		uvx_i2c_lock(p_comm_bq->p_hal_i2c, (uint32_t*)p_comm_bq); // Lock the I2C bus for this communication instance
 
 		if(uvx_i2c_send_mem(p_comm_bq->p_hal_i2c, p_comm_bq->addr_i2c, reg_addr, 1, p_comm_bq->i2c_tx_staging, size) != UVX_I2C_OK)
 		{
@@ -362,6 +364,36 @@ UVX_COMM_BQ_STATE uvx_comm_bq_force_balance(UVX_COMM_BQ* p_comm_bq, uint8_t enab
 	if(p_comm_bq->Force_balance_old != p_comm_bq->Force_balance)
 	{
 		p_comm_bq->Force_balance_old = p_comm_bq->Force_balance;
+		return uvx_comm_bq_write_register(p_comm_bq, GPIO_WRITE, data, 2);
+
+	}
+	else
+	{
+		return UVX_BQ_OK; // No change, return success
+	}	
+}
+
+UVX_COMM_BQ_STATE uvx_comm_bq_bypass(UVX_COMM_BQ* p_comm_bq, uint8_t enable)
+{
+	uint8_t data[2];
+
+	if(enable)
+	{
+		data[0] = 0x00;
+		data[1] = 0x10;
+		p_comm_bq->Bypass = true;
+	}
+	else
+	{
+		data[0] = 0x00;
+		data[1] = 0x00;
+		p_comm_bq->Bypass = false;
+	}
+
+	if(p_comm_bq->Bypass_old != p_comm_bq->Bypass)
+	{
+		p_comm_bq->Bypass_old = p_comm_bq->Bypass;
+
 		return uvx_comm_bq_write_register(p_comm_bq, GPIO_WRITE, data, 2);
 
 	}

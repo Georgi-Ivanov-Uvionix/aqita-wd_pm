@@ -61,6 +61,17 @@
 #define BQ_DEVICES          3
 #define BQ_MAX_NO_RESPONSE  1000 
 
+// GPIO_READ (0x48) masks for physical BQ40Z80 pins; shared by BQ L and BQ H.
+// Valid when the pin is configured as GPIO. GPIO_WRITE uses two bits per pin.
+#define BQ_GPIO_PIN12_MASK  (0x01) // RC2
+#define BQ_GPIO_PIN13_MASK  (0x02) // RC3
+#define BQ_GPIO_PIN17_MASK  (0x04) // RH0
+#define BQ_GPIO_PIN16_MASK  (0x08) // RH1
+#define BQ_GPIO_PIN15_MASK  (0x10) // RH2
+#define BQ_GPIO_PIN20_MASK  (0x20) // RL0
+#define BQ_GPIO_PIN21_MASK  (0x40) // RL1
+#define BQ_GPIO_PIN22_MASK  (0x80) // RL2
+
 #define SRAM1 __attribute__((section(".sram1")))
 
 typedef enum
@@ -134,8 +145,8 @@ typedef enum
 
     /* 0x40–0x4F: Manufacturer / GPIO */
     MANUFACTURER_BLOCK_ACCESS      = 0x44,
+    GPIO_READ                      = 0x48,    
     GPIO_WRITE                     = 0x49,
-    GPIO_READ                      = 0x4A,
     STATE_OF_HEALTH                = 0x4F,
 
     /* 0x50–0x5F: Status / Alerts (per TI documentation) */
@@ -220,8 +231,10 @@ typedef struct UVX_COMM_BQ
     uint8_t RX_Ready_Buffer     : 1; // RX buffer ready        
     uint8_t RX_Pending          : 1; // Flag to indicate if RX is pending
     uint8_t TX_Pending          : 1; // Flag to indicate if TX is pending
-    uint8_t Force_balance       : 1; //
-    uint8_t Force_balance_old   : 1; //
+    uint8_t Bypass              : 1; //
+    uint8_t Bypass_old          : 1; //
+    uint8_t Force_balance       : 1; // Requested force-balance state
+    uint8_t Force_balance_old   : 1; // Previous force-balance state
     uint8_t No_response         : 1; //
 
     uint16_t                buff_size_rx; // RX buffer size
@@ -514,6 +527,20 @@ typedef struct UVX_BQ_DATA
     OPERATION_STATUS_S operation_status; 
     GAUGING_STATUS_S gauging_status;
     uint8_t cells_count;               // Detected cells count for this BQ pack
+    uint16_t gpio_status;              // GPIO status
+    uint8_t  gpio_pin_12 : 1;           // GPIO pin 12 status
+    uint8_t  gpio_pin_13 : 1;           // GPIO pin 13 status
+    uint8_t  gpio_pin_17 : 1;           // GPIO pin 17 status
+    uint8_t  gpio_pin_16 : 1;           // GPIO pin 16 status
+    uint8_t  gpio_pin_15 : 1;           // GPIO pin 15 status
+    uint8_t  gpio_pin_20 : 1;           // GPIO pin 20 status
+    uint8_t  gpio_pin_21 : 1;           // GPIO pin 21 status
+    uint8_t  gpio_pin_22 : 1;           // GPIO pin 22 status    
+
+    uint8_t Bypass              : 1; //
+    uint8_t Bypass_old          : 1; //
+    uint8_t Force_balance       : 1; // Requested force-balance state
+    uint8_t Force_balance_old   : 1; // Previous force-balance state
 }UVX_BQ_DATA;
 
 typedef enum 
@@ -692,6 +719,7 @@ UVX_COMM_BQ_STATE uvx_comm_bq_send_error(uint8_t data);
 UVX_COMM_BQ_STATE uvx_comm_bq_process_rx(uint8_t byte_rx);
 UVX_COMM_BQ_STATE uvx_comm_bq_process_rx_data(void);
 UVX_COMM_BQ_STATE uvx_comm_bq_force_balance(UVX_COMM_BQ* p_comm_bq, uint8_t enable);
+UVX_COMM_BQ_STATE uvx_comm_bq_bypass(UVX_COMM_BQ* p_comm_bq, uint8_t enable);
 UVX_COMM_BQ_STATE uvx_comm_bq_charge_fet(UVX_BQ_DATA* p_bq_data, uint8_t state);
 uint8_t uvx_comm_bq_swap_u8(uint8_t* v);
 uint16_t uvx_comm_bq_swap_u16_pointer(uint16_t* v);

@@ -91,16 +91,16 @@ UVX_BATT_STATE uvx_batt_parse_data(void)
 	batt_data.cell_voltage_10 = 0U;
 
 	//convert to little endian 
-	batt_data.payload.cell_voltage_1  = uvx_comm_bq_swap_u16_value(bq_data_1.cell_voltage_1);
-	batt_data.payload.cell_voltage_2  = uvx_comm_bq_swap_u16_value(bq_data_1.cell_voltage_2);
-	batt_data.payload.cell_voltage_3  = uvx_comm_bq_swap_u16_value(bq_data_1.cell_voltage_3);
-	batt_data.payload.cell_voltage_4  = uvx_comm_bq_swap_u16_value(bq_data_2.cell_voltage_1);
-	batt_data.payload.cell_voltage_5  = uvx_comm_bq_swap_u16_value(bq_data_2.cell_voltage_2);
-	batt_data.payload.cell_voltage_6  = uvx_comm_bq_swap_u16_value(bq_data_2.cell_voltage_3);
-	batt_data.payload.cell_voltage_7  = uvx_comm_bq_swap_u16_value(bq_data_3.cell_voltage_1);
-	batt_data.payload.cell_voltage_8  = uvx_comm_bq_swap_u16_value(bq_data_3.cell_voltage_2);
-	batt_data.payload.cell_voltage_9  = uvx_comm_bq_swap_u16_value(bq_data_3.cell_voltage_3);
-	batt_data.payload.cell_voltage_10 = 0U;
+	batt_data.payload.cell_voltage_1 = uvx_comm_bq_swap_u16_value(batt_data.cell_voltage_1);
+	batt_data.payload.cell_voltage_2 = uvx_comm_bq_swap_u16_value(batt_data.cell_voltage_2);
+	batt_data.payload.cell_voltage_3 = uvx_comm_bq_swap_u16_value(batt_data.cell_voltage_3);
+	batt_data.payload.cell_voltage_4 = uvx_comm_bq_swap_u16_value(batt_data.cell_voltage_4);
+	batt_data.payload.cell_voltage_5 = uvx_comm_bq_swap_u16_value(batt_data.cell_voltage_5);
+	batt_data.payload.cell_voltage_6 = uvx_comm_bq_swap_u16_value(batt_data.cell_voltage_6);
+	batt_data.payload.cell_voltage_7 = uvx_comm_bq_swap_u16_value(batt_data.cell_voltage_7);
+	batt_data.payload.cell_voltage_8 = uvx_comm_bq_swap_u16_value(batt_data.cell_voltage_8);
+	batt_data.payload.cell_voltage_9 = uvx_comm_bq_swap_u16_value(batt_data.cell_voltage_9);
+	batt_data.payload.cell_voltage_10 = uvx_comm_bq_swap_u16_value(batt_data.cell_voltage_10);
 
 	batt_data.cell_current_1  = bq_data_1.cell_current_1;
 	batt_data.cell_current_2  = bq_data_1.cell_current_2;
@@ -172,6 +172,7 @@ UVX_BATT_STATE uvx_batt_parse_data(void)
 	batt_data.temperature_cell_3 = (bq_data_1.ts3_temperature - KELVIN_TO_DEG_C);
 	batt_data.temperature_cell_4 = (bq_data_1.ts4_temperature - KELVIN_TO_DEG_C);
 	batt_data.temperature_2_int  = (bq_data_2.int_temperature - KELVIN_TO_DEG_C);
+	batt_data.temperature_3_int  = (bq_data_3.int_temperature - KELVIN_TO_DEG_C);
 	batt_data.temperature_cell_5 = (bq_data_2.ts1_temperature - KELVIN_TO_DEG_C);
 	batt_data.temperature_cell_6 = (bq_data_2.ts2_temperature - KELVIN_TO_DEG_C);
 	batt_data.temperature_cell_7 = (bq_data_2.ts3_temperature - KELVIN_TO_DEG_C);
@@ -226,6 +227,37 @@ UVX_BATT_STATE uvx_batt_parse_data(void)
 	bq_data_3.operation_status.reg.data = uvx_comm_bq_swap_u32_pointer((uint32_t *)&bq_data_3.operation_status.raw[1]);
 	bq_data_3.gauging_status.reg.data = uvx_comm_bq_swap_u32_pointer((uint32_t *)&bq_data_3.gauging_status.raw[1]);
 
+	bq_data_1.gpio_pin_12 = (bq_data_1.gpio_status & BQ_GPIO_PIN12_MASK) >> 0;
+	bq_data_1.gpio_pin_13 = (bq_data_1.gpio_status & BQ_GPIO_PIN13_MASK) >> 1;
+	bq_data_1.gpio_pin_17 = (bq_data_1.gpio_status & BQ_GPIO_PIN17_MASK) >> 2;
+	bq_data_1.gpio_pin_16 = (bq_data_1.gpio_status & BQ_GPIO_PIN16_MASK) >> 3;
+	bq_data_1.gpio_pin_15 = (bq_data_1.gpio_status & BQ_GPIO_PIN15_MASK) >> 4;
+	bq_data_1.gpio_pin_20 = (bq_data_1.gpio_status & BQ_GPIO_PIN20_MASK) >> 5;
+	bq_data_1.gpio_pin_21 = (bq_data_1.gpio_status & BQ_GPIO_PIN21_MASK) >> 6;
+	bq_data_1.gpio_pin_22 = (bq_data_1.gpio_status & BQ_GPIO_PIN22_MASK) >> 7;
+
+	bq_data_2.gpio_pin_12 = (bq_data_2.gpio_status & BQ_GPIO_PIN12_MASK) >> 0;
+	bq_data_2.gpio_pin_13 = (bq_data_2.gpio_status & BQ_GPIO_PIN13_MASK) >> 1;
+	bq_data_2.gpio_pin_17 = (bq_data_2.gpio_status & BQ_GPIO_PIN17_MASK) >> 2;
+	bq_data_2.gpio_pin_16 = (bq_data_2.gpio_status & BQ_GPIO_PIN16_MASK) >> 3;
+	bq_data_2.gpio_pin_15 = (bq_data_2.gpio_status & BQ_GPIO_PIN15_MASK) >> 4;
+	bq_data_2.gpio_pin_20 = (bq_data_2.gpio_status & BQ_GPIO_PIN20_MASK) >> 5;
+	bq_data_2.gpio_pin_21 = (bq_data_2.gpio_status & BQ_GPIO_PIN21_MASK) >> 6;
+	bq_data_2.gpio_pin_22 = (bq_data_2.gpio_status & BQ_GPIO_PIN22_MASK) >> 7;
+
+	bq_data_3.gpio_pin_12 = (bq_data_3.gpio_status & BQ_GPIO_PIN12_MASK) >> 0;
+	bq_data_3.gpio_pin_13 = (bq_data_3.gpio_status & BQ_GPIO_PIN13_MASK) >> 1;
+	bq_data_3.gpio_pin_17 = (bq_data_3.gpio_status & BQ_GPIO_PIN17_MASK) >> 2;
+	bq_data_3.gpio_pin_16 = (bq_data_3.gpio_status & BQ_GPIO_PIN16_MASK) >> 3;
+	bq_data_3.gpio_pin_15 = (bq_data_3.gpio_status & BQ_GPIO_PIN15_MASK) >> 4;
+	bq_data_3.gpio_pin_20 = (bq_data_3.gpio_status & BQ_GPIO_PIN20_MASK) >> 5;
+	bq_data_3.gpio_pin_21 = (bq_data_3.gpio_status & BQ_GPIO_PIN21_MASK) >> 6;
+	bq_data_3.gpio_pin_22 = (bq_data_3.gpio_status & BQ_GPIO_PIN22_MASK) >> 7;
+
+	bq_data_1.Bypass = bq_data_1.gpio_pin_15;
+	bq_data_2.Bypass = bq_data_2.gpio_pin_15;
+	bq_data_3.Bypass = bq_data_3.gpio_pin_15;
+
 	bq_data_1.DSG_CHG_FET_EN = bq_data_1.manufacturing_status.reg.bits.FET_EN;
 	bq_data_2.DSG_CHG_FET_EN = bq_data_2.manufacturing_status.reg.bits.FET_EN;
 	bq_data_3.DSG_CHG_FET_EN = bq_data_3.manufacturing_status.reg.bits.FET_EN;
@@ -239,17 +271,11 @@ UVX_BATT_STATE uvx_batt_parse_data(void)
 	bq_data_3.DSG_FET_STAT = bq_data_3.operation_status.reg.bits.DSG;
 
 	batt_data.CHG_FET_1_STAT = bq_data_1.CHG_FET_STAT;
+	batt_data.DSG_FET_1_STAT = bq_data_1.DSG_FET_STAT;
 	batt_data.CHG_FET_2_STAT = bq_data_2.CHG_FET_STAT;
+	batt_data.DSG_FET_2_STAT = bq_data_2.DSG_FET_STAT;
 	batt_data.CHG_FET_3_STAT = bq_data_3.CHG_FET_STAT;
-
-	batt_data.payload.error = 	bq_data_1.No_response << BATT_ERROR_BQ_1_NO_RESPONSE_BIT |
-							 	bq_data_2.No_response << BATT_ERROR_BQ_2_NO_RESPONSE_BIT |
-								bq_data_3.No_response << BATT_ERROR_BQ_3_NO_RESPONSE_BIT |
-								batt_data.batt_max_temp << BATT_ERROR_BATT_MAX_TEMP_BIT |
-								drone_status.charge_overvoltage << BATT_ERROR_CHARGE_OVERVOLTAGE_BIT |
-								drone_status.charge_cell_count_error << BATT_ERROR_CHARGE_CELL_COUNT_ERROR_BIT;
-
-	batt_data.error = batt_data.payload.error;
+	batt_data.DSG_FET_3_STAT = bq_data_3.DSG_FET_STAT;
 
 	batt_data.Qmax_passed_BQ_1 = (int16_t)bq_data_1.Qmax_passed;
 	batt_data.Qmax_passed_BQ_2 = (int16_t)bq_data_2.Qmax_passed; 
@@ -384,29 +410,6 @@ UVX_BATT_STATE uvx_batt_parse_data(void)
 		drone_status.charge_cell_count_error = 0U;
 	}
 
-	if( (drone_status.charge_overvoltage) || 
-		(drone_status.charge_cell_count_error) ||
-		(batt_data.batt_max_temp) ||
-		(drone_status.pwr_fc))
-	{
-		batt_data.tc = 1;
-	}
-	else
-	{
-		batt_data.tc = 0;
-	}
-
-	batt_data.payload.supply_status = 	drone_status.pwr_fet 								<< BATT_SUPPLY_STATUS_PWR_FET_BIT |
-										batt_data.CHG_FET_1_STAT							<< BATT_SUPPLY_STATUS_CHG_FET_BIT |
-										batt_data.tc 										<< BATT_SUPPLY_STATUS_TC_BIT |
-										((batt_data.cell_ball_1 || batt_data.cell_ball_2 || batt_data.cell_ball_3) << BATT_SUPPLY_STATUS_BALANCE_BIT) |
-										((comm_bq_1.Force_balance) 							<< BATT_SUPPLY_STATUS_FORCE_BALANCE_1_BIT) |
-										((comm_bq_2.Force_balance) 							<< BATT_SUPPLY_STATUS_FORCE_BALANCE_2_BIT) |
-										((batt_data.adc_pack_v_stable_low)  				<< BATT_SUPPLY_STATUS_STABLE_L_BIT) |
-										((batt_data.adc_pack_v_stable_high) 				<< BATT_SUPPLY_STATUS_STABLE_H_BIT);
-
-	batt_data.supply_status = batt_data.payload.supply_status;
-
 	if((batt_data.temperature_bq_2 > MAX_HIS_CELL_TEMPERATURE) ||
 	   (batt_data.temperature_bq_1 > MAX_HIS_CELL_TEMPERATURE) ||
 	   (batt_data.temperature_bq_3 > MAX_HIS_CELL_TEMPERATURE))
@@ -427,6 +430,38 @@ UVX_BATT_STATE uvx_batt_parse_data(void)
 	batt_data.cell_ball_2 = bq_data_2.operation_status.reg.bits.CB;
 	batt_data.cell_ball_1 = bq_data_1.operation_status.reg.bits.CB;
 	batt_data.cell_ball_3 = bq_data_3.operation_status.reg.bits.CB;
+	if( (drone_status.charge_overvoltage) || 
+		(drone_status.charge_cell_count_error) ||
+		(batt_data.batt_max_temp) ||
+		(drone_status.pwr_fc))
+	{
+		batt_data.tc = 1;
+	}
+	else
+	{
+		batt_data.tc = 0;
+	}
+
+	batt_data.payload.error = 	bq_data_1.No_response << BATT_ERROR_BQ_1_NO_RESPONSE_BIT |
+								bq_data_2.No_response << BATT_ERROR_BQ_2_NO_RESPONSE_BIT |
+								bq_data_3.No_response << BATT_ERROR_BQ_3_NO_RESPONSE_BIT |
+								batt_data.batt_max_temp << BATT_ERROR_BATT_MAX_TEMP_BIT |
+								drone_status.charge_overvoltage << BATT_ERROR_CHARGE_OVERVOLTAGE_BIT |
+								drone_status.charge_cell_count_error << BATT_ERROR_CHARGE_CELL_COUNT_ERROR_BIT;
+
+	batt_data.error = batt_data.payload.error;
+
+	batt_data.payload.supply_status = 	drone_status.pwr_fet 								<< BATT_SUPPLY_STATUS_PWR_FET_BIT |
+										batt_data.CHG_FET_1_STAT							<< BATT_SUPPLY_STATUS_CHG_FET_BIT |
+										batt_data.tc 										<< BATT_SUPPLY_STATUS_TC_BIT |
+										((batt_data.cell_ball_1 || batt_data.cell_ball_2 || batt_data.cell_ball_3) << BATT_SUPPLY_STATUS_BALANCE_BIT) |
+										((comm_bq_1.Force_balance) 							<< BATT_SUPPLY_STATUS_FORCE_BALANCE_1_BIT) |
+										((comm_bq_2.Force_balance) 							<< BATT_SUPPLY_STATUS_FORCE_BALANCE_2_BIT) |
+										((batt_data.adc_pack_v_stable_low)  				<< BATT_SUPPLY_STATUS_STABLE_L_BIT) |
+										((batt_data.adc_pack_v_stable_high) 				<< BATT_SUPPLY_STATUS_STABLE_H_BIT);
+
+	batt_data.supply_status = batt_data.payload.supply_status;
+
 	if(batt_data.cell_ball_2 || batt_data.cell_ball_1 || batt_data.cell_ball_3)
 	{
 		uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_RESET); //charging
