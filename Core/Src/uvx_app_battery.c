@@ -92,7 +92,7 @@ void UVX_APP_Batt(void)
 				}
 				else
 				{
-					batt_state.state_current = BATT_MODE_INIT_BALANCE_1;
+					//batt_state.state_current = BATT_MODE_INIT_BALANCE_1;
 					p_app_bq = comm_bq;				
 				}
 			}
@@ -444,29 +444,36 @@ static UVX_COMM_BQ_STATE batt_mode_read_once_BQ(UVX_COMM_BQ *p_comm_bq)
 
 static UVX_COMM_BQ_STATE batt_mode_init_bypass(UVX_COMM_BQ *p_comm_bq)
 {
+	UVX_COMM_BQ_STATE result;
 	if(p_comm_bq == NULL)
 	{
 		return UVX_BQ_ERROR;
 	}
-
 	if(!p_comm_bq->RX_Pending)
 	{
 		p_comm_bq->Bypass_old = 1;
-		if(uvx_comm_bq_bypass(p_comm_bq, 0))
+		//result = uvx_comm_bq_bypass(p_comm_bq, 0);
+		result = uvx_comm_bq_force_balance(p_comm_bq, 0);
+		if(result != UVX_BQ_OK)
 		{
-			p_comm_bq->batt_reg_cnt = 0;
-			uvx_batt_parse_data();
-			return UVX_BQ_OK;
+			return result;
 		}
-
-		p_comm_bq->RX_Pending = 1; // Set RX pending flag to indicate that a read operation is in progress
+		p_comm_bq->RX_Pending = 1;
+		return UVX_BQ_ERROR_BUSY;
 	}
-	else
-	{
-		return batt_check_response(p_comm_bq);
-	}	
 
-	return UVX_BQ_ERROR_BUSY;
+	result = batt_check_response(p_comm_bq);
+	if(p_comm_bq->i2c_state == UVX_I2C_OK)
+	{
+		p_comm_bq->batt_reg_cnt = 0;
+		p_comm_bq->TX_Ready = 1;
+		return UVX_BQ_OK;
+	}
+	if(result == UVX_BQ_ERROR_NACK)
+	{
+		p_comm_bq->TX_Ready = 1;
+	}
+	return result;
 }
 
 static UVX_COMM_BQ_STATE batt_mode_read_BQ(UVX_COMM_BQ *p_comm_bq)
@@ -499,12 +506,28 @@ static UVX_COMM_BQ_STATE batt_mode_read_BQ(UVX_COMM_BQ *p_comm_bq)
  * (such as the complete register list) is finished. */
 static UVX_COMM_BQ_STATE batt_check_response(UVX_COMM_BQ *p_comm_bq)
 {
-	uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_RESET);
+	uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_SET);
 	p_comm_bq->i2c_state = uvx_i2c_check_response(&i2c_bq.hal_i2c, (uint32_t*)p_comm_bq);
+
+	if(p_comm_bq->i2c_state == UVX_I2C_NACK)
+	{
+		/* Count once per failed transfer; leave the register index unchanged. */
+		if(p_comm_bq->cnt_nack != UINT32_MAX)
+		{
+			p_comm_bq->cnt_nack++;
+		}
+		p_comm_bq->No_response = true;
+		p_comm_bq->cnt_no_response = 0;
+		p_comm_bq->RX_Pending = 0;
+		p_comm_bq->RX_Ready = 1;
+		uvx_i2c_unlock(&i2c_bq.hal_i2c, (uint32_t*)p_comm_bq);
+		return UVX_BQ_ERROR_NACK;
+	}
 
 	if(p_comm_bq->i2c_state == UVX_I2C_OK)
 	{
-		uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_SET);
+		uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_RESET);
+		p_comm_bq->No_response = false;
 		p_comm_bq->batt_reg_cnt++;
 		p_comm_bq->cnt_no_response = 0;
 		p_comm_bq->RX_Pending = 0;
@@ -515,6 +538,11 @@ static UVX_COMM_BQ_STATE batt_check_response(UVX_COMM_BQ *p_comm_bq)
 		p_comm_bq->cnt_no_response++;
 		if(p_comm_bq->cnt_no_response > BQ_MAX_NO_RESPONSE)
 		{
+			uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_RESET);
+			if((p_comm_bq->p_hal_i2c->hi2c.Instance->ISR) != 0x01)
+			{
+				HAL_I2C_ER_IRQHandler(&p_comm_bq->p_hal_i2c->hi2c);	
+			}
 			p_comm_bq->cnt_no_response = 0;
 			p_comm_bq->No_response = true;
 			p_comm_bq->RX_Pending = 0;

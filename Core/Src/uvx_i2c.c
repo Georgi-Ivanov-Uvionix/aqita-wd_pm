@@ -263,7 +263,7 @@ UVX_I2C_STATE uvx_i2c_send_mem(UVX_I2C_HAL* p_i2c, uint8_t dev_addr, uint16_t re
 
                 p_i2c->p_lock_owner = p_i2c->p_locker; // Set the lock owner to the locker pointer
             }
-            else if(p_i2c->p_lock_owner != (uint32_t*)data)
+            else if(p_i2c->p_lock_owner != p_i2c->p_locker)
             {
                 return UVX_I2C_LOCKED; // Return locked if another operation is in progress
             }
@@ -282,13 +282,27 @@ UVX_I2C_STATE uvx_i2c_send_mem(UVX_I2C_HAL* p_i2c, uint8_t dev_addr, uint16_t re
                         dev_addr <<= 1; // Shift address            
                         p_i2c->STOP_Detected = 0U;
                         res = HAL_I2C_Mem_Write_IT(&p_i2c->hi2c, dev_addr, reg_addr, reg_size, data, size);
-                        //res = HAL_I2C_Master_Transmit(&p_i2c->hi2c, dev_addr, data, size, HAL_MAX_DELAY);
+                        p_i2c->last_mem_write_status = res;
+                        p_i2c->last_mem_write_error = HAL_I2C_GetError(&p_i2c->hi2c);
                         if(res != HAL_OK)
                         {
-                            p_i2c->hi2c.State = HAL_I2C_STATE_READY;                      
-                                        
-                            return UVX_I2C_ERROR; // Return error if transmission fails
-                        }  
+                            p_i2c->I2C_TX_Ready = 1;
+                            /* Do not overwrite HAL state or hide the failure reason. */
+                            if(res == HAL_BUSY)
+                            {
+                                return UVX_I2C_BUSY;
+                            }
+                            if((p_i2c->last_mem_write_error & HAL_I2C_ERROR_AF) != 0U)
+                            {
+                                return UVX_I2C_NACK;
+                            }
+                            if((res == HAL_TIMEOUT) ||
+                               ((p_i2c->last_mem_write_error & HAL_I2C_ERROR_TIMEOUT) != 0U))
+                            {
+                                return UVX_I2C_TIMEOUT;
+                            }
+                            return UVX_I2C_ERROR;
+                        }
                     }
                     else
                     {
@@ -673,6 +687,14 @@ UVX_I2C_STATE uvx_i2c_check_response(UVX_I2C_HAL* p_i2c, uint32_t* p_locker)
     if(p_i2c->p_lock_owner != p_locker)
     {
         return UVX_I2C_LOCK_ERROR;
+    }
+
+    /* HAL retains acknowledgement failure after clearing NACKF. Wait until
+     * its error cleanup completes before allowing the caller to retry. */
+    if((HAL_I2C_GetState(&p_i2c->hi2c) == HAL_I2C_STATE_READY) &&
+       ((HAL_I2C_GetError(&p_i2c->hi2c) & HAL_I2C_ERROR_AF) != 0U))
+    {
+        return UVX_I2C_NACK;
     }
 
     /* STOPF may already have been cleared by HAL in the event interrupt.

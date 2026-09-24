@@ -59,7 +59,7 @@
 #define BQ_3_I2C_ADDRESS    0x0F // I2C address for BQ communication
 
 #define BQ_DEVICES          3
-#define BQ_MAX_NO_RESPONSE  1000 
+#define BQ_MAX_NO_RESPONSE  2000 
 
 // GPIO_READ (0x48) masks for physical BQ40Z80 pins; shared by BQ L and BQ H.
 // Valid when the pin is configured as GPIO. GPIO_WRITE uses two bits per pin.
@@ -251,6 +251,7 @@ typedef struct UVX_COMM_BQ
     uint16_t                batt_reg_cnt;
 
     uint32_t                cnt_no_response;
+    uint32_t                cnt_nack; // Failed transfers with an acknowledgement failure
 
 }UVX_COMM_BQ;
 
@@ -660,6 +661,7 @@ typedef enum
    UVX_BQ_ERROR_INIT,
    UVX_BQ_ERROR_INIT_I2C,
    UVX_BQ_ERROR_BUSY,
+   UVX_BQ_ERROR_NACK,
    UVX_BQ_ERROR_UNKNOWN_CMD,
    UVX_BQ_ERROR_CRC,
    UVX_BQ_REG_END,

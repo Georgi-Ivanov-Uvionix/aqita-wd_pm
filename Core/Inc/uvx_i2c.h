@@ -29,12 +29,15 @@ typedef enum
     UVX_I2C_RX_READY,
     UVX_I2C_LOCKED,
     UVX_I2C_LOCK_ERROR,
-    UVX_I2C_ALREADY_INITIALIZED
+    UVX_I2C_ALREADY_INITIALIZED,
+    UVX_I2C_NACK // Slave did not acknowledge the address or a transmitted byte
 } UVX_I2C_STATE;
 
 typedef struct UVX_I2C_HAL
 {
     I2C_HandleTypeDef   hi2c;
+    HAL_StatusTypeDef   last_mem_write_status;
+    uint32_t           last_mem_write_error; // Snapshot immediately after the HAL call
     DMA_HandleTypeDef   hdma_tx;
     DMA_HandleTypeDef   hdma_rx;
 
