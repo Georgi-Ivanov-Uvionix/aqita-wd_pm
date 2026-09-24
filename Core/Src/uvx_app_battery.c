@@ -8,6 +8,7 @@ static UVX_COMM_BQ_STATE bq_state;
 static UVX_COMM_BQ_STATE batt_mode_read_once_BQ(UVX_COMM_BQ *p_comm_bq);
 static UVX_COMM_BQ_STATE batt_mode_init_bypass(UVX_COMM_BQ *p_comm_bq);
 static UVX_COMM_BQ_STATE batt_mode_read_BQ(UVX_COMM_BQ *p_comm_bq);
+static UVX_COMM_BQ_STATE batt_check_response(UVX_COMM_BQ *p_comm_bq);
 
 void UVX_APP_Batt(void)
 {
@@ -435,34 +436,7 @@ static UVX_COMM_BQ_STATE batt_mode_read_once_BQ(UVX_COMM_BQ *p_comm_bq)
 	}
 	else
 	{
-		p_comm_bq->i2c_state = uvx_i2c_check_response(&i2c_bq.hal_i2c, (uint32_t*)p_comm_bq);
-
-		if(p_comm_bq->i2c_state == UVX_I2C_OK)
-		{
-			p_comm_bq->batt_reg_cnt++;
-			p_comm_bq->cnt_no_response = 0;
-			p_comm_bq->RX_Pending = 0;
-			p_comm_bq->RX_Ready = 1;
-		}
-		else
-		{
-			p_comm_bq->cnt_no_response++;
-			if(p_comm_bq->cnt_no_response > BQ_MAX_NO_RESPONSE)
-			{
-				p_comm_bq->cnt_no_response = 0;
-				p_comm_bq->No_response = true;
-				// p_comm_bq->batt_reg_cnt = 0;
-				// batt_state.state_current = batt_state.state_when_fail;
-				p_comm_bq->RX_Pending = 0;
-				p_comm_bq->RX_Ready = 1;
-				uvx_i2c_unlock(&i2c_bq.hal_i2c, (uint32_t*)p_comm_bq);				
-				return UVX_BQ_TIMEOUT;
-			}						
-			else
-			{
-				p_comm_bq->No_response = false;
-			}			
-		}			
+		return batt_check_response(p_comm_bq);
 	}	
 
 	return UVX_BQ_ERROR_BUSY;
@@ -489,34 +463,7 @@ static UVX_COMM_BQ_STATE batt_mode_init_bypass(UVX_COMM_BQ *p_comm_bq)
 	}
 	else
 	{
-		p_comm_bq->i2c_state = uvx_i2c_check_response(&i2c_bq.hal_i2c, (uint32_t*)p_comm_bq);
-
-		if(p_comm_bq->i2c_state == UVX_I2C_OK)
-		{
-			p_comm_bq->batt_reg_cnt++;
-			p_comm_bq->cnt_no_response = 0;
-			p_comm_bq->RX_Pending = 0;
-			p_comm_bq->RX_Ready = 1;
-		}
-		else
-		{
-			p_comm_bq->cnt_no_response++;
-			if(p_comm_bq->cnt_no_response > BQ_MAX_NO_RESPONSE)
-			{
-				p_comm_bq->cnt_no_response = 0;
-				p_comm_bq->No_response = true;
-				// p_comm_bq->batt_reg_cnt = 0;
-				// batt_state.state_current = batt_state.state_when_fail;
-				p_comm_bq->RX_Pending = 0;
-				p_comm_bq->RX_Ready = 1;
-				uvx_i2c_unlock(&i2c_bq.hal_i2c, (uint32_t*)p_comm_bq);				
-				return UVX_BQ_TIMEOUT;
-			}						
-			else
-			{
-				p_comm_bq->No_response = false;
-			}			
-		}			
+		return batt_check_response(p_comm_bq);
 	}	
 
 	return UVX_BQ_ERROR_BUSY;
@@ -542,35 +489,44 @@ static UVX_COMM_BQ_STATE batt_mode_read_BQ(UVX_COMM_BQ *p_comm_bq)
 	}
 	else
 	{
-		p_comm_bq->i2c_state = uvx_i2c_check_response(&i2c_bq.hal_i2c, (uint32_t*)p_comm_bq);
+		return batt_check_response(p_comm_bq);
+	}	
 
-		if(p_comm_bq->i2c_state == UVX_I2C_OK)
+	return UVX_BQ_ERROR_BUSY;
+}
+
+/* Process one pending response. The caller remains busy until its operation
+ * (such as the complete register list) is finished. */
+static UVX_COMM_BQ_STATE batt_check_response(UVX_COMM_BQ *p_comm_bq)
+{
+	uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_RESET);
+	p_comm_bq->i2c_state = uvx_i2c_check_response(&i2c_bq.hal_i2c, (uint32_t*)p_comm_bq);
+
+	if(p_comm_bq->i2c_state == UVX_I2C_OK)
+	{
+		uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_SET);
+		p_comm_bq->batt_reg_cnt++;
+		p_comm_bq->cnt_no_response = 0;
+		p_comm_bq->RX_Pending = 0;
+		p_comm_bq->RX_Ready = 1;
+	}
+	else
+	{
+		p_comm_bq->cnt_no_response++;
+		if(p_comm_bq->cnt_no_response > BQ_MAX_NO_RESPONSE)
 		{
-			p_comm_bq->batt_reg_cnt++;
 			p_comm_bq->cnt_no_response = 0;
+			p_comm_bq->No_response = true;
 			p_comm_bq->RX_Pending = 0;
 			p_comm_bq->RX_Ready = 1;
-		}
+			uvx_i2c_unlock(&i2c_bq.hal_i2c, (uint32_t*)p_comm_bq);				
+			return UVX_BQ_TIMEOUT;
+		}						
 		else
 		{
-			p_comm_bq->cnt_no_response++;
-			if(p_comm_bq->cnt_no_response > BQ_MAX_NO_RESPONSE)
-			{
-				p_comm_bq->cnt_no_response = 0;
-				p_comm_bq->No_response = true;
-				// p_comm_bq->batt_reg_cnt = 0;
-				// batt_state.state_current = batt_state.state_when_fail;
-				p_comm_bq->RX_Pending = 0;
-				p_comm_bq->RX_Ready = 1;
-				uvx_i2c_unlock(&i2c_bq.hal_i2c, (uint32_t*)p_comm_bq);				
-				return UVX_BQ_TIMEOUT;
-			}						
-			else
-			{
-				p_comm_bq->No_response = false;
-			}			
+			p_comm_bq->No_response = false;
 		}			
-	}	
+	}
 
 	return UVX_BQ_ERROR_BUSY;
 }
