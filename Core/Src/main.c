@@ -2376,7 +2376,17 @@ void I2C1_EV_IRQHandler(void)
 
 void I2C1_ER_IRQHandler(void)
 {
-	HAL_I2C_ER_IRQHandler(&i2c_bq.hal_i2c.hi2c);	
+    I2C_HandleTypeDef *hi2c = &i2c_bq.hal_i2c.hi2c;
+
+    if ((hi2c->Mode == HAL_I2C_MODE_MASTER ||
+         hi2c->Mode == HAL_I2C_MODE_MEM) &&
+        (__HAL_I2C_GET_FLAG(hi2c, I2C_FLAG_BERR) != RESET))
+    {
+        __HAL_I2C_CLEAR_FLAG(hi2c, I2C_FLAG_BERR);
+    }
+
+    /* Still handle other errors, such as arbitration loss or overrun. */
+    HAL_I2C_ER_IRQHandler(hi2c);
 }
 
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)

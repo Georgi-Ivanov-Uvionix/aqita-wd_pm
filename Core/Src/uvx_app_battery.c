@@ -524,6 +524,9 @@ static UVX_COMM_BQ_STATE batt_check_response(UVX_COMM_BQ *p_comm_bq)
 
 	if(p_comm_bq->i2c_state == UVX_I2C_NACK)
 	{
+		uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_RESET);
+		uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_SET);
+		uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_RESET);		
 		p_comm_bq->No_response = true;
 		p_comm_bq->cnt_no_response = 0;
 		p_comm_bq->RX_Pending = 0;
@@ -532,6 +535,34 @@ static UVX_COMM_BQ_STATE batt_check_response(UVX_COMM_BQ *p_comm_bq)
 		uvx_i2c_unlock(&i2c_bq.hal_i2c, (uint32_t*)p_comm_bq);
 		return UVX_BQ_ERROR_NACK;
 	}
+
+	if(p_comm_bq->i2c_state == UVX_I2C_STOP_DETECTED)
+	{
+		uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_RESET);
+		uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_SET);
+		uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_RESET);
+		uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_SET);		
+		uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_RESET);				
+		p_comm_bq->cnt_no_response = 0;
+		p_comm_bq->RX_Pending = 0;
+		p_comm_bq->BQ_RX_Ready = 1;
+		p_comm_bq->BQ_TX_Ready = 1;
+		p_comm_bq->batt_reg_cnt++;
+		uvx_i2c_unlock(&i2c_bq.hal_i2c, (uint32_t*)p_comm_bq);
+		return UVX_BQ_OK;
+	}	
+
+	if(p_comm_bq->i2c_state == UVX_I2C_ERROR)
+	{
+		uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_RESET);
+		p_comm_bq->No_response = true;
+		p_comm_bq->cnt_no_response = 0;
+		p_comm_bq->RX_Pending = 0;
+		p_comm_bq->BQ_RX_Ready = 1;
+		p_comm_bq->BQ_TX_Ready = 1;
+		uvx_i2c_unlock(&i2c_bq.hal_i2c, (uint32_t*)p_comm_bq);
+		return UVX_BQ_ERROR;
+	}	
 
 	if(p_comm_bq->i2c_state == UVX_I2C_OK)
 	{
@@ -545,14 +576,19 @@ static UVX_COMM_BQ_STATE batt_check_response(UVX_COMM_BQ *p_comm_bq)
 	}
 	else
 	{
+		if(p_comm_bq == &comm_bq_3)
+		{
+			p_comm_bq->cnt_no_response++;
+		}
+
 		p_comm_bq->cnt_no_response++;
 		if(p_comm_bq->cnt_no_response > BQ_MAX_NO_RESPONSE)
 		{
 			uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_RESET);
-			if((p_comm_bq->p_hal_i2c->hi2c.Instance->ISR) != 0x01)
-			{
-				HAL_I2C_ER_IRQHandler(&p_comm_bq->p_hal_i2c->hi2c);	
-			}
+			// if((p_comm_bq->p_hal_i2c->hi2c.Instance->ISR) != 0x01)
+			// {
+			// 	HAL_I2C_ER_IRQHandler(&p_comm_bq->p_hal_i2c->hi2c);	
+			// }
 			p_comm_bq->cnt_no_response = 0;
 			p_comm_bq->No_response = true;
 			p_comm_bq->RX_Pending = 0;
