@@ -225,8 +225,8 @@ typedef struct UVX_COMM_BQ
     uint8_t Enable 		        : 1; // Flag to indicate if I2C is enabled
     uint8_t is_Initilized 	    : 1; // Flag to indicate if HAL timer is initialied
     uint8_t Error 		        : 1; // Error flag
-    uint8_t RX_Ready 	        : 1; // RX byte ready
-    uint8_t TX_Ready 	        : 1; // TX byte ready
+    uint8_t BQ_RX_Ready 	    : 1; // RX byte ready
+    uint8_t BQ_TX_Ready 	    : 1; // TX byte ready
     uint8_t TX_Ready_Buffer     : 1; // TX buffer ready
     uint8_t RX_Ready_Buffer     : 1; // RX buffer ready        
     uint8_t RX_Pending          : 1; // Flag to indicate if RX is pending
@@ -664,6 +664,7 @@ typedef enum
    UVX_BQ_ERROR_NACK,
    UVX_BQ_ERROR_UNKNOWN_CMD,
    UVX_BQ_ERROR_CRC,
+   UVX_BQ_ERROR_LOCK,
    UVX_BQ_REG_END,
    UVX_BQ_TIMEOUT
  } UVX_COMM_BQ_STATE;

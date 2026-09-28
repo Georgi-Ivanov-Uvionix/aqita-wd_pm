@@ -133,8 +133,8 @@ UVX_COMM_BQ_STATE uvx_comm_bq_init(UVX_COMM_BQ* p_comm_bq, UVX_I2C* i2c, uint8_t
 		p_comm_bq->addr_i2c = i2c_addr; // Set the I2C device address
 		p_comm_bq->p_hal_i2c = &i2c->hal_i2c; // Set the pointer to the I2C HAL structure
 		p_comm_bq->i2c = i2c; // Set the pointer to the I2C structure
-		p_comm_bq->TX_Ready = 1;
-		p_comm_bq->RX_Ready = 1;
+		p_comm_bq->BQ_TX_Ready = 1;
+		p_comm_bq->BQ_RX_Ready = 1;
 		p_comm_bq->Force_balance_old = 1; // Initialize Force_balance_old to a different value to ensure the first write occurs
 
 		#ifdef PROJECT_AQITA_PM
@@ -162,7 +162,7 @@ UVX_COMM_BQ_STATE uvx_comm_bq_change_list(UVX_COMM_BQ* p_comm_bq, UVX_BQ_REGISTE
 
 UVX_COMM_BQ_STATE uvx_comm_bq_read_list(UVX_COMM_BQ* p_comm_bq, uint16_t reg_index) 
 {    
-	if(p_comm_bq->RX_Ready == 1)
+	if(p_comm_bq->BQ_RX_Ready == 1)
 	{					
 		if(p_comm_bq->p_register_list[reg_index].reg_addr == END_REGISTER)
 		{
@@ -171,10 +171,10 @@ UVX_COMM_BQ_STATE uvx_comm_bq_read_list(UVX_COMM_BQ* p_comm_bq, uint16_t reg_ind
 
 		if(p_comm_bq->p_register_list[reg_index].reg_addr == TEMPERATURE)
 		{
-			p_comm_bq->RX_Ready = 1; // Reset TX ready flag	
+			p_comm_bq->BQ_RX_Ready = 1; // Reset TX ready flag	
 		}		
 		
-		p_comm_bq->RX_Ready = 0; // Reset TX ready flag			
+		p_comm_bq->BQ_RX_Ready = 0; // Reset TX ready flag			
 
 		uvx_i2c_lock(p_comm_bq->p_hal_i2c, (uint32_t*)p_comm_bq); // Lock the I2C bus for this communication instance
 
@@ -183,7 +183,7 @@ UVX_COMM_BQ_STATE uvx_comm_bq_read_list(UVX_COMM_BQ* p_comm_bq, uint16_t reg_ind
 			p_comm_bq->p_register_list[reg_index].p_data,
 			p_comm_bq->p_register_list[reg_index].size_data) != UVX_I2C_OK)
 		{
-			//p_comm_bq->RX_Ready = 1;
+			//p_comm_bq->BQ_RX_Ready = 1;
 			return UVX_BQ_ERROR;
 		}					
 	}
@@ -201,9 +201,9 @@ UVX_COMM_BQ_STATE uvx_comm_bq_read_register(UVX_COMM_BQ* p_comm_bq, UVX_BQ_REGIS
 
 
 	UVX_COMM_BQ_STATE state = UVX_BQ_OK;
-	if(p_comm_bq->RX_Ready == 1)
+	if(p_comm_bq->BQ_RX_Ready == 1)
 	{		
-		p_comm_bq->RX_Ready = 0; // Reset TX ready flag				
+		p_comm_bq->BQ_RX_Ready = 0; // Reset TX ready flag				
 		
 		state = uvx_comm_bq_get_index_register(p_comm_bq->p_register_list, reg_addr, &reg_index);
 		if(state != UVX_BQ_OK)
@@ -234,7 +234,7 @@ UVX_COMM_BQ_STATE uvx_comm_bq_read_ma_register(UVX_COMM_BQ* p_comm_bq, UVX_BQ_RE
 	UVX_COMM_BQ_STATE state = UVX_BQ_OK;
 	uint8_t i2c_data[10] = {0};
 	
-	p_comm_bq->RX_Ready = 0; // Reset TX ready flag		
+	p_comm_bq->BQ_RX_Ready = 0; // Reset TX ready flag		
 	
 	state = uvx_comm_bq_get_index_register(p_comm_bq->p_register_list, reg_addr, &reg_index);
 	if(state != UVX_BQ_OK)
@@ -286,24 +286,24 @@ UVX_COMM_BQ_STATE uvx_comm_bq_write_register(UVX_COMM_BQ* p_comm_bq, uint16_t re
 	{
 		return UVX_BQ_ERROR;
 	}
-	if((HAL_I2C_GetState(&p_comm_bq->p_hal_i2c->hi2c) != HAL_I2C_STATE_READY) ||
-	   (p_comm_bq->TX_Ready == 0))
+	if((HAL_I2C_GetState(&p_comm_bq->p_hal_i2c->hi2c) != HAL_I2C_STATE_READY) || (p_comm_bq->BQ_TX_Ready == 0))
 	{
 		return UVX_BQ_ERROR_BUSY;
 	}
+
 	if(uvx_i2c_lock(p_comm_bq->p_hal_i2c, (uint32_t*)p_comm_bq) != UVX_I2C_OK)
 	{
 		return UVX_BQ_ERROR_BUSY;
 	}
 
-	p_comm_bq->TX_Ready = 0;
+	p_comm_bq->BQ_TX_Ready = 0;
 	memcpy(p_comm_bq->i2c_tx_staging, data, size);
 	p_comm_bq->i2c_state = uvx_i2c_send_mem(p_comm_bq->p_hal_i2c, p_comm_bq->addr_i2c,
 	                                     reg_addr, I2C_MEMADD_SIZE_8BIT, p_comm_bq->i2c_tx_staging, size);
 	if(p_comm_bq->i2c_state != UVX_I2C_OK)
 	{
 		/* No asynchronous transfer started. Restore readiness for a retry. */
-		p_comm_bq->TX_Ready = 1;
+		p_comm_bq->BQ_TX_Ready = 1;
 		uvx_i2c_unlock(p_comm_bq->p_hal_i2c, (uint32_t*)p_comm_bq);
 		if(p_comm_bq->i2c_state == UVX_I2C_NACK)
 		{
@@ -330,9 +330,9 @@ UVX_COMM_BQ_STATE uvx_comm_bq_write_mba_register(UVX_BQ_DATA* p_bq_data, UVX_BQ_
 	UVX_COMM_BQ* p_comm_bq = p_bq_data->p_comm_bq;
 	uint8_t i2c_data[20] = {0};
 
-	if(p_comm_bq->TX_Ready == 1)
+	if(p_comm_bq->BQ_TX_Ready == 1)
 	{
-		p_comm_bq->TX_Ready = 0; // Reset TX ready flag
+		p_comm_bq->BQ_TX_Ready = 0; // Reset TX ready flag
 
 		i2c_data[0] = 0x44;
 		i2c_data[1] = 0x02;
@@ -348,7 +348,7 @@ UVX_COMM_BQ_STATE uvx_comm_bq_write_mba_register(UVX_BQ_DATA* p_bq_data, UVX_BQ_
 	{
 		if(uvx_i2c_check_state(p_comm_bq->p_hal_i2c) == UVX_I2C_TX_READY)
 		{
-			p_comm_bq->TX_Ready = 1;
+			p_comm_bq->BQ_TX_Ready = 1;
 		}
 
 		return UVX_BQ_ERROR_BUSY;

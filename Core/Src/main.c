@@ -282,6 +282,7 @@ int main(void)
 	uvx_gpio_set_pin(GPIO_OUTPUT_BQH_I2C_EN, GPIO_PIN_RESET);
 	UVX_APP_PWR_FET(0); // power off
 	uvx_gpio_set_pin(GPIO_OUT_LED_STRIP_ENABLE, GPIO_PIN_SET);
+	uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_RESET);
 
 	pclk1_freq = HAL_RCC_GetPCLK1Freq();
 
@@ -2348,19 +2349,19 @@ void I2C1_EV_IRQHandler(void)
 			i2c_bq.hal_i2c.hi2c.Instance->CR1 &= ~I2C_CR1_PE;
 			i2c_bq.cnt_error_busy = 0;			
 			
-			if(comm_bq_1.RX_Ready == 0)
+			if(comm_bq_1.BQ_RX_Ready == 0)
 			{
-				comm_bq_1.RX_Ready = 1;
+				comm_bq_1.BQ_RX_Ready = 1;
 			}
 
-			if(comm_bq_2.RX_Ready == 0)
+			if(comm_bq_2.BQ_RX_Ready == 0)
 			{
-				comm_bq_2.RX_Ready = 1;
+				comm_bq_2.BQ_RX_Ready = 1;
 			}
 
-			if(comm_bq_3.RX_Ready == 0)
+			if(comm_bq_3.BQ_RX_Ready == 0)
 			{
-				comm_bq_3.RX_Ready = 1;
+				comm_bq_3.BQ_RX_Ready = 1;
 			}
 
 			i2c_bq.hal_i2c.hi2c.Instance->CR1 = i2c_state;

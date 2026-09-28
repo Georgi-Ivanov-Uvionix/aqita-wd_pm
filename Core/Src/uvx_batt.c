@@ -37,7 +37,7 @@ static UVX_BATT_STATE uvx_batt_send_learn_commands(UVX_COMM_BQ* p_comm_bq)
 			return UVX_BATT_ERROR;
 		}
 
-		p_comm_bq->TX_Ready = true; // Set TX_Ready to true to indicate that the command has been sent
+		p_comm_bq->BQ_TX_Ready = true; // Set TX_Ready to true to indicate that the command has been sent
 
 		if(learn_commands[i] == BQ_MA_DEVICE_RESET)
 		{
@@ -54,21 +54,21 @@ static UVX_BATT_STATE uvx_batt_send_learn_commands(UVX_COMM_BQ* p_comm_bq)
 
 UVX_BATT_STATE uvx_batt_learn(void)
 {
-	comm_bq_1.TX_Ready = true; // Set TX_Ready to true to indicate that the command has been sent
+	comm_bq_1.BQ_TX_Ready = true; // Set TX_Ready to true to indicate that the command has been sent
 	
 	if(uvx_batt_send_learn_commands(&comm_bq_1) != UVX_BATT_OK)
 	{
 		return UVX_BATT_ERROR;
 	}
 
-	comm_bq_2.TX_Ready = true; // Set TX_Ready to true to indicate that the command has been sent
+	comm_bq_2.BQ_TX_Ready = true; // Set TX_Ready to true to indicate that the command has been sent
 
 	if(uvx_batt_send_learn_commands(&comm_bq_2) != UVX_BATT_OK)
 	{
 		return UVX_BATT_ERROR;
 	}
 
-	comm_bq_3.TX_Ready = true;
+	comm_bq_3.BQ_TX_Ready = true;
 	if(uvx_batt_send_learn_commands(&comm_bq_3) != UVX_BATT_OK)
 	{
 		return UVX_BATT_ERROR;
@@ -575,7 +575,7 @@ UVX_BATT_STATE uvx_batt_read_pack_v(void)
 			
 			timer_app_batt_pwr_high.Timeout = APP_TIMEOUT_PACK_V_STABLE_HIGH; // Reset timeout for power on
 			timer_app_batt_pwr_high.Enable = true; 
-			if((comm_bq_3.RX_Ready) && (comm_bq_2.RX_Ready) && (comm_bq_1.RX_Ready))
+			if((comm_bq_3.BQ_RX_Ready) && (comm_bq_2.BQ_RX_Ready) && (comm_bq_1.BQ_RX_Ready))
 			{
 				batt_data.adc_pack_v_stable_high = 0;
 				UVX_APP_PWR_FET(0); // power off
@@ -599,7 +599,7 @@ UVX_BATT_STATE uvx_batt_read_data(uint16_t reg_index)
 		else
 		{
 			HAL_Delay(100);
-			comm_bq_3.RX_Ready = 1; // Set RX ready flag
+			comm_bq_3.BQ_RX_Ready = 1; // Set RX ready flag
 		}
 
 	return UVX_BATT_OK;
