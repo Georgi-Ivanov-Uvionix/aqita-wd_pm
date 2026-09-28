@@ -292,12 +292,14 @@ UVX_I2C_STATE uvx_i2c_send_mem(UVX_I2C_HAL* p_i2c, uint8_t dev_addr, uint16_t re
                             {
                                 return UVX_I2C_BUSY;
                             }
+
                             if((p_i2c->last_mem_write_error & HAL_I2C_ERROR_AF) != 0U)
                             {
+                                p_i2c->hi2c.Instance->ICR = I2C_ICR_NACKCF;
                                 return UVX_I2C_NACK;
                             }
-                            if((res == HAL_TIMEOUT) ||
-                               ((p_i2c->last_mem_write_error & HAL_I2C_ERROR_TIMEOUT) != 0U))
+
+                            if((res == HAL_TIMEOUT) || ((p_i2c->last_mem_write_error & HAL_I2C_ERROR_TIMEOUT) != 0U))
                             {
                                 return UVX_I2C_TIMEOUT;
                             }
@@ -682,6 +684,11 @@ UVX_I2C_STATE uvx_i2c_check_response(UVX_I2C_HAL* p_i2c, uint32_t* p_locker)
     if((p_i2c == NULL) || (p_locker == NULL) || (p_i2c->hi2c.Instance == NULL))
     {
         return UVX_I2C_ERROR;
+    }
+
+    if(p_i2c->p_lock_owner == NULL)
+    {
+        return UVX_I2C_UNLOCKED;
     }
 
     if(p_i2c->p_lock_owner != p_locker)

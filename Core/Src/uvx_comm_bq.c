@@ -298,8 +298,7 @@ UVX_COMM_BQ_STATE uvx_comm_bq_write_register(UVX_COMM_BQ* p_comm_bq, uint16_t re
 
 	p_comm_bq->BQ_TX_Ready = 0;
 	memcpy(p_comm_bq->i2c_tx_staging, data, size);
-	p_comm_bq->i2c_state = uvx_i2c_send_mem(p_comm_bq->p_hal_i2c, p_comm_bq->addr_i2c,
-	                                     reg_addr, I2C_MEMADD_SIZE_8BIT, p_comm_bq->i2c_tx_staging, size);
+	p_comm_bq->i2c_state = uvx_i2c_send_mem(p_comm_bq->p_hal_i2c, p_comm_bq->addr_i2c, reg_addr, I2C_MEMADD_SIZE_8BIT, p_comm_bq->i2c_tx_staging, size);
 	if(p_comm_bq->i2c_state != UVX_I2C_OK)
 	{
 		/* No asynchronous transfer started. Restore readiness for a retry. */
@@ -307,10 +306,10 @@ UVX_COMM_BQ_STATE uvx_comm_bq_write_register(UVX_COMM_BQ* p_comm_bq, uint16_t re
 		uvx_i2c_unlock(p_comm_bq->p_hal_i2c, (uint32_t*)p_comm_bq);
 		if(p_comm_bq->i2c_state == UVX_I2C_NACK)
 		{
-			if(p_comm_bq->cnt_nack != UINT32_MAX)
-			{
-				p_comm_bq->cnt_nack++;
-			}
+			// if(p_comm_bq->cnt_nack != UINT32_MAX)
+			// {
+			// 	p_comm_bq->cnt_nack++;
+			// }
 			p_comm_bq->No_response = true;
 			return UVX_BQ_ERROR_NACK;
 		}

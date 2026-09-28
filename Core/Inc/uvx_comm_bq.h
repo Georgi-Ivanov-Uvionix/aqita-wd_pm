@@ -252,6 +252,7 @@ typedef struct UVX_COMM_BQ
 
     uint32_t                cnt_no_response;
     uint32_t                cnt_nack; // Failed transfers with an acknowledgement failure
+    uint32_t                time_stamp; // Failed transfers with an acknowledgement failure
 
 }UVX_COMM_BQ;
 
@@ -665,6 +666,7 @@ typedef enum
    UVX_BQ_ERROR_UNKNOWN_CMD,
    UVX_BQ_ERROR_CRC,
    UVX_BQ_ERROR_LOCK,
+   UVX_BQ_ERROR_UNLOCKED,
    UVX_BQ_REG_END,
    UVX_BQ_TIMEOUT
  } UVX_COMM_BQ_STATE;
