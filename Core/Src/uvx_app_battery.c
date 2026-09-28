@@ -17,16 +17,15 @@ void UVX_APP_Batt(void)
 		case BATT_MODE_INIT:
 			uvx_comm_bq_change_list(&comm_bq_1, bq_1_register_list_read_once);
 			uvx_comm_bq_change_list(&comm_bq_2, bq_2_register_list_read_once);
-			uvx_comm_bq_change_list(&comm_bq_3, bq_3_register_list_read_once);
-			batt_state.state_current = BATT_MODE_INIT_BYPASS;
-			//batt_state.state_current = BATT_MODE_READ_ONCE_BQ;
+			uvx_comm_bq_change_list(&comm_bq_3, bq_3_register_list_read_once);			
+			batt_state.state_current = BATT_MODE_READ_ONCE_BQ;
 			p_app_bq = comm_bq;
 		break;
 
 		case BATT_MODE_READ_ONCE_BQ:
 			bq_state = batt_mode_read_once_BQ(p_app_bq);
 
-			if(bq_state == UVX_BQ_OK)
+			if(bq_state == UVX_BQ_REG_END)
 			{
 				if(p_app_bq < &comm_bq[BQ_DEVICES - 1])
 				{
@@ -44,10 +43,18 @@ void UVX_APP_Batt(void)
 				{
 					p_app_bq++;
 				}
-				// else
-				// {
-				// 	p_app_bq = comm_bq;
-				// }
+			}
+			else if(bq_state == UVX_BQ_ERROR_NACK)
+			{
+				p_app_bq->RX_Pending = 0;
+				p_app_bq->cnt_nack++;
+				p_app_bq->No_response = 1;
+
+				if(HAL_GetTick() - p_app_bq->time_stamp > 50)
+				{
+					p_app_bq->time_stamp = HAL_GetTick();
+					uvx_gpio_toggle_pin(GPIO_OUTPUT_PWR_LED);
+				}
 			}
 		break;	
 
@@ -75,10 +82,6 @@ void UVX_APP_Batt(void)
 				{
 					p_app_bq++;
 				}
-				// else
-				// {
-				// 	p_app_bq = comm_bq;
-				// }
 			}
 			else if(bq_state == UVX_BQ_ERROR_NACK)
 			{
@@ -91,7 +94,6 @@ void UVX_APP_Batt(void)
 					p_app_bq->time_stamp = HAL_GetTick();
 					uvx_gpio_toggle_pin(GPIO_OUTPUT_PWR_LED);
 				}
-
 			}
 		break;
 
@@ -443,7 +445,7 @@ static UVX_COMM_BQ_STATE batt_mode_read_once_BQ(UVX_COMM_BQ *p_comm_bq)
 		{
 			p_comm_bq->batt_reg_cnt = 0;
 			uvx_batt_parse_data();
-			return UVX_BQ_OK;
+			return UVX_BQ_REG_END;
 		}
 
 		p_comm_bq->RX_Pending = 1; // Set RX pending flag to indicate that a read operation is in progress
@@ -483,17 +485,6 @@ static UVX_COMM_BQ_STATE batt_mode_init_bypass(UVX_COMM_BQ *p_comm_bq)
 		result = batt_check_response(p_comm_bq);
 	}
 
-	// result = batt_check_response(p_comm_bq);
-	// if(p_comm_bq->i2c_state == UVX_I2C_OK)
-	// {
-	// 	p_comm_bq->batt_reg_cnt = 0;
-	// 	p_comm_bq->TX_Ready = 1;
-	// 	return UVX_BQ_OK;
-	// }
-	// if(result == UVX_BQ_ERROR_NACK)
-	// {
-	// 	p_comm_bq->TX_Ready = 1;
-	// }
 	return result;
 }
 
@@ -545,11 +536,6 @@ static UVX_COMM_BQ_STATE batt_check_response(UVX_COMM_BQ *p_comm_bq)
 
 	if(p_comm_bq->i2c_state == UVX_I2C_NACK)
 	{
-		// /* Count once per failed transfer; leave the register index unchanged. */
-		// if(p_comm_bq->cnt_nack != UINT32_MAX)
-		// {
-		// 	p_comm_bq->cnt_nack++;
-		// }
 		p_comm_bq->No_response = true;
 		p_comm_bq->cnt_no_response = 0;
 		p_comm_bq->RX_Pending = 0;
