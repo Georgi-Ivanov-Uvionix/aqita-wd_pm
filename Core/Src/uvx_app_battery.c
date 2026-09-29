@@ -18,6 +18,9 @@ void UVX_APP_Batt(void)
 			uvx_comm_bq_change_list(&comm_bq_1, bq_1_register_list_read_once);
 			uvx_comm_bq_change_list(&comm_bq_2, bq_2_register_list_read_once);
 			uvx_comm_bq_change_list(&comm_bq_3, bq_3_register_list_read_once);			
+			comm_bq_1.ID = 1;
+			comm_bq_2.ID = 2;
+			comm_bq_3.ID = 3;
 			batt_state.state_current = BATT_MODE_INIT_BYPASS;
 			p_app_bq = comm_bq;
 		break;
@@ -129,7 +132,16 @@ void UVX_APP_Batt(void)
 			{
 				p_app_bq->RX_Pending = 0;
 				p_app_bq->cnt_nack++;
-				p_app_bq->No_response = 1;
+				p_app_bq->No_response = 1;	
+				
+				if(p_app_bq < &comm_bq[BQ_DEVICES - 1])
+				{
+					p_app_bq++;
+				}
+				else
+				{
+					p_app_bq = comm_bq;
+				}
 
 				if(HAL_GetTick() - p_app_bq->time_stamp > 50)
 				{
@@ -485,12 +497,29 @@ static UVX_COMM_BQ_STATE batt_mode_read_BQ(UVX_COMM_BQ *p_comm_bq)
 
 	if(!p_comm_bq->RX_Pending)
 	{
+		if((p_comm_bq == &comm_bq_1) && (p_comm_bq->p_register_list[p_comm_bq->batt_reg_cnt].reg_addr == DA_STATUS1))
+		{
+			p_comm_bq->RX_Pending = 0;
+		}
+
+		if((p_comm_bq == &comm_bq_2) && (p_comm_bq->p_register_list[p_comm_bq->batt_reg_cnt].reg_addr == DA_STATUS1))
+		{
+			p_comm_bq->RX_Pending = 0;
+		}
+
+		if((p_comm_bq == &comm_bq_3) && (p_comm_bq->p_register_list[p_comm_bq->batt_reg_cnt].reg_addr == DA_STATUS1))
+		{
+			p_comm_bq->RX_Pending = 0;
+		}
+
 		if(uvx_comm_bq_read_list(p_comm_bq, p_comm_bq->batt_reg_cnt) == UVX_BQ_REG_END)
 		{
 			p_comm_bq->batt_reg_cnt = 0;
 			uvx_batt_parse_data();
 			return UVX_BQ_REG_END;
 		}
+
+		//uvx_comm_bq_read_mba_register(p_comm_bq, DA_STATUS1, &bq_data_1.dastatus1_size, 35);
 
 		p_comm_bq->RX_Pending = 1; // Set RX pending flag to indicate that a read operation is in progress
 	}
@@ -533,6 +562,12 @@ static UVX_COMM_BQ_STATE batt_check_response(UVX_COMM_BQ *p_comm_bq)
 		p_comm_bq->BQ_RX_Ready = 1;
 		p_comm_bq->BQ_TX_Ready = 1;
 		uvx_i2c_unlock(&i2c_bq.hal_i2c, (uint32_t*)p_comm_bq);
+
+		if((p_comm_bq == &comm_bq_3) && (p_comm_bq->p_register_list[p_comm_bq->batt_reg_cnt].reg_addr == DA_STATUS1))
+		{
+			p_comm_bq->RX_Pending = 0;
+		}
+
 		return UVX_BQ_ERROR_NACK;
 	}
 
@@ -547,6 +582,22 @@ static UVX_COMM_BQ_STATE batt_check_response(UVX_COMM_BQ *p_comm_bq)
 		p_comm_bq->RX_Pending = 0;
 		p_comm_bq->BQ_RX_Ready = 1;
 		p_comm_bq->BQ_TX_Ready = 1;
+
+		if((p_comm_bq == &comm_bq_1) && (p_comm_bq->p_register_list[p_comm_bq->batt_reg_cnt].reg_addr == DA_STATUS1))
+		{
+			p_comm_bq->RX_Pending = 0;
+		}
+
+		if((p_comm_bq == &comm_bq_2) && (p_comm_bq->p_register_list[p_comm_bq->batt_reg_cnt].reg_addr == DA_STATUS1))
+		{
+			p_comm_bq->RX_Pending = 0;
+		}
+
+		if((p_comm_bq == &comm_bq_3) && (p_comm_bq->p_register_list[p_comm_bq->batt_reg_cnt].reg_addr == DA_STATUS1))
+		{
+			p_comm_bq->RX_Pending = 0;
+		}
+
 		p_comm_bq->batt_reg_cnt++;
 		uvx_i2c_unlock(&i2c_bq.hal_i2c, (uint32_t*)p_comm_bq);
 		return UVX_BQ_OK;

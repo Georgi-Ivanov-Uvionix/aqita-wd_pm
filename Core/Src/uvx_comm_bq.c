@@ -227,6 +227,63 @@ UVX_COMM_BQ_STATE uvx_comm_bq_read_register(UVX_COMM_BQ* p_comm_bq, UVX_BQ_REGIS
 	return UVX_BQ_OK; // Return success
 }  
 
+/* Read the response to a previously selected ManufacturerBlockAccess subcommand.
+ * Sends reg_addr (0x44 for MBA), repeated START, then receives exactly size raw bytes (no PEC).
+ * UVX_BQ_OK means started; data must remain valid until response completion.
+ * The response is [byte count][subcommand LSB][subcommand MSB][payload...].
+ * size must be the expected byte count + 1, e.g. 35 for count 0x22.
+ */
+UVX_COMM_BQ_STATE uvx_comm_bq_read_mba_register(UVX_COMM_BQ* p_comm_bq, UVX_BQ_REGISTERS reg_addr, uint8_t* data, uint16_t size)
+{
+	UVX_I2C_HAL* p_i2c;
+
+	if((p_comm_bq == NULL) || (p_comm_bq->p_hal_i2c == NULL) ||
+	   (data == NULL) || (size < 3U) || (size > 255U))
+	{
+		return UVX_BQ_ERROR;
+	}
+	p_i2c = p_comm_bq->p_hal_i2c;
+	if(p_i2c->hi2c.Instance == NULL)
+	{
+		return UVX_BQ_ERROR_INIT_I2C;
+	}
+	if((p_comm_bq->BQ_RX_Ready == 0U) || (p_comm_bq->RX_Pending != 0U) ||
+	   (p_i2c->I2C_RX_Ready == 0U) ||
+	   (HAL_I2C_GetState(&p_i2c->hi2c) != HAL_I2C_STATE_READY) ||
+	   ((p_i2c->hi2c.Instance->ISR & I2C_ISR_BUSY) != 0U))
+	{
+		return UVX_BQ_ERROR_BUSY;
+	}
+	if(uvx_i2c_lock(p_i2c, (uint32_t*)p_comm_bq) != UVX_I2C_OK)
+	{
+		return UVX_BQ_ERROR_BUSY;
+	}
+
+	p_comm_bq->BQ_RX_Ready = 0U;
+	p_comm_bq->i2c_state = uvx_i2c_read_mem(p_i2c, p_comm_bq->addr_i2c, reg_addr, I2C_MEMADD_SIZE_8BIT, data, size);
+	if(p_comm_bq->i2c_state != UVX_I2C_OK)
+	{
+		p_comm_bq->BQ_RX_Ready = 1U;
+		uvx_i2c_unlock(p_i2c, (uint32_t*)p_comm_bq);
+		if((p_comm_bq->i2c_state == UVX_I2C_NACK) ||
+		   ((HAL_I2C_GetError(&p_i2c->hi2c) & HAL_I2C_ERROR_AF) != 0U))
+		{
+			return UVX_BQ_ERROR_NACK;
+		}
+		if((p_comm_bq->i2c_state == UVX_I2C_BUSY) ||
+		   (p_comm_bq->i2c_state == UVX_I2C_LOCKED))
+		{
+			return UVX_BQ_ERROR_BUSY;
+		}
+		return UVX_BQ_ERROR;
+	}
+
+	p_comm_bq->cnt_no_response = 0U;
+	p_comm_bq->RX_Pending = 1U;
+	/* Keep the bus lock until the caller processes transfer completion. */
+	return UVX_BQ_OK;
+}
+
 //read ManufactureAddress() function only for test
 UVX_COMM_BQ_STATE uvx_comm_bq_read_ma_register(UVX_COMM_BQ* p_comm_bq, UVX_BQ_REGISTERS reg_addr) 
 {    

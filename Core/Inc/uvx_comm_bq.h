@@ -715,6 +715,10 @@ UVX_COMM_BQ_STATE uvx_comm_bq_init(UVX_COMM_BQ* p_comm_bq, UVX_I2C* i2c, uint8_t
 UVX_COMM_BQ_STATE uvx_comm_bq_change_list(UVX_COMM_BQ* p_comm_bq, UVX_BQ_REGISTER* p_register_list);
 UVX_COMM_BQ_STATE uvx_comm_bq_read_list(UVX_COMM_BQ* p_comm_bq, uint16_t reg_index);
 UVX_COMM_BQ_STATE uvx_comm_bq_read_register (UVX_COMM_BQ* p_comm_bq, UVX_BQ_REGISTERS reg_addr);
+/* Async raw command read after subcommand selection. Use reg_addr = MANUFACTURER_BLOCK_ACCESS.
+ * size is the exact receive length, including count and echo,
+ * excludes PEC. Keep data alive; process completion before reading it. */
+UVX_COMM_BQ_STATE uvx_comm_bq_read_mba_register(UVX_COMM_BQ* p_comm_bq, UVX_BQ_REGISTERS reg_addr, uint8_t* data, uint16_t size);
 UVX_COMM_BQ_STATE uvx_comm_bq_read_ma_register(UVX_COMM_BQ* p_comm_bq, UVX_BQ_REGISTERS reg_addr);
 UVX_COMM_BQ_STATE uvx_comm_bq_get_index_register(UVX_BQ_REGISTER *list, UVX_BQ_REGISTERS reg_addr, uint8_t* p_index);
 UVX_COMM_BQ_STATE uvx_comm_bq_write_register(UVX_COMM_BQ* p_comm_bq, uint16_t reg_addr, uint8_t* data, uint16_t size) ;

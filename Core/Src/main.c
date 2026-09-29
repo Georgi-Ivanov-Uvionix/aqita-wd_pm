@@ -2385,6 +2385,14 @@ void I2C1_ER_IRQHandler(void)
         __HAL_I2C_CLEAR_FLAG(hi2c, I2C_FLAG_BERR);
     }
 
+	uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_RESET);
+	uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_SET);
+	uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_RESET);
+	uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_SET);		
+	uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_RESET);		
+	uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_SET);		
+	uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_RESET);	
+
     /* Still handle other errors, such as arbitration loss or overrun. */
     HAL_I2C_ER_IRQHandler(hi2c);
 }
