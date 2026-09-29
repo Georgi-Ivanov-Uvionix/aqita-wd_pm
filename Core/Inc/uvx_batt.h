@@ -44,11 +44,11 @@
 #define BATT_EXPECTED_CELLS                         9
 #define BATT_CELL_MIN_DETECT_VOLTAGE_MV             1500
 #define BATT_CELL_MIN_VOLTAGE                       2200 //mv
-#define BATT_CELL_MAX_VOLTAGE                       4200 //mv
+#define BATT_CELL_MAX_VOLTAGE                       4300 //mv
 #define BATT_CELL_CHARGE_RESUME_VOLTAGE             4100 //mv
 #define BATT_CELL_DETECT_THRESHOLD_MV               1500 //mv
 #define BATT_CELL_VOLTAGE_DIFF                      10  //mv
-#define BATT_DELTA_VOLTAGE                          1000  //mv
+#define BATT_DELTA_VOLTAGE                          1100  //mv
 #define BATT_ADC_PACK_V_LOW_MIN_MS                  5000U
 
 #define BATT_SUPPLY_STATUS_PWR_FET_BIT                 0
