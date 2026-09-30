@@ -216,7 +216,7 @@ void UVX_APP_Batt(void)
 				else
 				{
 					p_app_bq_data = bq_data;
-					batt_state.state_current = BATT_MODE_CHECK_STATUS_FET_DSG;
+					batt_state.state_current = BATT_MODE_READ_BQ;
 				}
 			}
 			else if(bq_state == UVX_BQ_TIMEOUT)
@@ -602,7 +602,7 @@ static UVX_COMM_BQ_STATE batt_mode_check_fet_dsg(UVX_BQ_DATA *p_bq_data)
 	{
 		if(!p_bq_data->DSG_FET_STAT)
 		{
-			uvx_comm_bq_discharge_fet(p_bq_data, 0);
+			uvx_comm_bq_discharge_fet(p_bq_data, 1);
 			p_comm_bq->RX_Pending = 1; // Set RX pending flag to indicate that a read operation is in progress
 			return UVX_BQ_ERROR_BUSY;
 		}		

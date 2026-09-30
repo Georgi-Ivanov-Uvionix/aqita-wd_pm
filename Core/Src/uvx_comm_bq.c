@@ -391,6 +391,11 @@ UVX_COMM_BQ_STATE uvx_comm_bq_write_mba_register(UVX_COMM_BQ* p_comm_bq, UVX_BQ_
 		i2c_data[2] = reg_addr;
 		i2c_data[3] = 0x00;
 
+		if(uvx_i2c_lock(p_comm_bq->p_hal_i2c, (uint32_t*)p_comm_bq) != UVX_I2C_OK)
+		{
+			return UVX_BQ_ERROR_BUSY;
+		}
+
 		if(uvx_i2c_send(p_comm_bq->p_hal_i2c, p_comm_bq->addr_i2c, i2c_data, 4) != UVX_I2C_OK)
 		{
 			return UVX_BQ_ERROR;
