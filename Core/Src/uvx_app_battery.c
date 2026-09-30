@@ -10,6 +10,7 @@ static UVX_COMM_BQ_STATE batt_mode_init_bypass(UVX_COMM_BQ *p_comm_bq);
 static UVX_COMM_BQ_STATE batt_mode_read_BQ(UVX_COMM_BQ *p_comm_bq);
 static UVX_COMM_BQ_STATE batt_mode_check_fet_enable(UVX_BQ_DATA *p_bq_data);
 static UVX_COMM_BQ_STATE batt_mode_check_fet_dsg(UVX_BQ_DATA *p_bq_data);
+static UVX_COMM_BQ_STATE batt_mode_check_fet_chg(UVX_BQ_DATA *p_bq_data);
 static UVX_COMM_BQ_STATE batt_check_response(UVX_COMM_BQ *p_comm_bq);
 
 void UVX_APP_Batt(void)
@@ -216,7 +217,7 @@ void UVX_APP_Batt(void)
 				else
 				{
 					p_app_bq_data = bq_data;
-					batt_state.state_current = BATT_MODE_READ_BQ;
+					batt_state.state_current = BATT_MODE_CHECK_STATUS_FET_CHG;
 				}
 			}
 			else if(bq_state == UVX_BQ_TIMEOUT)
@@ -254,123 +255,129 @@ void UVX_APP_Batt(void)
 			}			
 		break;
 
-		case BATT_MODE_CHECK_STATUS:
-			batt_state.state_current = BATT_MODE_WAIT_RESPONSE;
-			batt_state.state_when_fail = BATT_MODE_READ_CHECK_PACK_V;
-
-			if(bq_data_1.CHG_FET_STAT)
+		case BATT_MODE_CHECK_STATUS_FET_CHG:
+			bq_state = batt_mode_check_fet_chg(p_app_bq_data);
+			
+			if(bq_state == UVX_BQ_OK)
 			{
-				//uvx_comm_bq_write_mba_register(&bq_data_1, BQ_MA_FET_CONTROL, NULL, 0);
-			}
-			else
-			{
-				// if(batt_data.tc)
-				// {
-				// 	uvx_comm_bq_charge_fet(&bq_data_1, 0);
-
-				// }
-				// else
-				// {
-				// 	if((batt_data.adc_pack_v_stable_high) && (drone_status.pwr_fet))
-				// 	{
-				// 		uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_RESET);
-				// 		if(drone_state.state_current == DRONE_CHECK_BUTTON_PRESS_ONCE)
-				// 		{
-				// 			uvx_gpio_set_pin(GPIO_OUTPUT_PWR_LED, GPIO_PIN_RESET);
-				// 		}
-
-				// 		uvx_comm_bq_charge_fet(&bq_data_2, 1);
-				// 	}
-				// 	else
-				// 	{
-				// 		uvx_comm_bq_charge_fet(&bq_data_2, 0);
-				// 	}		
-				// }
-
-				if(!batt_data.cell_ball_2 && !batt_data.cell_ball_1 && !batt_data.cell_ball_3)
+				if(p_app_bq_data < &bq_data[BQ_DEVICES - 1])
 				{
-					// if((batt_data.voltage_diff_pack > BATT_CELL_VOLTAGE_DIFF) && (batt_data.CHG_fet_stat))
-					// {
-					// 	if((bq_data_1.voltage_per_cell >= bq_data_2.voltage_per_cell) &&
-					// 	   (bq_data_1.voltage_per_cell >= bq_data_3.voltage_per_cell))
-					// 	{
-					// 		uvx_comm_bq_force_balance(&comm_bq_1, 1);
-					// 		batt_state.state_next = BATT_MODE_READ_CHECK_PACK_V;
-					// 	}
-					// 	else if(bq_data_2.voltage_per_cell >= bq_data_3.voltage_per_cell)
-					// 	{
-					// 		uvx_comm_bq_force_balance(&comm_bq_2, 1);
-					// 		batt_state.state_next = BATT_MODE_READ_CHECK_PACK_V;
-					// 	}
-					// 	else
-					// 	{
-					// 		uvx_comm_bq_force_balance(&comm_bq_3, 1);
-					// 		batt_state.state_next = BATT_MODE_READ_CHECK_PACK_V;
-					// 	}
-					// }
-					// else
-					// {
-					// 	if(comm_bq_3.Force_balance)
-					// 	{
-					// 		batt_state.state_next = BATT_MODE_OFF_BALANCE_3;
-					// 	}
-					// 	else if(comm_bq_2.Force_balance)
-					// 	{
-					// 		batt_state.state_next = BATT_MODE_OFF_BALANCE_2;
-					// 	}
-					// 	else if(comm_bq_1.Force_balance)
-					// 	{
-					// 		batt_state.state_next = BATT_MODE_OFF_BALANCE_1;
-					// 	}
-					// 	else
-					// 	{
-					// 		batt_state.state_next = BATT_MODE_READ_CHECK_PACK_V;
-					// 	}					
-					// }	
+					p_app_bq_data++;
 				}
 				else
 				{
-					if(comm_bq_3.Force_balance)
-					{
-						batt_state.state_next = BATT_MODE_OFF_BALANCE_3;
-					}
-					else if(comm_bq_2.Force_balance)
-					{
-						batt_state.state_next = BATT_MODE_OFF_BALANCE_2;
-					}
-					else if(comm_bq_1.Force_balance)
-					{
-						batt_state.state_next = BATT_MODE_OFF_BALANCE_1;
-					}
-					else
-					{
-						batt_state.state_current = BATT_MODE_READ_CHECK_PACK_V;
-					}		
+					p_app_bq_data = bq_data;
+					batt_state.state_current = BATT_MODE_CHECK_STATUS;
+				}
+			}
+			else if(bq_state == UVX_BQ_TIMEOUT)
+			{
+				if(p_app_bq_data < &bq_data[BQ_DEVICES - 1])
+				{
+					p_app_bq_data++;
+				}
+				else
+				{
+					p_app_bq_data = bq_data;
+				}
+			}
+			else if(bq_state == UVX_BQ_ERROR_NACK)
+			{
+				p_app_comm_bq = p_app_bq_data->p_comm_bq;
+				p_app_comm_bq->RX_Pending = 0;
+				p_app_comm_bq->cnt_nack++;
+				p_app_comm_bq->No_response = 1;	
+				
+				if(p_app_bq_data < &bq_data[BQ_DEVICES - 1])
+				{
+					p_app_bq_data++;
+				}
+				else
+				{
+					p_app_bq_data = bq_data;
+				}
+
+				if(HAL_GetTick() - p_app_comm_bq->time_stamp > 50)
+				{
+					p_app_comm_bq->time_stamp = HAL_GetTick();
+					uvx_gpio_toggle_pin(GPIO_OUTPUT_PWR_LED);
 				}
 			}			
-		break;
+		break;		
 
-		case BATT_MODE_OFF_BALANCE_1:
-			uvx_comm_bq_force_balance(&comm_bq_1, 0);
-			batt_state.state_current = BATT_MODE_WAIT_RESPONSE;
-			batt_state.state_next = BATT_MODE_READ_CHECK_PACK_V;
-			batt_state.state_when_fail = BATT_MODE_READ_CHECK_PACK_V;
-		break;
+		case BATT_MODE_CHECK_STATUS:
 
-		case BATT_MODE_OFF_BALANCE_2:
-			uvx_comm_bq_force_balance(&comm_bq_2, 0);
-			batt_state.state_current = BATT_MODE_WAIT_RESPONSE;
-			batt_state.state_next = BATT_MODE_READ_CHECK_PACK_V;
-			batt_state.state_when_fail = BATT_MODE_READ_CHECK_PACK_V;
-			comm_bq_2.batt_reg_cnt = 0;
-		break;				
+			if(batt_data.tc)
+			{
+				bq_data_1.CHG_FET_STAT_NEW = false;
+				bq_data_2.CHG_FET_STAT_NEW = false;
+				bq_data_3.CHG_FET_STAT_NEW = false;
+			}
+			else
+			{
+				if((batt_data.adc_pack_v_stable_high) && (drone_status.pwr_fet))
+				{
+					uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_RESET);
+					if(drone_state.state_current == DRONE_CHECK_BUTTON_PRESS_ONCE)
+					{
+						uvx_gpio_set_pin(GPIO_OUTPUT_PWR_LED, GPIO_PIN_RESET);
+					}
 
-		case BATT_MODE_OFF_BALANCE_3:
-			uvx_comm_bq_force_balance(&comm_bq_3, 0);
-			batt_state.state_current = BATT_MODE_WAIT_RESPONSE;
-			batt_state.state_next = BATT_MODE_READ_CHECK_PACK_V;
-			batt_state.state_when_fail = BATT_MODE_READ_CHECK_PACK_V;
-			comm_bq_3.batt_reg_cnt = 0;
+					bq_data_1.CHG_FET_STAT_NEW = true;
+					bq_data_2.CHG_FET_STAT_NEW = true;
+					bq_data_3.CHG_FET_STAT_NEW = true;
+				}
+				else
+				{
+					bq_data_1.CHG_FET_STAT_NEW = false;
+					bq_data_2.CHG_FET_STAT_NEW = false;
+					bq_data_3.CHG_FET_STAT_NEW = false;
+				}		
+			}
+
+			if(!batt_data.cell_ball_2 && !batt_data.cell_ball_1 && !batt_data.cell_ball_3)
+			{
+				// if((batt_data.voltage_diff_pack > BATT_CELL_VOLTAGE_DIFF) && (batt_data.CHG_fet_stat))
+				// {
+				// 	if((bq_data_1.voltage_per_cell >= bq_data_2.voltage_per_cell) &&
+				// 	   (bq_data_1.voltage_per_cell >= bq_data_3.voltage_per_cell))
+				// 	{
+				// 		uvx_comm_bq_force_balance(&comm_bq_1, 1);
+				// 		batt_state.state_next = BATT_MODE_READ_CHECK_PACK_V;
+				// 	}
+				// 	else if(bq_data_2.voltage_per_cell >= bq_data_3.voltage_per_cell)
+				// 	{
+				// 		uvx_comm_bq_force_balance(&comm_bq_2, 1);
+				// 		batt_state.state_next = BATT_MODE_READ_CHECK_PACK_V;
+				// 	}
+				// 	else
+				// 	{
+				// 		uvx_comm_bq_force_balance(&comm_bq_3, 1);
+				// 		batt_state.state_next = BATT_MODE_READ_CHECK_PACK_V;
+				// 	}
+				// }
+				// else
+				// {
+				// 	if(comm_bq_3.Force_balance)
+				// 	{
+				// 		batt_state.state_next = BATT_MODE_OFF_BALANCE_3;
+				// 	}
+				// 	else if(comm_bq_2.Force_balance)
+				// 	{
+				// 		batt_state.state_next = BATT_MODE_OFF_BALANCE_2;
+				// 	}
+				// 	else if(comm_bq_1.Force_balance)
+				// 	{
+				// 		batt_state.state_next = BATT_MODE_OFF_BALANCE_1;
+				// 	}
+				// 	else
+				// 	{
+				// 		batt_state.state_next = BATT_MODE_READ_CHECK_PACK_V;
+				// 	}					
+				// }	
+			}		
+			
+			batt_state.state_current = BATT_MODE_READ_BQ;
 		break;
 		
 		case BATT_MODE_READ_CHECK_PACK_V:
@@ -606,6 +613,32 @@ static UVX_COMM_BQ_STATE batt_mode_check_fet_dsg(UVX_BQ_DATA *p_bq_data)
 			p_comm_bq->RX_Pending = 1; // Set RX pending flag to indicate that a read operation is in progress
 			return UVX_BQ_ERROR_BUSY;
 		}		
+
+		return UVX_BQ_OK;
+	}
+	else
+	{
+		return batt_check_response(p_comm_bq);
+	}	
+}
+
+static UVX_COMM_BQ_STATE batt_mode_check_fet_chg(UVX_BQ_DATA *p_bq_data)
+{
+	UVX_COMM_BQ *p_comm_bq = p_bq_data->p_comm_bq;
+
+	if((p_bq_data == NULL) || (p_comm_bq == NULL))
+	{
+		return UVX_BQ_ERROR;
+	}
+
+	if(!p_comm_bq->RX_Pending)
+	{
+		if((p_bq_data->CHG_FET_STAT) != (p_bq_data->CHG_FET_STAT_NEW))
+		{
+			uvx_comm_bq_charge_fet(p_bq_data, p_bq_data->CHG_FET_STAT_NEW);
+			p_comm_bq->RX_Pending = 1; // Set RX pending flag to indicate that a read operation is in progress
+			return UVX_BQ_ERROR_BUSY;
+		}
 
 		return UVX_BQ_OK;
 	}

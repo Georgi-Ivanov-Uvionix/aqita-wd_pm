@@ -520,10 +520,12 @@ typedef struct UVX_BQ_DATA
     uint16_t cell_current_7;    
     uint16_t cell_power_7;
 
-    uint8_t No_response     : 1; // Flag to indicate no response from BQ
-    uint8_t DSG_CHG_FET_EN  : 1; // Flag to indicate if the charge FET is enabled
-    uint8_t CHG_FET_STAT    : 1; // Flag to indicate the status of the charge FET
-    uint8_t DSG_FET_STAT    : 1; // Flag to indicate the status of the discharge FET
+    uint8_t No_response         : 1; // Flag to indicate no response from BQ
+    uint8_t DSG_CHG_FET_EN      : 1; // Flag to indicate if the charge FET is enabled
+    uint8_t CHG_FET_STAT        : 1; // Flag to indicate the status of the charge FET
+    uint8_t CHG_FET_STAT_NEW    : 1; // Flag to indicate the status of the charge FET
+    uint8_t DSG_FET_STAT        : 1; // Flag to indicate the status of the discharge FET
+    uint8_t DSG_FET_STAT_NEW    : 1; // Flag to indicate the status of the discharge FET
 
     MANUFACTURE_STATUS_S manufacturing_status;
     OPERATION_STATUS_S operation_status; 
@@ -731,8 +733,8 @@ UVX_COMM_BQ_STATE uvx_comm_bq_process_rx(uint8_t byte_rx);
 UVX_COMM_BQ_STATE uvx_comm_bq_process_rx_data(void);
 UVX_COMM_BQ_STATE uvx_comm_bq_force_balance(UVX_COMM_BQ* p_comm_bq, uint8_t enable);
 UVX_COMM_BQ_STATE uvx_comm_bq_bypass(UVX_COMM_BQ* p_comm_bq, uint8_t enable);
-UVX_COMM_BQ_STATE uvx_comm_bq_charge_fet(UVX_BQ_DATA* p_bq_data, uint8_t state);
-UVX_COMM_BQ_STATE uvx_comm_bq_discharge_fet(UVX_BQ_DATA* p_bq_data, uint8_t state);
+UVX_COMM_BQ_STATE uvx_comm_bq_charge_fet(UVX_BQ_DATA* p_bq_data, bool state);
+UVX_COMM_BQ_STATE uvx_comm_bq_discharge_fet(UVX_BQ_DATA* p_bq_data, bool state);
 uint8_t uvx_comm_bq_swap_u8(uint8_t* v);
 uint16_t uvx_comm_bq_swap_u16_pointer(uint16_t* v);
 uint16_t uvx_comm_bq_swap_u16_value(uint16_t v);
