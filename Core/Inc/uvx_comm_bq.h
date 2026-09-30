@@ -732,6 +732,7 @@ UVX_COMM_BQ_STATE uvx_comm_bq_process_rx_data(void);
 UVX_COMM_BQ_STATE uvx_comm_bq_force_balance(UVX_COMM_BQ* p_comm_bq, uint8_t enable);
 UVX_COMM_BQ_STATE uvx_comm_bq_bypass(UVX_COMM_BQ* p_comm_bq, uint8_t enable);
 UVX_COMM_BQ_STATE uvx_comm_bq_charge_fet(UVX_BQ_DATA* p_bq_data, uint8_t state);
+UVX_COMM_BQ_STATE uvx_comm_bq_discharge_fet(UVX_BQ_DATA* p_bq_data, uint8_t state);
 uint8_t uvx_comm_bq_swap_u8(uint8_t* v);
 uint16_t uvx_comm_bq_swap_u16_pointer(uint16_t* v);
 uint16_t uvx_comm_bq_swap_u16_value(uint16_t v);

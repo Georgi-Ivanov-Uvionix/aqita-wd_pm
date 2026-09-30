@@ -498,6 +498,33 @@ UVX_COMM_BQ_STATE uvx_comm_bq_charge_fet(UVX_BQ_DATA* p_bq_data, uint8_t state)
 	return UVX_BQ_OK; // Return success
 }
 
+UVX_COMM_BQ_STATE uvx_comm_bq_discharge_fet(UVX_BQ_DATA* p_bq_data, uint8_t state)
+{
+	UVX_COMM_BQ *p_comm_bq = p_bq_data->p_comm_bq;
+
+	if((p_bq_data == NULL) || (p_comm_bq == NULL))
+	{
+		return UVX_BQ_ERROR;
+	}
+
+	if(state)
+	{
+		if(!p_bq_data->DSG_FET_STAT)
+		{
+			uvx_comm_bq_write_mba_register(p_comm_bq, BQ_MA_DSG_FET_TOGGLE, NULL, 0);
+		}
+	}
+	else
+	{
+		if(p_bq_data->DSG_FET_STAT)
+		{
+			uvx_comm_bq_write_mba_register(p_comm_bq, BQ_MA_DSG_FET_TOGGLE, NULL, 0);
+		}
+	}
+
+	return UVX_BQ_OK; // Return success
+}
+
 uint8_t uvx_comm_bq_swap_u8(uint8_t* v)
 {
 	return *v;

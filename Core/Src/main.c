@@ -280,7 +280,7 @@ int main(void)
 	uvx_gpio_set_pin(GPIO_OUTPUT_PWR_LED, GPIO_PIN_SET);
 	uvx_gpio_set_pin(GPIO_OUTPUT_BQH_I2C_EN, GPIO_PIN_SET); // bqh turn off
 	uvx_gpio_set_pin(GPIO_OUTPUT_BQH_I2C_EN, GPIO_PIN_RESET);
-	UVX_APP_PWR_FET(0); // power off
+	UVX_APP_PWR_FET(1); // power off
 	uvx_gpio_set_pin(GPIO_OUT_LED_STRIP_ENABLE, GPIO_PIN_SET);
 	uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_RESET);
 

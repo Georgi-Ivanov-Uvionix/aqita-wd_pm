@@ -578,7 +578,12 @@ UVX_BATT_STATE uvx_batt_read_pack_v(void)
 			if((comm_bq_3.BQ_RX_Ready) && (comm_bq_2.BQ_RX_Ready) && (comm_bq_1.BQ_RX_Ready))
 			{
 				batt_data.adc_pack_v_stable_high = 0;
-				UVX_APP_PWR_FET(0); // power off
+
+				if(batt_data.init)
+				{
+					UVX_APP_PWR_FET(0); // power off
+				}
+				
 				// if((drone_state.state_current == DRONE_SLEEP))
 				// {
 				// 	batt_state.state_current = BATT_MODE_CHECK_STATUS;
