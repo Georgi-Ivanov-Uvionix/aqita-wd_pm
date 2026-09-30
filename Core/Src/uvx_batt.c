@@ -32,7 +32,7 @@ static UVX_BATT_STATE uvx_batt_send_learn_commands(UVX_COMM_BQ* p_comm_bq)
 
 	for(i = 0U; i < (sizeof(learn_commands) / sizeof(learn_commands[0])); i++)
 	{
-		if(uvx_comm_bq_write_mba_register(&bq_data_1, learn_commands[i], NULL, 0U) != UVX_BQ_OK)
+		if(uvx_comm_bq_write_mba_register(p_comm_bq, learn_commands[i], NULL, 0U) != UVX_BQ_OK)
 		{
 			return UVX_BATT_ERROR;
 		}

@@ -689,12 +689,14 @@ typedef struct
   UVX_COMM_MODE state_next; // Next state of the BQ communication
 } UVX_COMM_BQ_STATE_MACHINE;
 
-extern SRAM1 UVX_BQ_DATA bq_data_1;
-extern SRAM1 UVX_BQ_DATA bq_data_2;
-extern SRAM1 UVX_BQ_DATA bq_data_3;
+extern SRAM1 UVX_BQ_DATA bq_data[BQ_DEVICES];
 extern SRAM1 UVX_COMM_BQ comm_bq[BQ_DEVICES];
 
 // Keep existing device names mapped to the shared communication array.
+#define bq_data_1 (bq_data[0])
+#define bq_data_2 (bq_data[1])
+#define bq_data_3 (bq_data[2])
+
 #define comm_bq_1 (comm_bq[0])
 #define comm_bq_2 (comm_bq[1])
 #define comm_bq_3 (comm_bq[2])
@@ -722,7 +724,7 @@ UVX_COMM_BQ_STATE uvx_comm_bq_read_mba_register(UVX_COMM_BQ* p_comm_bq, UVX_BQ_R
 UVX_COMM_BQ_STATE uvx_comm_bq_read_ma_register(UVX_COMM_BQ* p_comm_bq, UVX_BQ_REGISTERS reg_addr);
 UVX_COMM_BQ_STATE uvx_comm_bq_get_index_register(UVX_BQ_REGISTER *list, UVX_BQ_REGISTERS reg_addr, uint8_t* p_index);
 UVX_COMM_BQ_STATE uvx_comm_bq_write_register(UVX_COMM_BQ* p_comm_bq, uint16_t reg_addr, uint8_t* data, uint16_t size) ;
-UVX_COMM_BQ_STATE uvx_comm_bq_write_mba_register(UVX_BQ_DATA* p_bq_data, UVX_BQ_MA_REGISTERS reg_addr, uint8_t* data, uint16_t size);
+UVX_COMM_BQ_STATE uvx_comm_bq_write_mba_register(UVX_COMM_BQ* p_comm_bq, UVX_BQ_MA_REGISTERS reg_addr, uint8_t* data, uint16_t size);
 UVX_COMM_BQ_STATE uvx_comm_bq_send(uint8_t cmd_echo, uint8_t* data, uint16_t size);
 UVX_COMM_BQ_STATE uvx_comm_bq_send_error(uint8_t data);
 UVX_COMM_BQ_STATE uvx_comm_bq_process_rx(uint8_t byte_rx);

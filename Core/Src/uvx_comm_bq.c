@@ -4,10 +4,7 @@
 #include <string.h>
 
 
-SRAM1 UVX_BQ_DATA bq_data_1;
-SRAM1 UVX_BQ_DATA bq_data_2;
-SRAM1 UVX_BQ_DATA bq_data_3;
-
+SRAM1 UVX_BQ_DATA bq_data[BQ_DEVICES];
 SRAM1 UVX_COMM_BQ comm_bq[BQ_DEVICES]; // BQ communication structure
 SRAM1 UVX_COMM_BQ_STATE_MACHINE comm_bq_state;
 
@@ -381,9 +378,8 @@ UVX_COMM_BQ_STATE uvx_comm_bq_write_register(UVX_COMM_BQ* p_comm_bq, uint16_t re
 	return UVX_BQ_OK;
 }
 
-UVX_COMM_BQ_STATE uvx_comm_bq_write_mba_register(UVX_BQ_DATA* p_bq_data, UVX_BQ_MA_REGISTERS reg_addr, uint8_t* data, uint16_t size) 
+UVX_COMM_BQ_STATE uvx_comm_bq_write_mba_register(UVX_COMM_BQ* p_comm_bq, UVX_BQ_MA_REGISTERS reg_addr, uint8_t* data, uint16_t size) 
 {    
-	UVX_COMM_BQ* p_comm_bq = p_bq_data->p_comm_bq;
 	uint8_t i2c_data[20] = {0};
 
 	if(p_comm_bq->BQ_TX_Ready == 1)
@@ -477,18 +473,25 @@ UVX_COMM_BQ_STATE uvx_comm_bq_bypass(UVX_COMM_BQ* p_comm_bq, uint8_t enable)
 
 UVX_COMM_BQ_STATE uvx_comm_bq_charge_fet(UVX_BQ_DATA* p_bq_data, uint8_t state)
 {
+	UVX_COMM_BQ *p_comm_bq = p_bq_data->p_comm_bq;
+
+	if((p_bq_data == NULL) || (p_comm_bq == NULL))
+	{
+		return UVX_BQ_ERROR;
+	}
+
 	if(state)
 	{
 		if(!p_bq_data->CHG_FET_STAT)
 		{
-			uvx_comm_bq_write_mba_register(p_bq_data, BQ_MA_CHG_FET_TOGGLE, NULL, 0);
+			uvx_comm_bq_write_mba_register(p_comm_bq, BQ_MA_CHG_FET_TOGGLE, NULL, 0);
 		}
 	}
 	else
 	{
 		if(p_bq_data->CHG_FET_STAT)
 		{
-			uvx_comm_bq_write_mba_register(p_bq_data, BQ_MA_CHG_FET_TOGGLE, NULL, 0);
+			uvx_comm_bq_write_mba_register(p_comm_bq, BQ_MA_CHG_FET_TOGGLE, NULL, 0);
 		}
 	}
 
