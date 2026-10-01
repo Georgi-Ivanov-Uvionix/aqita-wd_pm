@@ -487,14 +487,14 @@ UVX_COMM_BQ_STATE uvx_comm_bq_discharge_fet(UVX_BQ_DATA* p_bq_data, bool state)
 
 	if(state)
 	{
-		if(!p_bq_data->DSG_FET_STAT)
+		if(!p_bq_data->FET_DSG_STAT)
 		{
 			uvx_comm_bq_write_mba_register(p_comm_bq, BQ_MA_DSG_FET_TOGGLE, NULL, 0);
 		}
 	}
 	else
 	{
-		if(p_bq_data->DSG_FET_STAT)
+		if(p_bq_data->FET_DSG_STAT)
 		{
 			uvx_comm_bq_write_mba_register(p_comm_bq, BQ_MA_DSG_FET_TOGGLE, NULL, 0);
 		}
@@ -514,14 +514,14 @@ UVX_COMM_BQ_STATE uvx_comm_bq_charge_fet(UVX_BQ_DATA* p_bq_data, bool state)
 
 	if(state)
 	{
-		if(!p_bq_data->CHG_FET_STAT)
+		if(!p_bq_data->FET_CHG_STAT)
 		{
 			uvx_comm_bq_write_mba_register(p_comm_bq, BQ_MA_CHG_FET_TOGGLE, NULL, 0);
 		}
 	}
 	else
 	{
-		if(p_bq_data->CHG_FET_STAT)
+		if(p_bq_data->FET_CHG_STAT)
 		{
 			uvx_comm_bq_write_mba_register(p_comm_bq, BQ_MA_CHG_FET_TOGGLE, NULL, 0);
 		}

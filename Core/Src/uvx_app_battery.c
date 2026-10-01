@@ -167,6 +167,77 @@ void UVX_APP_Batt(void)
 				else
 				{
 					p_app_bq_data = bq_data;
+					batt_state.state_current = BATT_MODE_CHECK_STATUS_BYPASS;
+				}
+			}
+			else if(bq_state == UVX_BQ_TIMEOUT)
+			{
+				if(p_app_bq_data < &bq_data[BQ_DEVICES - 1])
+				{
+					p_app_bq_data++;
+				}
+				else
+				{
+					p_app_bq_data = bq_data;
+				}
+			}
+			else if(bq_state == UVX_BQ_ERROR_NACK)
+			{
+				p_app_comm_bq = p_app_bq_data->p_comm_bq;
+				p_app_comm_bq->RX_Pending = 0;
+				p_app_comm_bq->cnt_nack++;
+				p_app_comm_bq->No_response = 1;	
+				
+				if(p_app_bq_data < &bq_data[BQ_DEVICES - 1])
+				{
+					p_app_bq_data++;
+				}
+				else
+				{
+					p_app_bq_data = bq_data;
+				}
+
+				if(HAL_GetTick() - p_app_comm_bq->time_stamp > 50)
+				{
+					p_app_comm_bq->time_stamp = HAL_GetTick();
+					uvx_gpio_toggle_pin(GPIO_OUTPUT_PWR_LED);
+				}
+			}			
+		break;
+
+		case BATT_MODE_CHECK_STATUS_BYPASS:
+
+			if(bq_data_1.FET_BPS_EN)
+			{
+				bq_data_1.FET_DSG_STAT_NEW = false;
+			}
+			else
+			{
+				bq_data_1.FET_BPS_STAT_NEW = false;
+				batt_state.state_current = BATT_MODE_CHECK_STATUS_FET_DSG;
+			}
+
+			bq_state = batt_mode_check_fet_enable(p_app_bq_data);
+			
+			if(bq_state == UVX_BQ_OK)
+			{
+				if(p_app_bq_data < &bq_data[BQ_DEVICES - 1])
+				{
+					p_app_bq_data++;
+				}
+				else
+				{
+					p_app_bq_data = bq_data;
+
+					if(bq_data_1.FET_BPS_STAT || bq_data_2.FET_BPS_STAT || bq_data_3.FET_BPS_STAT)
+					{
+						batt_state.state_current = BATT_MODE_CHECK_STATUS_FET_BPS;
+					}
+					else
+					{
+						batt_state.state_current = BATT_MODE_CHECK_STATUS_FET_DSG;
+					}
+
 					batt_state.state_current = BATT_MODE_CHECK_STATUS_FET_DSG;
 				}
 			}
@@ -309,9 +380,9 @@ void UVX_APP_Batt(void)
 
 			if(batt_data.tc)
 			{
-				bq_data_1.CHG_FET_STAT_NEW = false;
-				bq_data_2.CHG_FET_STAT_NEW = false;
-				bq_data_3.CHG_FET_STAT_NEW = false;
+				bq_data_1.FET_CHG_STAT_NEW = false;
+				bq_data_2.FET_CHG_STAT_NEW = false;
+				bq_data_3.FET_CHG_STAT_NEW = false;
 			}
 			else
 			{
@@ -323,15 +394,15 @@ void UVX_APP_Batt(void)
 						uvx_gpio_set_pin(GPIO_OUTPUT_PWR_LED, GPIO_PIN_RESET);
 					}
 
-					bq_data_1.CHG_FET_STAT_NEW = true;
-					bq_data_2.CHG_FET_STAT_NEW = true;
-					bq_data_3.CHG_FET_STAT_NEW = true;
+					bq_data_1.FET_CHG_STAT_NEW = true;
+					bq_data_2.FET_CHG_STAT_NEW = true;
+					bq_data_3.FET_CHG_STAT_NEW = true;
 				}
 				else
 				{
-					bq_data_1.CHG_FET_STAT_NEW = false;
-					bq_data_2.CHG_FET_STAT_NEW = false;
-					bq_data_3.CHG_FET_STAT_NEW = false;
+					bq_data_1.FET_CHG_STAT_NEW = false;
+					bq_data_2.FET_CHG_STAT_NEW = false;
+					bq_data_3.FET_CHG_STAT_NEW = false;
 				}		
 			}
 
@@ -525,7 +596,6 @@ static UVX_COMM_BQ_STATE batt_mode_init_bypass(UVX_COMM_BQ *p_comm_bq)
 	if(!p_comm_bq->RX_Pending)
 	{
 		p_comm_bq->Bypass_old = 1;
-		//result = uvx_comm_bq_bypass(p_comm_bq, 0);
 		result = uvx_comm_bq_bypass(p_comm_bq, 0);
 		p_comm_bq->RX_Pending = 1;
 
@@ -581,7 +651,7 @@ static UVX_COMM_BQ_STATE batt_mode_check_fet_enable(UVX_BQ_DATA *p_bq_data)
 
 	if(!p_comm_bq->RX_Pending)
 	{
-		if(p_bq_data->DSG_CHG_FET_EN)
+		if(p_bq_data->FET_DSG_CHG_EN)
 		{
 			uvx_comm_bq_write_mba_register(p_comm_bq, BQ_MA_FET_CONTROL, NULL, 0);
 			p_comm_bq->RX_Pending = 1; // Set RX pending flag to indicate that a read operation is in progress
@@ -607,7 +677,7 @@ static UVX_COMM_BQ_STATE batt_mode_check_fet_dsg(UVX_BQ_DATA *p_bq_data)
 
 	if(!p_comm_bq->RX_Pending)
 	{
-		if(!p_bq_data->DSG_FET_STAT)
+		if(!p_bq_data->FET_DSG_STAT)
 		{
 			uvx_comm_bq_discharge_fet(p_bq_data, 1);
 			p_comm_bq->RX_Pending = 1; // Set RX pending flag to indicate that a read operation is in progress
@@ -633,9 +703,9 @@ static UVX_COMM_BQ_STATE batt_mode_check_fet_chg(UVX_BQ_DATA *p_bq_data)
 
 	if(!p_comm_bq->RX_Pending)
 	{
-		if((p_bq_data->CHG_FET_STAT) != (p_bq_data->CHG_FET_STAT_NEW))
+		if((p_bq_data->FET_CHG_STAT) != (p_bq_data->FET_CHG_STAT_NEW))
 		{
-			uvx_comm_bq_charge_fet(p_bq_data, p_bq_data->CHG_FET_STAT_NEW);
+			uvx_comm_bq_charge_fet(p_bq_data, p_bq_data->FET_CHG_STAT_NEW);
 			p_comm_bq->RX_Pending = 1; // Set RX pending flag to indicate that a read operation is in progress
 			return UVX_BQ_ERROR_BUSY;
 		}

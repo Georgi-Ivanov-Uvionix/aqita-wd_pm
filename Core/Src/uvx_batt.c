@@ -254,28 +254,28 @@ UVX_BATT_STATE uvx_batt_parse_data(void)
 	bq_data_3.gpio_pin_21 = (bq_data_3.gpio_status & BQ_GPIO_PIN21_MASK) >> 6;
 	bq_data_3.gpio_pin_22 = (bq_data_3.gpio_status & BQ_GPIO_PIN22_MASK) >> 7;
 
-	bq_data_1.Bypass = bq_data_1.gpio_pin_15;
-	bq_data_2.Bypass = bq_data_2.gpio_pin_15;
-	bq_data_3.Bypass = bq_data_3.gpio_pin_15;
+	bq_data_1.FET_BPS_STAT = bq_data_1.gpio_pin_15;
+	bq_data_2.FET_BPS_STAT = bq_data_2.gpio_pin_15;
+	bq_data_3.FET_BPS_STAT = bq_data_3.gpio_pin_15;
 
-	bq_data_1.DSG_CHG_FET_EN = bq_data_1.manufacturing_status.reg.bits.FET_EN;
-	bq_data_2.DSG_CHG_FET_EN = bq_data_2.manufacturing_status.reg.bits.FET_EN;
-	bq_data_3.DSG_CHG_FET_EN = bq_data_3.manufacturing_status.reg.bits.FET_EN;
+	bq_data_1.FET_DSG_CHG_EN = bq_data_1.manufacturing_status.reg.bits.FET_EN;
+	bq_data_2.FET_DSG_CHG_EN = bq_data_2.manufacturing_status.reg.bits.FET_EN;
+	bq_data_3.FET_DSG_CHG_EN = bq_data_3.manufacturing_status.reg.bits.FET_EN;
 
-	bq_data_1.CHG_FET_STAT = bq_data_1.operation_status.reg.bits.CHG;
-	bq_data_2.CHG_FET_STAT = bq_data_2.operation_status.reg.bits.CHG;
-	bq_data_3.CHG_FET_STAT = bq_data_3.operation_status.reg.bits.CHG;
+	bq_data_1.FET_CHG_STAT = bq_data_1.operation_status.reg.bits.CHG;
+	bq_data_2.FET_CHG_STAT = bq_data_2.operation_status.reg.bits.CHG;
+	bq_data_3.FET_CHG_STAT = bq_data_3.operation_status.reg.bits.CHG;
 
-	bq_data_1.DSG_FET_STAT = bq_data_1.operation_status.reg.bits.DSG;
-	bq_data_2.DSG_FET_STAT = bq_data_2.operation_status.reg.bits.DSG;
-	bq_data_3.DSG_FET_STAT = bq_data_3.operation_status.reg.bits.DSG;
+	bq_data_1.FET_DSG_STAT = bq_data_1.operation_status.reg.bits.DSG;
+	bq_data_2.FET_DSG_STAT = bq_data_2.operation_status.reg.bits.DSG;
+	bq_data_3.FET_DSG_STAT = bq_data_3.operation_status.reg.bits.DSG;
 
-	batt_data.CHG_FET_1_STAT = bq_data_1.CHG_FET_STAT;
-	batt_data.DSG_FET_1_STAT = bq_data_1.DSG_FET_STAT;
-	batt_data.CHG_FET_2_STAT = bq_data_2.CHG_FET_STAT;
-	batt_data.DSG_FET_2_STAT = bq_data_2.DSG_FET_STAT;
-	batt_data.CHG_FET_3_STAT = bq_data_3.CHG_FET_STAT;
-	batt_data.DSG_FET_3_STAT = bq_data_3.DSG_FET_STAT;
+	batt_data.CHG_FET_1_STAT = bq_data_1.FET_CHG_STAT;
+	batt_data.DSG_FET_1_STAT = bq_data_1.FET_DSG_STAT;
+	batt_data.CHG_FET_2_STAT = bq_data_2.FET_CHG_STAT;
+	batt_data.DSG_FET_2_STAT = bq_data_2.FET_DSG_STAT;
+	batt_data.CHG_FET_3_STAT = bq_data_3.FET_CHG_STAT;
+	batt_data.DSG_FET_3_STAT = bq_data_3.FET_DSG_STAT;
 
 	batt_data.Qmax_passed_BQ_1 = (int16_t)bq_data_1.Qmax_passed;
 	batt_data.Qmax_passed_BQ_2 = (int16_t)bq_data_2.Qmax_passed; 
