@@ -451,7 +451,7 @@ UVX_COMM_BQ_STATE uvx_comm_bq_bypass(UVX_COMM_BQ* p_comm_bq, uint8_t enable)
 	if(enable)
 	{
 		data[0] = 0x00;
-		data[1] = 0x10;
+		data[1] = 0x01;
 		p_comm_bq->Bypass = true;
 	}
 	else
@@ -465,7 +465,8 @@ UVX_COMM_BQ_STATE uvx_comm_bq_bypass(UVX_COMM_BQ* p_comm_bq, uint8_t enable)
 	{
 		p_comm_bq->Bypass_old = p_comm_bq->Bypass;
 
-		state = uvx_comm_bq_write_register(p_comm_bq, GPIO_WRITE, data, 2);
+		uvx_comm_bq_write_register(p_comm_bq, GPIO_WRITE, data, 2);
+		state = UVX_BQ_ERROR_BUSY;
 
 	}
 	else

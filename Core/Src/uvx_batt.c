@@ -462,11 +462,6 @@ UVX_BATT_STATE uvx_batt_parse_data(void)
 
 	batt_data.supply_status = batt_data.payload.supply_status;
 
-	if(batt_data.cell_ball_2 || batt_data.cell_ball_1 || batt_data.cell_ball_3)
-	{
-		uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_RESET); //charging
-	}	
-
 	return UVX_BATT_OK;
 }
 

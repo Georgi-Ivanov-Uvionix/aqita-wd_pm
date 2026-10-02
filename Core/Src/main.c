@@ -471,7 +471,6 @@ void UVX_APP(void)
 				   (comm_m2jmb_state.state_current == M2JMB_MODE_IDLE) &&
 				   (!comm_bq_3.Force_balance || !comm_bq_2.Force_balance || !comm_bq_1.Force_balance))
 				{
-					uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_SET);
 					batt_state.state_current = BATT_MODE_STOP;
 					enter_LPSleep();
 					if(g_Exit_Sleep_Request)
@@ -2385,14 +2384,6 @@ void I2C1_ER_IRQHandler(void)
     {
         __HAL_I2C_CLEAR_FLAG(hi2c, I2C_FLAG_BERR);
     }
-
-	uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_RESET);
-	uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_SET);
-	uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_RESET);
-	uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_SET);		
-	uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_RESET);		
-	uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_SET);		
-	uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_RESET);	
 
     /* Still handle other errors, such as arbitration loss or overrun. */
     HAL_I2C_ER_IRQHandler(hi2c);

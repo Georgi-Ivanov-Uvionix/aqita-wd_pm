@@ -9,6 +9,7 @@ static UVX_COMM_BQ_STATE bq_state;
 static UVX_COMM_BQ_STATE batt_mode_init_bypass(UVX_COMM_BQ *p_comm_bq);
 static UVX_COMM_BQ_STATE batt_mode_read_BQ(UVX_COMM_BQ *p_comm_bq);
 static UVX_COMM_BQ_STATE batt_mode_check_fet_enable(UVX_BQ_DATA *p_bq_data);
+static UVX_COMM_BQ_STATE batt_mode_check_fet_bps(UVX_BQ_DATA *p_bq_data);
 static UVX_COMM_BQ_STATE batt_mode_check_fet_dsg(UVX_BQ_DATA *p_bq_data);
 static UVX_COMM_BQ_STATE batt_mode_check_fet_chg(UVX_BQ_DATA *p_bq_data);
 static UVX_COMM_BQ_STATE batt_check_response(UVX_COMM_BQ *p_comm_bq);
@@ -27,6 +28,20 @@ void UVX_APP_Batt(void)
 			batt_state.state_current = BATT_MODE_INIT_BYPASS;
 			p_app_bq_data = bq_data;
 			p_app_comm_bq = comm_bq;
+			bq_data_1.FET_DSG_CHG_EN = 0;
+			bq_data_1.FET_BPS_EN = 0;
+			bq_data_1.FET_DSG_STAT_NEW = 1;
+			bq_data_1.FET_CHG_STAT_NEW = 1;
+
+			bq_data_2.FET_DSG_CHG_EN = 0;
+			bq_data_2.FET_BPS_EN = 0;
+			bq_data_2.FET_DSG_STAT_NEW = 1;
+			bq_data_2.FET_CHG_STAT_NEW = 1;
+
+			bq_data_3.FET_DSG_CHG_EN = 0;
+			bq_data_3.FET_BPS_EN = 0;
+			bq_data_3.FET_DSG_STAT_NEW = 1;
+			bq_data_3.FET_CHG_STAT_NEW = 1;
 		break;
 
 		case BATT_MODE_INIT_BYPASS:
@@ -205,38 +220,8 @@ void UVX_APP_Batt(void)
 			}			
 		break;
 
-		case BATT_MODE_CHECK_STATUS_BYPASS:
-
-			if(bq_data_1.FET_BPS_EN) //if we enable bypass FET
-			{
-				if(!drone_status.pwr_fet)
-				{
-					bq_data_1.FET_DSG_STAT_NEW = false;
-					bq_data_1.FET_CHG_STAT_NEW = false;
-
-					if((!bq_data_1.FET_DSG_STAT) && (!bq_data_1.FET_CHG_STAT)) //if all FETs are off, we can turn on BPS FET
-					{
-						if((!bq_data_1.FET_BPS_STAT))
-						{
-							bq_data_1.FET_BPS_STAT_NEW = true; //turn off BPS FET
-						}
-					}
-				}
-
-				batt_state.state_current = BATT_MODE_CHECK_STATUS_FET_DSG;
-			}
-			else
-			{
-					if((!bq_data_1.FET_DSG_STAT) && (!bq_data_1.FET_CHG_STAT)) //if all FETs are off, we can turn on BPS FET
-					{
-						if((!bq_data_1.FET_BPS_STAT))
-						{
-							bq_data_1.FET_BPS_STAT_NEW = true; //turn off BPS FET
-						}
-					}
-			}
-
-			bq_state = batt_mode_check_fet_enable(p_app_bq_data);
+		case BATT_MODE_CHECK_STATUS_BYPASS:			
+			bq_state = batt_mode_check_fet_bps(p_app_bq_data);
 			
 			if(bq_state == UVX_BQ_OK)
 			{
@@ -247,16 +232,6 @@ void UVX_APP_Batt(void)
 				else
 				{
 					p_app_bq_data = bq_data;
-
-					if(bq_data_1.FET_BPS_STAT || bq_data_2.FET_BPS_STAT || bq_data_3.FET_BPS_STAT)
-					{
-						batt_state.state_current = BATT_MODE_CHECK_STATUS_FET_BPS;
-					}
-					else
-					{
-						batt_state.state_current = BATT_MODE_CHECK_STATUS_FET_DSG;
-					}
-
 					batt_state.state_current = BATT_MODE_CHECK_STATUS_FET_DSG;
 				}
 			}
@@ -292,7 +267,7 @@ void UVX_APP_Batt(void)
 					p_app_comm_bq->time_stamp = HAL_GetTick();
 					uvx_gpio_toggle_pin(GPIO_OUTPUT_PWR_LED);
 				}
-			}			
+			}	
 		break;
 
 		case BATT_MODE_CHECK_STATUS_FET_DSG:
@@ -358,6 +333,7 @@ void UVX_APP_Batt(void)
 				{
 					p_app_bq_data = bq_data;
 					batt_state.state_current = BATT_MODE_CHECK_STATUS;
+					uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_RESET);
 				}
 			}
 			else if(bq_state == UVX_BQ_TIMEOUT)
@@ -397,33 +373,32 @@ void UVX_APP_Batt(void)
 
 		case BATT_MODE_CHECK_STATUS:
 
-			if(batt_data.tc)
-			{
-				bq_data_1.FET_CHG_STAT_NEW = false;
-				bq_data_2.FET_CHG_STAT_NEW = false;
-				bq_data_3.FET_CHG_STAT_NEW = false;
-			}
-			else
-			{
-				if((batt_data.adc_pack_v_stable_high) && (drone_status.pwr_fet))
-				{
-					uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_RESET);
-					if(drone_state.state_current == DRONE_CHECK_BUTTON_PRESS_ONCE)
-					{
-						uvx_gpio_set_pin(GPIO_OUTPUT_PWR_LED, GPIO_PIN_RESET);
-					}
+			// if(batt_data.tc)
+			// {
+			// 	bq_data_1.FET_CHG_STAT_NEW = false;
+			// 	bq_data_2.FET_CHG_STAT_NEW = false;
+			// 	bq_data_3.FET_CHG_STAT_NEW = false;
+			// }
+			// else
+			// {
+			// 	if((batt_data.adc_pack_v_stable_high) && (drone_status.pwr_fet))
+			// 	{				
+			// 		if(drone_state.state_current == DRONE_CHECK_BUTTON_PRESS_ONCE)
+			// 		{
+			// 			uvx_gpio_set_pin(GPIO_OUTPUT_PWR_LED, GPIO_PIN_RESET);
+			// 		}
 
-					bq_data_1.FET_CHG_STAT_NEW = true;
-					bq_data_2.FET_CHG_STAT_NEW = true;
-					bq_data_3.FET_CHG_STAT_NEW = true;
-				}
-				else
-				{
-					bq_data_1.FET_CHG_STAT_NEW = false;
-					bq_data_2.FET_CHG_STAT_NEW = false;
-					bq_data_3.FET_CHG_STAT_NEW = false;
-				}		
-			}
+			// 		bq_data_1.FET_CHG_STAT_NEW = true;
+			// 		bq_data_2.FET_CHG_STAT_NEW = true;
+			// 		bq_data_3.FET_CHG_STAT_NEW = true;
+			// 	}
+			// 	else
+			// 	{
+			// 		bq_data_1.FET_CHG_STAT_NEW = false;
+			// 		bq_data_2.FET_CHG_STAT_NEW = false;
+			// 		bq_data_3.FET_CHG_STAT_NEW = false;
+			// 	}		
+			// }
 
 			if(!batt_data.cell_ball_2 && !batt_data.cell_ball_1 && !batt_data.cell_ball_3)
 			{
@@ -468,6 +443,8 @@ void UVX_APP_Batt(void)
 			}		
 			
 			batt_state.state_current = BATT_MODE_READ_BQ;
+			bq_data_1.FET_BPS_EN = true;
+	
 		break;
 		
 		case BATT_MODE_READ_CHECK_PACK_V:
@@ -670,11 +647,66 @@ static UVX_COMM_BQ_STATE batt_mode_check_fet_enable(UVX_BQ_DATA *p_bq_data)
 
 	if(!p_comm_bq->RX_Pending)
 	{
-		if(p_bq_data->FET_DSG_CHG_EN)
+		if(p_bq_data->FET_DSG_CHG_EN != p_bq_data->FET_DSG_CHG_EN_NEW) 
 		{
-			uvx_comm_bq_write_mba_register(p_comm_bq, BQ_MA_FET_CONTROL, NULL, 0);
+			uvx_comm_bq_write_mba_register(p_comm_bq, BQ_MA_FET_CONTROL, NULL, p_bq_data->FET_DSG_CHG_EN_NEW);
 			p_comm_bq->RX_Pending = 1; // Set RX pending flag to indicate that a read operation is in progress
 			return UVX_BQ_ERROR_BUSY;
+		}		
+
+		return UVX_BQ_OK;
+	}
+	else
+	{
+		return batt_check_response(p_comm_bq);
+	}	
+}
+
+static UVX_COMM_BQ_STATE batt_mode_check_fet_bps(UVX_BQ_DATA *p_bq_data)
+{
+	UVX_COMM_BQ_STATE comm_state;
+	UVX_COMM_BQ *p_comm_bq = p_bq_data->p_comm_bq;
+
+	if((p_bq_data == NULL) || (p_comm_bq == NULL))
+	{
+		return UVX_BQ_ERROR;
+	}
+
+	if(p_bq_data->FET_BPS_EN) //if we enable bypass FET
+	{
+		//if(!drone_status.pwr_fet)
+		{
+			p_bq_data->FET_DSG_STAT_NEW = false;
+			p_bq_data->FET_CHG_STAT_NEW = false;
+
+			if((!p_bq_data->FET_DSG_STAT) && (!p_bq_data->FET_CHG_STAT)) //if all FETs are off, we can turn on BPS FET
+			{
+				if((!p_bq_data->FET_BPS_STAT))
+				{
+					p_bq_data->FET_BPS_STAT_NEW = true; //turn off BPS FET
+				}
+			}
+		}
+	}
+	else
+	{
+		if((p_bq_data->FET_BPS_STAT))
+		{
+			p_bq_data->FET_BPS_STAT_NEW = false; //turn off BPS FET
+		}					
+	}
+
+	if(!p_comm_bq->RX_Pending)
+	{
+		if(p_bq_data->FET_BPS_STAT != p_bq_data->FET_BPS_STAT_NEW) 
+		{
+			p_bq_data->bypass_time_start_ms = HAL_GetTick();
+			comm_state = uvx_comm_bq_bypass(p_comm_bq, p_bq_data->FET_BPS_STAT_NEW);
+			if(comm_state != UVX_BQ_OK)
+			{
+				p_comm_bq->RX_Pending = 1; // Set RX pending flag to indicate that a read operation is in progress
+				return UVX_BQ_ERROR_BUSY;
+			}
 		}		
 
 		return UVX_BQ_OK;
@@ -696,9 +728,9 @@ static UVX_COMM_BQ_STATE batt_mode_check_fet_dsg(UVX_BQ_DATA *p_bq_data)
 
 	if(!p_comm_bq->RX_Pending)
 	{
-		if(!p_bq_data->FET_DSG_STAT)
+		if(p_bq_data->FET_DSG_STAT != p_bq_data->FET_DSG_STAT_NEW)
 		{
-			uvx_comm_bq_discharge_fet(p_bq_data, 1);
+			uvx_comm_bq_discharge_fet(p_bq_data, p_bq_data->FET_DSG_STAT_NEW);
 			p_comm_bq->RX_Pending = 1; // Set RX pending flag to indicate that a read operation is in progress
 			return UVX_BQ_ERROR_BUSY;
 		}		
@@ -713,6 +745,7 @@ static UVX_COMM_BQ_STATE batt_mode_check_fet_dsg(UVX_BQ_DATA *p_bq_data)
 
 static UVX_COMM_BQ_STATE batt_mode_check_fet_chg(UVX_BQ_DATA *p_bq_data)
 {
+	UVX_COMM_BQ_STATE state;
 	UVX_COMM_BQ *p_comm_bq = p_bq_data->p_comm_bq;
 
 	if((p_bq_data == NULL) || (p_comm_bq == NULL))
@@ -733,7 +766,16 @@ static UVX_COMM_BQ_STATE batt_mode_check_fet_chg(UVX_BQ_DATA *p_bq_data)
 	}
 	else
 	{
-		return batt_check_response(p_comm_bq);
+		state = batt_check_response(p_comm_bq);
+		if(state == UVX_BQ_OK)
+		{
+			if(p_bq_data->bypass_time_start_ms != 0)
+			{
+				p_bq_data->bypass_time_ms = HAL_GetTick() - p_bq_data->bypass_time_start_ms;	
+				p_bq_data->bypass_time_start_ms = 0;	
+			}
+		}
+		return state;
 	}	
 }
 
@@ -741,7 +783,6 @@ static UVX_COMM_BQ_STATE batt_mode_check_fet_chg(UVX_BQ_DATA *p_bq_data)
  * (such as the complete register list) is finished. */
 static UVX_COMM_BQ_STATE batt_check_response(UVX_COMM_BQ *p_comm_bq)
 {
-	uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_SET);
 	p_comm_bq->i2c_state = uvx_i2c_check_response(&i2c_bq.hal_i2c, (uint32_t*)p_comm_bq);
 
 	if(p_comm_bq->i2c_state == UVX_I2C_UNLOCKED)
@@ -758,10 +799,7 @@ static UVX_COMM_BQ_STATE batt_check_response(UVX_COMM_BQ *p_comm_bq)
 	}
 
 	if(p_comm_bq->i2c_state == UVX_I2C_NACK)
-	{
-		uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_RESET);
-		uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_SET);
-		uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_RESET);		
+	{		
 		p_comm_bq->No_response = true;
 		p_comm_bq->cnt_no_response = 0;
 		p_comm_bq->RX_Pending = 0;
@@ -774,11 +812,7 @@ static UVX_COMM_BQ_STATE batt_check_response(UVX_COMM_BQ *p_comm_bq)
 
 	if(p_comm_bq->i2c_state == UVX_I2C_STOP_DETECTED)
 	{
-		uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_RESET);
-		uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_SET);
-		uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_RESET);
-		uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_SET);		
-		uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_RESET);				
+			
 		p_comm_bq->cnt_no_response = 0;
 		p_comm_bq->RX_Pending = 0;
 		p_comm_bq->BQ_RX_Ready = 1;
@@ -791,7 +825,6 @@ static UVX_COMM_BQ_STATE batt_check_response(UVX_COMM_BQ *p_comm_bq)
 
 	if(p_comm_bq->i2c_state == UVX_I2C_ERROR)
 	{
-		uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_RESET);
 		p_comm_bq->No_response = true;
 		p_comm_bq->cnt_no_response = 0;
 		p_comm_bq->RX_Pending = 0;
@@ -803,7 +836,6 @@ static UVX_COMM_BQ_STATE batt_check_response(UVX_COMM_BQ *p_comm_bq)
 
 	if(p_comm_bq->i2c_state == UVX_I2C_OK)
 	{
-		uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_RESET);
 		p_comm_bq->No_response = false;
 		p_comm_bq->batt_reg_cnt++;
 		p_comm_bq->cnt_no_response = 0;
@@ -821,7 +853,7 @@ static UVX_COMM_BQ_STATE batt_check_response(UVX_COMM_BQ *p_comm_bq)
 		p_comm_bq->cnt_no_response++;
 		if(p_comm_bq->cnt_no_response > BQ_MAX_NO_RESPONSE)
 		{
-			uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_RESET);
+
 			// if((p_comm_bq->p_hal_i2c->hi2c.Instance->ISR) != 0x01)
 			// {
 			// 	HAL_I2C_ER_IRQHandler(&p_comm_bq->p_hal_i2c->hi2c);	

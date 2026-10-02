@@ -522,6 +522,7 @@ typedef struct UVX_BQ_DATA
 
     uint8_t No_response             : 1; // Flag to indicate if there was no response from the BQ device 
     uint8_t FET_DSG_CHG_EN          : 1; // 
+    uint8_t FET_DSG_CHG_EN_NEW      : 1; // 
     uint8_t FET_CHG_STAT            : 1; //
     uint8_t FET_CHG_STAT_NEW        : 1; //
     uint8_t FET_DSG_STAT            : 1; //
@@ -544,9 +545,8 @@ typedef struct UVX_BQ_DATA
     uint8_t  gpio_pin_21 : 1;           // GPIO pin 21 status
     uint8_t  gpio_pin_22 : 1;           // GPIO pin 22 status    
 
-
-    uint8_t Force_balance       : 1; // Requested force-balance state
-    uint8_t Force_balance_old   : 1; // Previous force-balance state
+    uint32_t bypass_time_start_ms;
+    uint32_t bypass_time_ms;
 }UVX_BQ_DATA;
 
 typedef enum 
