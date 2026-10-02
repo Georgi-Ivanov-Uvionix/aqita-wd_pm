@@ -676,15 +676,36 @@ static UVX_COMM_BQ_STATE batt_mode_check_fet_bps(UVX_BQ_DATA *p_bq_data)
 	{
 		//if(!drone_status.pwr_fet)
 		{
-			p_bq_data->FET_DSG_STAT_NEW = false;
-			p_bq_data->FET_CHG_STAT_NEW = false;
-
-			if((!p_bq_data->FET_DSG_STAT) && (!p_bq_data->FET_CHG_STAT)) //if all FETs are off, we can turn on BPS FET
+			if(!p_bq_data->FET_BPS_STAT)
 			{
-				if((!p_bq_data->FET_BPS_STAT))
+				p_bq_data->FET_DSG_STAT_NEW = false;
+				p_bq_data->FET_CHG_STAT_NEW = false;
+
+				uvx_comm_bq_discharge_fet(p_bq_data, p_bq_data->FET_DSG_STAT_NEW);
+				while(batt_check_response(p_comm_bq) != UVX_BQ_OK)
+				{				
+					HAL_Delay(1);
+				}		
+				p_bq_data->FET_DSG_STAT = false;
+
+
+				uvx_comm_bq_charge_fet(p_bq_data, p_bq_data->FET_CHG_STAT_NEW);
+				while(batt_check_response(p_comm_bq) != UVX_BQ_OK)
 				{
-					p_bq_data->FET_BPS_STAT_NEW = true; //turn off BPS FET
+					HAL_Delay(1);
 				}
+
+				p_bq_data->FET_CHG_STAT = false;
+				p_bq_data->FET_BPS_STAT_NEW = true; //turn off BPS FET
+
+				uvx_comm_bq_bypass(p_comm_bq, p_bq_data->FET_BPS_STAT_NEW);
+				while(batt_check_response(p_comm_bq) != UVX_BQ_OK)
+				{
+					HAL_Delay(1);
+				}
+				p_bq_data->FET_BPS_STAT = true;
+
+				return UVX_BQ_OK;
 			}
 		}
 	}
