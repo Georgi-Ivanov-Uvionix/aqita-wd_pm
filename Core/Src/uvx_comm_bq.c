@@ -32,6 +32,7 @@ UVX_BQ_REGISTER bq_1_register_list_read[] = {
 	{CBSTATUS,   			   30, (uint8_t*) &bq_data_1.CBSTATUS_size},	
 	{STATE_OF_HEALTH,   	    1, (uint8_t*) &bq_data_1.SOH},	
 	{CYCLE_COUNT,   	    	2, (uint8_t*) &bq_data_1.cycle_count},
+	{GPIO_READ,   	    		2, (uint8_t*) &bq_data_1.gpio_status},
     {END_REGISTER, 				0, NULL} // End marker
 };
 
@@ -71,6 +72,7 @@ UVX_BQ_REGISTER bq_2_register_list_read[] = {
 	{CBSTATUS,   			   30, (uint8_t*) &bq_data_2.CBSTATUS_size},
 	{STATE_OF_HEALTH,   	    1, (uint8_t*) &bq_data_2.SOH},
 	{CYCLE_COUNT,   	    	2, (uint8_t*) &bq_data_2.cycle_count},
+	{GPIO_READ,   	    		2, (uint8_t*) &bq_data_2.gpio_status},
     {END_REGISTER, 				0, NULL} // End marker
 };
 
@@ -110,6 +112,7 @@ UVX_BQ_REGISTER bq_3_register_list_read[] = {
     {CBSTATUS,                  30, (uint8_t*) &bq_data_3.CBSTATUS_size},
     {STATE_OF_HEALTH,            1, (uint8_t*) &bq_data_3.SOH},
     {CYCLE_COUNT,                2, (uint8_t*) &bq_data_3.cycle_count},
+	{GPIO_READ,                  2, (uint8_t*) &bq_data_3.gpio_status},
     {END_REGISTER,               0, NULL}
 };
 
