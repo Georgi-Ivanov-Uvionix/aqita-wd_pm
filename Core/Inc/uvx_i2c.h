@@ -84,6 +84,9 @@ typedef struct UVX_I2C_HAL
 
     uint32_t *p_lock_owner; // Pointer to the lock owner
     uint32_t *p_locker; // Pointer to the locker
+    uint32_t i2c_err_timeout; // Pointer to the locker
+    uint32_t i2c_err_hal_busy; // Pointer to the locker
+    uint32_t i2c_err_hal_timeout; // Pointer to the locker
 }UVX_I2C_HAL;
 
 typedef struct UVX_I2C

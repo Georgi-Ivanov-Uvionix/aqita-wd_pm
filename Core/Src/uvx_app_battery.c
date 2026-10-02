@@ -207,14 +207,33 @@ void UVX_APP_Batt(void)
 
 		case BATT_MODE_CHECK_STATUS_BYPASS:
 
-			if(bq_data_1.FET_BPS_EN)
+			if(bq_data_1.FET_BPS_EN) //if we enable bypass FET
 			{
-				bq_data_1.FET_DSG_STAT_NEW = false;
+				if(!drone_status.pwr_fet)
+				{
+					bq_data_1.FET_DSG_STAT_NEW = false;
+					bq_data_1.FET_CHG_STAT_NEW = false;
+
+					if((!bq_data_1.FET_DSG_STAT) && (!bq_data_1.FET_CHG_STAT)) //if all FETs are off, we can turn on BPS FET
+					{
+						if((!bq_data_1.FET_BPS_STAT))
+						{
+							bq_data_1.FET_BPS_STAT_NEW = true; //turn off BPS FET
+						}
+					}
+				}
+
+				batt_state.state_current = BATT_MODE_CHECK_STATUS_FET_DSG;
 			}
 			else
 			{
-				bq_data_1.FET_BPS_STAT_NEW = false;
-				batt_state.state_current = BATT_MODE_CHECK_STATUS_FET_DSG;
+					if((!bq_data_1.FET_DSG_STAT) && (!bq_data_1.FET_CHG_STAT)) //if all FETs are off, we can turn on BPS FET
+					{
+						if((!bq_data_1.FET_BPS_STAT))
+						{
+							bq_data_1.FET_BPS_STAT_NEW = true; //turn off BPS FET
+						}
+					}
 			}
 
 			bq_state = batt_mode_check_fet_enable(p_app_bq_data);

@@ -277,7 +277,7 @@ UVX_I2C_STATE uvx_i2c_send_mem(UVX_I2C_HAL* p_i2c, uint8_t dev_addr, uint16_t re
                       ( p_i2c->hi2c.Instance->ISR & I2C_ISR_TXIS ) ) )
                 {
                     if(p_i2c->I2C_TX_Ready)
-                    {
+                    {                        
                         p_i2c->I2C_TX_Ready = 0;
                         dev_addr <<= 1; // Shift address            
                         p_i2c->STOP_Detected = 0U;
@@ -293,18 +293,39 @@ UVX_I2C_STATE uvx_i2c_send_mem(UVX_I2C_HAL* p_i2c, uint8_t dev_addr, uint16_t re
                                 return UVX_I2C_BUSY;
                             }
 
+                            if((p_i2c->last_mem_write_error & HAL_I2C_ERROR_TIMEOUT) != 0U)
+                            {
+                                p_i2c->i2c_err_hal_timeout++;
+
+                                if(p_i2c->i2c_err_timeout == 0U)
+                                {
+                                    p_i2c->i2c_err_timeout = HAL_GetTick();
+                                    __HAL_I2C_DISABLE(&p_i2c->hi2c);
+                                }
+
+                                if((HAL_GetTick() - p_i2c->i2c_err_timeout) > 100U)
+                                {
+                                    p_i2c->i2c_err_timeout = 0U;
+                                    __HAL_I2C_ENABLE(&p_i2c->hi2c);
+                                }   
+
+                                p_i2c->hi2c.Instance->ICR = I2C_ICR_TIMOUTCF;
+                                return UVX_I2C_TIMEOUT;
+                            }
+
                             if((p_i2c->last_mem_write_error & HAL_I2C_ERROR_AF) != 0U)
                             {
                                 p_i2c->hi2c.Instance->ICR = I2C_ICR_NACKCF;
                                 return UVX_I2C_NACK;
-                            }
+                            }                            
 
                             if((res == HAL_TIMEOUT) || ((p_i2c->last_mem_write_error & HAL_I2C_ERROR_TIMEOUT) != 0U))
                             {
                                 return UVX_I2C_TIMEOUT;
-                            }
+                            }   
                             return UVX_I2C_ERROR;
                         }
+                        p_i2c->i2c_err_timeout = 0U;
                     }
                     else
                     {
@@ -324,7 +345,28 @@ UVX_I2C_STATE uvx_i2c_send_mem(UVX_I2C_HAL* p_i2c, uint8_t dev_addr, uint16_t re
 
                 if( p_i2c->hi2c.Instance->ISR & I2C_ISR_BUSY )
                 {
-                    return UVX_I2C_BUSY;
+                    p_i2c->i2c_err_hal_busy++;
+                    if(p_i2c->i2c_err_timeout == 0U)
+                    {
+                        p_i2c->i2c_err_timeout = HAL_GetTick();
+                        __HAL_I2C_DISABLE(&p_i2c->hi2c);
+                    }
+
+                    if((HAL_GetTick() - p_i2c->i2c_err_timeout) > 100U)
+                    {
+                        p_i2c->i2c_err_timeout = 0U;
+                        __HAL_I2C_ENABLE(&p_i2c->hi2c);
+                    }
+
+                    if( p_i2c->hi2c.Instance->ISR & I2C_ISR_BUSY)
+                    {
+                        return UVX_I2C_BUSY;
+                    }
+                    else
+                    {
+                        return UVX_I2C_ERROR; // Return error if transmission fails
+                    }                    
+                
                 }
 
                 return UVX_I2C_ERROR; // Return error if transmission fails

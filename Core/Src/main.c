@@ -467,6 +467,7 @@ void UVX_APP(void)
 
 				if((!batt_data.adc_pack_v_stable_high) &&
 				   (batt_data.adc_pack_v_stable_low) &&
+				   (batt_data.init) &&
 				   (comm_m2jmb_state.state_current == M2JMB_MODE_IDLE) &&
 				   (!comm_bq_3.Force_balance || !comm_bq_2.Force_balance || !comm_bq_1.Force_balance))
 				{
