@@ -849,7 +849,7 @@ void         UVX_APP_Batt(void)
 				if(batt_data.tc)
 				{
 					uvx_comm_bq_charge_fet(&comm_bq_h, 0);
-				//UVX_APP_PWR_FET(0); // PWR off
+					UVX_APP_PWR_FET(0); // PWR off
 				}
 				else
 				{
@@ -860,7 +860,8 @@ void         UVX_APP_Batt(void)
 						{
 							uvx_app_pwr_led(GPIO_PIN_RESET);
 						}
-
+						
+						UVX_APP_PWR_FET(1);
 						uvx_comm_bq_charge_fet(&comm_bq_h, 1);
 					}
 					else
