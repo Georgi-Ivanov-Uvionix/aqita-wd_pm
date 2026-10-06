@@ -29,7 +29,7 @@ void UVX_APP_Batt(void)
 			p_app_bq_data = bq_data;
 			p_app_comm_bq = comm_bq;
 			bq_data_1.FET_DSG_CHG_EN = 0;
-			bq_data_1.FET_BPS_EN = 0;
+			bq_data_1.FET_BPS_EN = 1;
 			bq_data_1.FET_DSG_STAT_NEW = 1;
 			bq_data_1.FET_CHG_STAT_NEW = 1;
 
@@ -441,9 +441,13 @@ void UVX_APP_Batt(void)
 				// 	}					
 				// }	
 			}		
-			
+						
 			batt_state.state_current = BATT_MODE_READ_BQ;
-			bq_data_1.FET_BPS_EN = true;
+
+			if(bq_data_1.gpio_pin_15)
+			{
+				bq_data_1.FET_BPS_EN = false;
+			}
 	
 		break;
 		
@@ -681,29 +685,38 @@ static UVX_COMM_BQ_STATE batt_mode_check_fet_bps(UVX_BQ_DATA *p_bq_data)
 				p_bq_data->FET_DSG_STAT_NEW = false;
 				p_bq_data->FET_CHG_STAT_NEW = false;
 
-				uvx_comm_bq_discharge_fet(p_bq_data, p_bq_data->FET_DSG_STAT_NEW);
-				while(batt_check_response(p_comm_bq) != UVX_BQ_OK)
-				{				
-					HAL_Delay(1);
-				}		
-				p_bq_data->FET_DSG_STAT = false;
-
-
-				uvx_comm_bq_charge_fet(p_bq_data, p_bq_data->FET_CHG_STAT_NEW);
-				while(batt_check_response(p_comm_bq) != UVX_BQ_OK)
+				comm_state = uvx_comm_bq_discharge_fet(p_bq_data, p_bq_data->FET_DSG_STAT_NEW);
+				if(comm_state != UVX_BQ_OK)
 				{
-					HAL_Delay(1);
+					while(batt_check_response(p_comm_bq) != UVX_BQ_OK)
+					{				
+						HAL_Delay(1);
+					}		
+					p_bq_data->FET_DSG_STAT = false;
+				}
+
+				comm_state = uvx_comm_bq_charge_fet(p_bq_data, p_bq_data->FET_CHG_STAT_NEW);
+				if(comm_state != UVX_BQ_OK)
+				{
+					while(batt_check_response(p_comm_bq) != UVX_BQ_OK)
+					{				
+						HAL_Delay(1);
+					}		
+					p_bq_data->FET_CHG_STAT = false;
 				}
 
 				p_bq_data->FET_CHG_STAT = false;
-				p_bq_data->FET_BPS_STAT_NEW = true; //turn off BPS FET
+				p_bq_data->FET_BPS_STAT_NEW = true;
 
-				uvx_comm_bq_bypass(p_comm_bq, p_bq_data->FET_BPS_STAT_NEW);
-				while(batt_check_response(p_comm_bq) != UVX_BQ_OK)
+				comm_state = uvx_comm_bq_bypass(p_comm_bq, p_bq_data->FET_BPS_STAT_NEW);
+				if(comm_state != UVX_BQ_OK)
 				{
-					HAL_Delay(1);
+					while(batt_check_response(p_comm_bq) != UVX_BQ_OK)
+					{				
+						HAL_Delay(1);
+					}		
+					p_bq_data->FET_BPS_STAT = true;
 				}
-				p_bq_data->FET_BPS_STAT = true;
 
 				return UVX_BQ_OK;
 			}
@@ -712,8 +725,43 @@ static UVX_COMM_BQ_STATE batt_mode_check_fet_bps(UVX_BQ_DATA *p_bq_data)
 	else
 	{
 		if((p_bq_data->FET_BPS_STAT))
-		{
-			p_bq_data->FET_BPS_STAT_NEW = false; //turn off BPS FET
+		{			
+				p_bq_data->FET_BPS_STAT_NEW = false;
+				comm_state = uvx_comm_bq_bypass(p_comm_bq, p_bq_data->FET_BPS_STAT_NEW);
+				if(comm_state != UVX_BQ_OK)
+				{
+					while(batt_check_response(p_comm_bq) != UVX_BQ_OK)
+					{				
+						HAL_Delay(1);
+					}		
+					p_bq_data->FET_BPS_STAT = false;
+				}
+
+				p_bq_data->FET_DSG_STAT_NEW = true;
+				p_bq_data->FET_CHG_STAT_NEW = true;
+
+				comm_state = uvx_comm_bq_charge_fet(p_bq_data, p_bq_data->FET_CHG_STAT_NEW);
+				if(comm_state != UVX_BQ_OK)
+				{
+					while(batt_check_response(p_comm_bq) != UVX_BQ_OK)
+					{				
+						HAL_Delay(1);
+					}		
+					p_bq_data->FET_CHG_STAT = true;
+				}
+
+
+				comm_state = uvx_comm_bq_discharge_fet(p_bq_data, p_bq_data->FET_DSG_STAT_NEW);
+				if(comm_state != UVX_BQ_OK)
+				{
+					while(batt_check_response(p_comm_bq) != UVX_BQ_OK)
+					{				
+						HAL_Delay(1);
+					}		
+					p_bq_data->FET_DSG_STAT = true;
+				}
+				
+				return UVX_BQ_OK;				
 		}					
 	}
 
