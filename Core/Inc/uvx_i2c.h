@@ -27,12 +27,16 @@ typedef enum
     UVX_I2C_INIT_ERROR_DMA,
     UVX_I2C_TX_READY,
     UVX_I2C_RX_READY,
-    UVX_I2C_ALREADY_INITIALIZED
+    UVX_I2C_ALREADY_INITIALIZED,
+    UVX_I2C_NACK // Slave did not acknowledge the address or a transmitted byte
 } UVX_I2C_STATE;
 
 typedef struct UVX_I2C_HAL
 {
     I2C_HandleTypeDef   hi2c;
+    HAL_StatusTypeDef       last_mem_write_status;
+    HAL_I2C_StateTypeDef    last_mem_write_state;
+    uint32_t                last_mem_write_error; // Snapshot immediately after the HAL call    
     DMA_HandleTypeDef   hdma_tx;
     DMA_HandleTypeDef   hdma_rx;
 
@@ -70,8 +74,11 @@ typedef struct UVX_I2C_HAL
     uint8_t dma_interrupt_tx 	    : 1; // Flag to indicate if TX DMA interrupt is enabled
 
     uint8_t RX_Ready 	            : 1; // RX byte ready
-    uint8_t TX_Ready 	            : 1; // TX byte ready    
+    uint8_t TX_Ready 	            : 1; // TX byte ready 
 
+    uint32_t i2c_err_timeout; // Pointer to the locker
+    uint32_t i2c_err_hal_busy; // Pointer to the locker
+    uint32_t i2c_err_hal_timeout; // Pointer to the locker
 }UVX_I2C_HAL;
 
 typedef struct UVX_I2C
