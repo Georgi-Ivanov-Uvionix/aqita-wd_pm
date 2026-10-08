@@ -530,6 +530,7 @@ typedef struct UVX_BQ_DATA
     uint8_t FET_BPS_EN              : 1; //
     uint8_t FET_BPS_STAT            : 1; //
     uint8_t FET_BPS_STAT_NEW        : 1; //
+    uint8_t bps_need_discharge      : 1; // Selected pack with highest average cell voltage
 
     MANUFACTURE_STATUS_S manufacturing_status;
     OPERATION_STATUS_S operation_status; 

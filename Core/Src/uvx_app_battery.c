@@ -29,7 +29,7 @@ void UVX_APP_Batt(void)
 			p_app_bq_data = bq_data;
 			p_app_comm_bq = comm_bq;
 			bq_data_1.FET_DSG_CHG_EN = 0;
-			bq_data_1.FET_BPS_EN = 1;
+			bq_data_1.FET_BPS_EN = 0;
 			bq_data_1.FET_DSG_STAT_NEW = 1;
 			bq_data_1.FET_CHG_STAT_NEW = 1;
 

@@ -77,6 +77,27 @@ UVX_BATT_STATE uvx_batt_learn(void)
 	return UVX_BATT_OK;
 }
 
+UVX_BATT_STATE uvx_batt_find_highest_average_pack_voltage(void)
+{
+	uint16_t highest = 0U;
+	uint8_t i;
+
+	for(i = 0U; i < BQ_DEVICES; i++)
+	{
+		if(bq_data[i].voltage_per_cell > highest)
+		{
+			highest = bq_data[i].voltage_per_cell;
+		}
+	}
+
+	for(i = 0U; i < BQ_DEVICES; i++)
+	{
+		bq_data[i].bps_need_discharge = (bq_data[i].voltage_per_cell == highest);
+	}
+
+	return UVX_BATT_OK;
+}
+
 UVX_BATT_STATE uvx_batt_parse_data(void)
 {
 	batt_data.cell_voltage_1  = bq_data_1.cell_voltage_1 - (bq_data_1.current * CELL_1_INTERCONNECT_RESISTANCE)/1000;
@@ -373,6 +394,8 @@ UVX_BATT_STATE uvx_batt_parse_data(void)
 	{
 		bq_data_3.voltage_per_cell = 0;
 	}
+
+	uvx_batt_find_highest_average_pack_voltage();
 
 	batt_data.voltage_diff_pack = (int16_t)(
 		uvx_batt_max_u16_3(bq_data_1.voltage_per_cell, bq_data_2.voltage_per_cell, bq_data_3.voltage_per_cell) -

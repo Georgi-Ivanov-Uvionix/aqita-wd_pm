@@ -353,6 +353,8 @@ extern UVX_BATT_STATE_MACHINE batt_state;
 extern SRAM1 UVX_BATT_DATA batt_data;
 
 UVX_BATT_STATE uvx_batt_parse_data(void);
+/* Flags every BQ whose voltage_per_cell equals the maximum across all BQs. */
+UVX_BATT_STATE uvx_batt_find_highest_average_pack_voltage(void);
 UVX_BATT_STATE uvx_batt_read_data(uint16_t reg_index);
 UVX_BATT_STATE uvx_batt_read_pack_v(void);
 UVX_BATT_STATE uvx_batt_detect_cells(void);
