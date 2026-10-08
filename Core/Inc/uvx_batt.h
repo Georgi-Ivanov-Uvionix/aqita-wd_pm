@@ -48,6 +48,7 @@
 #define BATT_CELL_CHARGE_RESUME_VOLTAGE             4100 //mv
 #define BATT_CELL_DETECT_THRESHOLD_MV               1500 //mv
 #define BATT_CELL_VOLTAGE_DIFF                      10  //mv
+#define BATT_BPS_DISCHARGE_DIFF_MV                 20U
 #define BATT_DELTA_VOLTAGE                          1300  //mv
 #define BATT_ADC_PACK_V_LOW_MIN_MS                  5000U
 
@@ -353,7 +354,8 @@ extern UVX_BATT_STATE_MACHINE batt_state;
 extern SRAM1 UVX_BATT_DATA batt_data;
 
 UVX_BATT_STATE uvx_batt_parse_data(void);
-/* Flags every BQ whose voltage_per_cell equals the maximum across all BQs. */
+/* Flags maximum-voltage BQs for discharge only when max-min exceeds 20 mV.
+ * Minimum-voltage BQs are flagged for charge regardless of the difference. */
 UVX_BATT_STATE uvx_batt_find_highest_average_pack_voltage(void);
 UVX_BATT_STATE uvx_batt_read_data(uint16_t reg_index);
 UVX_BATT_STATE uvx_batt_read_pack_v(void);
