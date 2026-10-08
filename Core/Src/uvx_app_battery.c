@@ -6,6 +6,15 @@ static UVX_BQ_DATA *p_app_bq_data;
 static UVX_COMM_BQ *p_app_comm_bq;
 static UVX_COMM_BQ_STATE bq_state;
 
+#define BATT_BPS_SWITCH_INTERVAL_MS 10000U
+static uint32_t bps_active_pack = BQ_DEVICES;
+static uint32_t bps_next_pack;
+static uint32_t bps_start_ms;
+static bool bps_timer_running;
+static bool bps_wait_off;
+
+static void batt_rotate_fet_bps(void);
+
 static UVX_COMM_BQ_STATE batt_mode_init_bypass(UVX_COMM_BQ *p_comm_bq);
 static UVX_COMM_BQ_STATE batt_mode_read_BQ(UVX_COMM_BQ *p_comm_bq);
 static UVX_COMM_BQ_STATE batt_mode_check_fet_enable(UVX_BQ_DATA *p_bq_data);
@@ -19,6 +28,10 @@ void UVX_APP_Batt(void)
 	switch(batt_state.state_current)
 	{
 		case BATT_MODE_INIT:
+			bps_active_pack = BQ_DEVICES;
+			bps_next_pack = 0;
+			bps_timer_running = false;
+			bps_wait_off = false;
 			uvx_comm_bq_change_list(&comm_bq_1, bq_1_register_list_read_once);
 			uvx_comm_bq_change_list(&comm_bq_2, bq_2_register_list_read_once);
 			uvx_comm_bq_change_list(&comm_bq_3, bq_3_register_list_read_once);			
@@ -444,10 +457,7 @@ void UVX_APP_Batt(void)
 						
 			batt_state.state_current = BATT_MODE_READ_BQ;
 
-			if(bq_data_1.gpio_pin_15)
-			{
-				bq_data_1.FET_BPS_EN = false;
-			}
+
 	
 		break;
 		
@@ -666,15 +676,89 @@ static UVX_COMM_BQ_STATE batt_mode_check_fet_enable(UVX_BQ_DATA *p_bq_data)
 	}	
 }
 
+// Rotate bypass through packs that do not need discharge, one pack at a time.
+static void batt_rotate_fet_bps(void)
+{
+	uint32_t i;
+	uint32_t pack;
+	uint32_t now = HAL_GetTick();
+
+	if(bps_active_pack < BQ_DEVICES)
+	{
+		if(!bps_wait_off)
+		{
+			if(!bps_timer_running /*&& bq_data[bps_active_pack].FET_BPS_STAT*/)
+			{
+				bps_start_ms = now;
+				bps_timer_running = true;
+			}
+
+			if(bq_data[bps_active_pack].bps_need_discharge ||
+			   !bq_data[bps_active_pack].FET_BPS_EN ||
+			   (bps_timer_running &&
+			    (uint32_t)(now - bps_start_ms) >= BATT_BPS_SWITCH_INTERVAL_MS))
+			{
+				bq_data[bps_active_pack].FET_BPS_EN = false;
+				//bq_data[bps_active_pack].FET_BPS_STAT_NEW = false;
+				bps_wait_off = true;
+			}
+		}
+
+		if(!bps_wait_off)
+		{
+			return;
+		}
+
+		// Finish disabling the previous pack before enabling another.
+		if(bq_data[bps_active_pack].FET_BPS_STAT ||
+		   bq_data[bps_active_pack].p_comm_bq->RX_Pending)
+		{
+			return;
+		}
+		bps_next_pack = (bps_active_pack + 1U) % BQ_DEVICES;
+		bps_active_pack = BQ_DEVICES;
+		bps_timer_running = false;
+		bps_wait_off = false;
+	}
+
+	// Also clear any previous bypass requests before starting the sequence.
+	for(i = 0; i < BQ_DEVICES; i++)
+	{
+		bq_data[i].FET_BPS_EN = false;
+		//bq_data[i].FET_BPS_STAT_NEW = false;
+	}
+	for(i = 0; i < BQ_DEVICES; i++)
+	{
+		if(bq_data[i].FET_BPS_STAT ||
+		   (bq_data[i].p_comm_bq != NULL && bq_data[i].p_comm_bq->RX_Pending))
+		{
+			return;
+		}
+	}
+
+	for(i = 0; i < BQ_DEVICES; i++)
+	{
+		pack = (bps_next_pack + i) % BQ_DEVICES;
+		if(!bq_data[pack].bps_need_discharge && bq_data[pack].p_comm_bq != NULL)
+		{
+			bps_active_pack = pack;
+			bq_data[pack].FET_BPS_EN = true;
+			return;
+		}
+	}
+}
+
 static UVX_COMM_BQ_STATE batt_mode_check_fet_bps(UVX_BQ_DATA *p_bq_data)
 {
 	UVX_COMM_BQ_STATE comm_state;
-	UVX_COMM_BQ *p_comm_bq = p_bq_data->p_comm_bq;
+	UVX_COMM_BQ *p_comm_bq = (p_bq_data != NULL) ? p_bq_data->p_comm_bq : NULL;
 
 	if((p_bq_data == NULL) || (p_comm_bq == NULL))
 	{
 		return UVX_BQ_ERROR;
 	}
+
+	batt_rotate_fet_bps();
 
 	if(p_bq_data->FET_BPS_EN) //if we enable bypass FET
 	{
@@ -764,26 +848,26 @@ static UVX_COMM_BQ_STATE batt_mode_check_fet_bps(UVX_BQ_DATA *p_bq_data)
 				return UVX_BQ_OK;				
 		}					
 	}
+//-------------------------------------------------------------------------------------------------------------------------------------------------
+	// if(!p_comm_bq->RX_Pending)
+	// {
+	// 	if(p_bq_data->FET_BPS_STAT != p_bq_data->FET_BPS_STAT_NEW) 
+	// 	{
+	// 		p_bq_data->bypass_time_start_ms = HAL_GetTick();
+	// 		comm_state = uvx_comm_bq_bypass(p_comm_bq, p_bq_data->FET_BPS_STAT_NEW);
+	// 		if(comm_state != UVX_BQ_OK)
+	// 		{
+	// 			p_comm_bq->RX_Pending = 1; // Set RX pending flag to indicate that a read operation is in progress
+	// 			return UVX_BQ_ERROR_BUSY;
+	// 		}
+	// 	}		
 
-	if(!p_comm_bq->RX_Pending)
-	{
-		if(p_bq_data->FET_BPS_STAT != p_bq_data->FET_BPS_STAT_NEW) 
-		{
-			p_bq_data->bypass_time_start_ms = HAL_GetTick();
-			comm_state = uvx_comm_bq_bypass(p_comm_bq, p_bq_data->FET_BPS_STAT_NEW);
-			if(comm_state != UVX_BQ_OK)
-			{
-				p_comm_bq->RX_Pending = 1; // Set RX pending flag to indicate that a read operation is in progress
-				return UVX_BQ_ERROR_BUSY;
-			}
-		}		
-
-		return UVX_BQ_OK;
-	}
-	else
-	{
-		return batt_check_response(p_comm_bq);
-	}	
+	// 	return UVX_BQ_OK;
+	// }
+	// else
+	// {
+	// 	return batt_check_response(p_comm_bq);
+	// }	
 }
 
 static UVX_COMM_BQ_STATE batt_mode_check_fet_dsg(UVX_BQ_DATA *p_bq_data)
