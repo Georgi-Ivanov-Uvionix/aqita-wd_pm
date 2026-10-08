@@ -687,7 +687,7 @@ static void batt_rotate_fet_bps(void)
 	{
 		if(!bps_wait_off)
 		{
-			if(!bps_timer_running /*&& bq_data[bps_active_pack].FET_BPS_STAT*/)
+			if(!bps_timer_running && bq_data[bps_active_pack].FET_BPS_STAT)
 			{
 				bps_start_ms = now;
 				bps_timer_running = true;
@@ -868,6 +868,7 @@ static UVX_COMM_BQ_STATE batt_mode_check_fet_bps(UVX_BQ_DATA *p_bq_data)
 	// {
 	// 	return batt_check_response(p_comm_bq);
 	// }	
+	return UVX_BQ_OK;
 }
 
 static UVX_COMM_BQ_STATE batt_mode_check_fet_dsg(UVX_BQ_DATA *p_bq_data)
