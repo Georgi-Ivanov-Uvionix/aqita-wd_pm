@@ -738,6 +738,21 @@ UVX_I2C_STATE uvx_i2c_check_response(UVX_I2C_HAL* p_i2c, uint32_t* p_locker)
 
     if(p_i2c->p_lock_owner != p_locker)
     {
+        if(p_i2c->i2c_err_timeout_lock == 0)
+        {
+            p_i2c->i2c_err_timeout_lock = HAL_GetTick();
+        }
+        else
+        {
+            if((HAL_GetTick() - p_i2c->i2c_err_timeout_lock) > I2C_ERR_TIMEOUT_LOCK)
+            {
+                p_i2c->i2c_err_cnt_lock++;
+                p_i2c->i2c_err_timeout_lock = 0U;
+                p_i2c->p_lock_owner = NULL; // Release the lock after timeout
+                p_i2c->I2C_RX_Ready = 1;
+                p_i2c->I2C_TX_Ready = 1;
+            }
+        }
         return UVX_I2C_LOCK_ERROR;
     }
 

@@ -285,6 +285,11 @@ UVX_BATT_STATE uvx_batt_parse_data(void)
 	bq_data_2.FET_BPS_STAT = bq_data_2.gpio_pin_15;
 	bq_data_3.FET_BPS_STAT = bq_data_3.gpio_pin_15;
 
+	if(batt_data.init)
+	{
+		batt_data.BPS_Passive = bq_data_1.FET_BPS_STAT || bq_data_2.FET_BPS_STAT || bq_data_3.FET_BPS_STAT;
+	}
+
 	bq_data_1.FET_DSG_CHG_EN = bq_data_1.manufacturing_status.reg.bits.FET_EN;
 	bq_data_2.FET_DSG_CHG_EN = bq_data_2.manufacturing_status.reg.bits.FET_EN;
 	bq_data_3.FET_DSG_CHG_EN = bq_data_3.manufacturing_status.reg.bits.FET_EN;
@@ -559,7 +564,7 @@ UVX_BATT_STATE uvx_batt_read_pack_v(void)
 
 				if( (drone_status.pwr_fet == 0) &&
 					(drone_status.pwr_fc == 0) &&
-				    (!batt_data.tc))				   
+				    (!batt_data.tc) && (!batt_data.BPS_Passive))				   
 				{					
 					UVX_APP_PWR_FET(1); // power on FC
 					batt_data.adc_pack_v_stable_low = 0;

@@ -296,6 +296,7 @@ typedef struct
     uint32_t cell_ball_2 : 1;
     uint32_t cell_ball_3 : 1;
     uint32_t batt_max_temp : 1;
+    uint32_t BPS_Passive : 1; // At least one pack has bypass enabled (FET_BPS_EN).
    
     uint16_t specification_info;       // Specification Information
     uint16_t manufacturer_date;        // Manufacturer Date

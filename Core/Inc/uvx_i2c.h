@@ -11,6 +11,7 @@
 #define UVX_I2C_TX_IT_BUFFER_SIZE 32U
 #endif
 
+#define I2C_ERR_TIMEOUT_LOCK 100U
 
 typedef enum
 {
@@ -85,6 +86,8 @@ typedef struct UVX_I2C_HAL
     uint32_t *p_lock_owner; // Pointer to the lock owner
     uint32_t *p_locker; // Pointer to the locker
     uint32_t i2c_err_timeout; // Pointer to the locker
+    uint32_t i2c_err_timeout_lock; // timeout error for lock
+    uint32_t i2c_err_cnt_lock; // timeout error for lock
     uint32_t i2c_err_hal_busy; // Pointer to the locker
     uint32_t i2c_err_hal_timeout; // Pointer to the locker
 }UVX_I2C_HAL;

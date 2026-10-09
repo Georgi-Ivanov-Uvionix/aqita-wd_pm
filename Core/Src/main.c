@@ -280,7 +280,7 @@ int main(void)
 	uvx_gpio_set_pin(GPIO_OUTPUT_PWR_LED, GPIO_PIN_SET);
 	uvx_gpio_set_pin(GPIO_OUTPUT_BQH_I2C_EN, GPIO_PIN_SET); // bqh turn off
 	uvx_gpio_set_pin(GPIO_OUTPUT_BQH_I2C_EN, GPIO_PIN_RESET);
-	UVX_APP_PWR_FET(1); // power off
+	UVX_APP_PWR_FET(0); // power off
 	uvx_gpio_set_pin(GPIO_OUT_LED_STRIP_ENABLE, GPIO_PIN_SET);
 	uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_RESET);
 
@@ -752,8 +752,16 @@ void UVX_APP_PWR_FET(uint8_t state)
 
 	if(state)
 	{
-		uvx_gpio_set_pin(GPIO_OUTPUT_PM_INH_CHG, GPIO_PIN_RESET);
-		drone_status.pwr_fet = true;		
+		if(!batt_data.BPS_Passive)
+		{
+			uvx_gpio_set_pin(GPIO_OUTPUT_PM_INH_CHG, GPIO_PIN_RESET);
+			drone_status.pwr_fet = true;	
+		}
+		else
+		{
+			uvx_gpio_set_pin(GPIO_OUTPUT_PM_INH_CHG, GPIO_PIN_SET);
+			drone_status.pwr_fet = false;
+		}
 	}
 	else
 	{
@@ -1223,6 +1231,7 @@ void UVX_APP_Comm_m2m(void)
 	}
 
 	timer_app_batt_pwr_high = UVX_SETUP_timer_app_batt_pwr_high; // Initialize the JMB communication timer
+	timer_app_batt_pwr_high.Timeout = APP_TIMEOUT_PACK_V_STABLE_HIGH;
 	if(uvx_timer_add(&timer_app_batt_pwr_high) != UVX_TIMER_OK) // Add the JMB communication timer
 	{
 		Error_Handler();
