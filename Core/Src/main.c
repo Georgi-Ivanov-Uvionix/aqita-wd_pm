@@ -329,6 +329,13 @@ void UVX_APP(void)
 				{
 					drone_state.state_current = DRONE_SLEEP;
 				}
+				else
+				{
+					if(batt_state.state_current == BATT_MODE_STOP)
+					{
+						batt_state.state_current = BATT_MODE_READ_BQ;
+					}
+				}
 
 				#ifdef APP_NO_BATTERY_MODE	
 				if(comm_m2jmb_state.state_current == M2JMB_MODE_IDLE)			
