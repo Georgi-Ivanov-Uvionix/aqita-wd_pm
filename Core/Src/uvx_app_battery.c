@@ -685,8 +685,8 @@ static void batt_rotate_fet_bps(void)
 	uint32_t pack;
 	uint32_t now = HAL_GetTick();
 
-	// FC power takes priority over bypass rotation.
-	if(drone_status.pwr_fc)
+	// Keep prepare_fc set until the packs are ready for FC power-on.
+	if(drone_status.pwr_fc || comm_m2jmb_state.state_current == M2JMB_MODE_SEND_FC_ON_ACK)
 	{
 		for(i = 0; i < BQ_DEVICES; i++)
 		{
@@ -694,6 +694,25 @@ static void batt_rotate_fet_bps(void)
 			bq_data[i].FET_BPS_STAT_NEW = false;
 			bq_data[i].FET_CHG_STAT_NEW = true;
 			bq_data[i].FET_DSG_STAT_NEW = true;
+		}
+
+		// Use reported status, not just the requested FET settings.
+		for(i = 0; i < BQ_DEVICES; i++)
+		{
+			if(!bq_data[i].operation_status.reg.bits.CHG ||
+			   !bq_data[i].operation_status.reg.bits.DSG ||
+			   bq_data[i].FET_BPS_STAT ||
+			   bq_data[i].p_comm_bq == NULL ||
+			   bq_data[i].p_comm_bq->No_response ||
+			   bq_data[i].p_comm_bq->RX_Pending)
+			{
+				break;
+			}
+		}
+		
+		if(i == BQ_DEVICES)
+		{
+			drone_status.prepare_fc = false;
 		}
 
 		bps_active_pack = BQ_DEVICES;

@@ -874,18 +874,21 @@ void UVX_APP_Comm_m2jmb(void)
 		break;
 
 		case M2JMB_MODE_SEND_FC_ON_ACK:
-			if(uvx_comm_m2jmb_send(CMD_PWR_ON_FC_ACK, NULL, NULL) == UVX_M2JMB_OK)
+			if(!drone_status.prepare_fc)
 			{
-				drone_state.state_current = DRONE_JETSON_POWERED_ON;
-				drone_status.pwr_fc = true;
-				comm_m2jmb_state.state_current = M2JMB_MODE_WAIT_RESPONSE; // Wait for response
-				uvx_gpio_set_pin(GPIO_OUTPUT_GREEN_LED, GPIO_PIN_RESET);		
-				uvx_gpio_set_pin(GPIO_OUTPUT_DRONE_START_FET_EN, GPIO_PIN_SET);				
-				uvx_gpio_set_pin(GPIO_OUTPUT_ESC_EN, GPIO_PIN_SET);				
-				uvx_gpio_set_pin(GPIO_OUTPUT_5V_EN, GPIO_PIN_SET);		
-				uvx_gpio_set_pin(GPIO_OUTPUT_CUBE_EN, GPIO_PIN_SET);		
+				if(uvx_comm_m2jmb_send(CMD_PWR_ON_FC_ACK, NULL, NULL) == UVX_M2JMB_OK)
+				{
+					drone_state.state_current = DRONE_JETSON_POWERED_ON;
+					drone_status.pwr_fc = true;
+					comm_m2jmb_state.state_current = M2JMB_MODE_WAIT_RESPONSE; // Wait for response
+					uvx_gpio_set_pin(GPIO_OUTPUT_GREEN_LED, GPIO_PIN_RESET);		
+					uvx_gpio_set_pin(GPIO_OUTPUT_DRONE_START_FET_EN, GPIO_PIN_SET);				
+					uvx_gpio_set_pin(GPIO_OUTPUT_ESC_EN, GPIO_PIN_SET);				
+					uvx_gpio_set_pin(GPIO_OUTPUT_5V_EN, GPIO_PIN_SET);		
+					uvx_gpio_set_pin(GPIO_OUTPUT_CUBE_EN, GPIO_PIN_SET);
+				}						
 			}
-						
+
 			led_strip_state.state_next = LED_STRIP_MODE_COMM_FC;
 		break;
 
@@ -970,6 +973,7 @@ void UVX_APP_Comm_m2jmb(void)
 				}
 				else if(buff_rx_m2jmb[M2JMB_BYTE_CMD] == CMD_PWR_ON_FC)
 				{							
+					drone_status.prepare_fc = true; // Set flag to prepare for FC power on
 					comm_m2jmb_state.state_current = M2JMB_MODE_SEND_FC_ON_ACK; // Set next state to send ACK
 					batt_data.adc_pack_v_stable_high = 0;
 					UVX_APP_PWR_FET(0); // power off					

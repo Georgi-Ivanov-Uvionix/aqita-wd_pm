@@ -259,6 +259,7 @@ typedef struct
   uint8_t pwr_fet     : 1;
   uint8_t pwr_jtson   : 1;
   uint8_t pwr_fc      : 1;
+  uint8_t prepare_fc  : 1;
   uint8_t hall_land_2 : 1;
   uint8_t esc_comm    : 1;
   uint8_t esc_init    : 1;
