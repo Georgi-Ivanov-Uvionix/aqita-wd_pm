@@ -391,8 +391,7 @@ typedef struct GAUGING_STATUS_S
 } GAUGING_STATUS_S;
 
 typedef struct UVX_BQ_DATA
-{
-    UVX_COMM_BQ* p_comm_bq;             // Pointer to the communication structure for BQ
+{    
     uint16_t temperature;               // Temperature in 0.1 Kelvin
     uint16_t voltage;                   // Voltage in millivolts    
     int16_t  current;                   // Current in milliamps
@@ -521,17 +520,6 @@ typedef struct UVX_BQ_DATA
     uint16_t cell_power_7;
 
     uint8_t No_response             : 1; // Flag to indicate if there was no response from the BQ device 
-    uint8_t FET_DSG_CHG_EN          : 1; // 
-    uint8_t FET_DSG_CHG_EN_NEW      : 1; // 
-    uint8_t FET_CHG_STAT            : 1; //
-    uint8_t FET_CHG_STAT_NEW        : 1; //
-    uint8_t FET_DSG_STAT            : 1; //
-    uint8_t FET_DSG_STAT_NEW        : 1; //
-    uint8_t FET_BPS_EN              : 1; //
-    uint8_t FET_BPS_STAT            : 1; //
-    uint8_t FET_BPS_STAT_NEW        : 1; //
-    uint8_t bps_need_discharge      : 1; // Highest average cell voltage, with pack spread above threshold
-    uint8_t bps_need_charge         : 1; // Pack matches lowest average cell voltage
 
     MANUFACTURE_STATUS_S manufacturing_status;
     OPERATION_STATUS_S operation_status; 
@@ -547,8 +535,21 @@ typedef struct UVX_BQ_DATA
     uint8_t  gpio_pin_21 : 1;           // GPIO pin 21 status
     uint8_t  gpio_pin_22 : 1;           // GPIO pin 22 status    
 
+    uint8_t FET_DSG_CHG_EN          : 1; // 
+    uint8_t FET_DSG_CHG_EN_NEW      : 1; // 
+    uint8_t FET_CHG_STAT            : 1; //
+    uint8_t FET_CHG_STAT_NEW        : 1; //
+    uint8_t FET_DSG_STAT            : 1; //
+    uint8_t FET_DSG_STAT_NEW        : 1; //
+    uint8_t FET_BPS_EN              : 1; //
+    uint8_t FET_BPS_STAT            : 1; //
+    uint8_t FET_BPS_STAT_NEW        : 1; //
+    uint8_t bps_need_discharge      : 1; // Highest average cell voltage, with pack spread above threshold
+    uint8_t bps_need_charge         : 1; // Pack matches lowest average cell voltage
+
     uint32_t bypass_time_start_ms;
     uint32_t bypass_time_ms;
+    UVX_COMM_BQ* p_comm_bq;             // Pointer to the communication structure for BQ
 }UVX_BQ_DATA;
 
 typedef enum 

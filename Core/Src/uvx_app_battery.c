@@ -174,6 +174,7 @@ void UVX_APP_Batt(void)
 				else
 				{
 					p_app_comm_bq = comm_bq;
+					batt_state.state_current = BATT_MODE_CHECK_STATUS_FET_EN;
 				}
 
 				if(HAL_GetTick() - p_app_comm_bq->time_stamp > 50)
@@ -683,6 +684,24 @@ static void batt_rotate_fet_bps(void)
 	uint32_t i;
 	uint32_t pack;
 	uint32_t now = HAL_GetTick();
+
+	// FC power takes priority over bypass rotation.
+	if(drone_status.pwr_fc)
+	{
+		for(i = 0; i < BQ_DEVICES; i++)
+		{
+			bq_data[i].FET_BPS_EN = false;
+			bq_data[i].FET_BPS_STAT_NEW = false;
+			bq_data[i].FET_CHG_STAT_NEW = true;
+			bq_data[i].FET_DSG_STAT_NEW = true;
+		}
+
+		bps_active_pack = BQ_DEVICES;
+		bps_next_pack = 0;
+		bps_timer_running = false;
+		bps_wait_off = false;
+		return;
+	}
 
 	if(bps_active_pack < BQ_DEVICES)
 	{
