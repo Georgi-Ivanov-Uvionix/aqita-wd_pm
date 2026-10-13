@@ -219,16 +219,18 @@ UVX_BATT_STATE uvx_batt_parse_data(void)
 	}
 
 
-	batt_data.payload.temperature_1_int  = uvx_comm_bq_swap_u16_value(bq_data_1.int_temperature - KELVIN_TO_DEG_C);
+	batt_data.payload.temperature_1_int  = uvx_comm_bq_swap_u16_value((	(bq_data_1.int_temperature - KELVIN_TO_DEG_C) +
+																		(bq_data_2.int_temperature - KELVIN_TO_DEG_C) +
+																	 	(bq_data_3.int_temperature - KELVIN_TO_DEG_C) ) / 3); //combine all three internal temperatures and convert to little endian
 	batt_data.payload.temperature_cell_1 = uvx_comm_bq_swap_u16_value(bq_data_1.ts1_temperature - KELVIN_TO_DEG_C);
 	batt_data.payload.temperature_cell_2 = uvx_comm_bq_swap_u16_value(bq_data_1.ts2_temperature - KELVIN_TO_DEG_C);
 	batt_data.payload.temperature_cell_3 = uvx_comm_bq_swap_u16_value(bq_data_1.ts3_temperature - KELVIN_TO_DEG_C);
-	batt_data.payload.temperature_cell_4 = uvx_comm_bq_swap_u16_value(bq_data_1.ts4_temperature - KELVIN_TO_DEG_C);
-	batt_data.payload.temperature_2_int  = uvx_comm_bq_swap_u16_value(bq_data_2.int_temperature - KELVIN_TO_DEG_C);
-	batt_data.payload.temperature_cell_5 = uvx_comm_bq_swap_u16_value(bq_data_2.ts1_temperature - KELVIN_TO_DEG_C);
-	batt_data.payload.temperature_cell_6 = uvx_comm_bq_swap_u16_value(bq_data_2.ts2_temperature - KELVIN_TO_DEG_C);
-	batt_data.payload.temperature_cell_7 = uvx_comm_bq_swap_u16_value(bq_data_2.ts3_temperature - KELVIN_TO_DEG_C);
-	batt_data.payload.temperature_cell_8 = uvx_comm_bq_swap_u16_value(bq_data_2.ts4_temperature - KELVIN_TO_DEG_C);	
+	batt_data.payload.temperature_cell_4 = uvx_comm_bq_swap_u16_value(bq_data_2.ts1_temperature - KELVIN_TO_DEG_C);
+	batt_data.payload.temperature_2_int  = uvx_comm_bq_swap_u16_value(bq_data_3.ts3_temperature - KELVIN_TO_DEG_C); // this is cell 9 temperature, just for now, because we have to change the protocol
+	batt_data.payload.temperature_cell_5 = uvx_comm_bq_swap_u16_value(bq_data_2.ts2_temperature - KELVIN_TO_DEG_C);
+	batt_data.payload.temperature_cell_6 = uvx_comm_bq_swap_u16_value(bq_data_2.ts3_temperature - KELVIN_TO_DEG_C);
+	batt_data.payload.temperature_cell_7 = uvx_comm_bq_swap_u16_value(bq_data_3.ts1_temperature - KELVIN_TO_DEG_C);
+	batt_data.payload.temperature_cell_8 = uvx_comm_bq_swap_u16_value(bq_data_3.ts2_temperature - KELVIN_TO_DEG_C);	
 
 	batt_data.temperature_bq_1 = bq_data_1.temperature - KELVIN_TO_DEG_C; // kelvin to C -273.15 ~2732
 	batt_data.temperature_bq_2 = bq_data_2.temperature - KELVIN_TO_DEG_C; // kelvin to C -273.15 ~2732	
@@ -237,13 +239,14 @@ UVX_BATT_STATE uvx_batt_parse_data(void)
 	batt_data.temperature_cell_1 = (bq_data_1.ts1_temperature - KELVIN_TO_DEG_C);
 	batt_data.temperature_cell_2 = (bq_data_1.ts2_temperature - KELVIN_TO_DEG_C);
 	batt_data.temperature_cell_3 = (bq_data_1.ts3_temperature - KELVIN_TO_DEG_C);
-	batt_data.temperature_cell_4 = (bq_data_1.ts4_temperature - KELVIN_TO_DEG_C);
+	batt_data.temperature_cell_4 = (bq_data_2.ts1_temperature - KELVIN_TO_DEG_C);
 	batt_data.temperature_2_int  = (bq_data_2.int_temperature - KELVIN_TO_DEG_C);
 	batt_data.temperature_3_int  = (bq_data_3.int_temperature - KELVIN_TO_DEG_C);
-	batt_data.temperature_cell_5 = (bq_data_2.ts1_temperature - KELVIN_TO_DEG_C);
-	batt_data.temperature_cell_6 = (bq_data_2.ts2_temperature - KELVIN_TO_DEG_C);
-	batt_data.temperature_cell_7 = (bq_data_2.ts3_temperature - KELVIN_TO_DEG_C);
-	batt_data.temperature_cell_8 = (bq_data_2.ts4_temperature - KELVIN_TO_DEG_C);		
+	batt_data.temperature_cell_5 = (bq_data_2.ts2_temperature - KELVIN_TO_DEG_C);
+	batt_data.temperature_cell_6 = (bq_data_2.ts3_temperature - KELVIN_TO_DEG_C);
+	batt_data.temperature_cell_7 = (bq_data_3.ts1_temperature - KELVIN_TO_DEG_C);
+	batt_data.temperature_cell_8 = (bq_data_3.ts2_temperature - KELVIN_TO_DEG_C);		
+	batt_data.temperature_cell_9 = (bq_data_3.ts3_temperature - KELVIN_TO_DEG_C);		
 
 	batt_data.power = (bq_data_1.power + bq_data_2.power + bq_data_3.power) * 10; // convert to mW
 	batt_data.payload.power = uvx_comm_bq_swap_u32_value(batt_data.power);

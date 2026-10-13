@@ -83,7 +83,7 @@ void UVX_APP_Batt(void)
 					p_app_comm_bq++;
 				}
 			}
-			else if(bq_state == UVX_BQ_ERROR_NACK)
+			else if((bq_state == UVX_BQ_ERROR_NACK)/* || (bq_state == UVX_BQ_ERROR_BUSY)*/)
 			{
 				p_app_comm_bq->RX_Pending = 0;
 				p_app_comm_bq->cnt_nack++;

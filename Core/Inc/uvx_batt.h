@@ -49,7 +49,7 @@
 #define BATT_CELL_DETECT_THRESHOLD_MV               1500 //mv
 #define BATT_CELL_VOLTAGE_DIFF                      10  //mv
 #define BATT_BPS_DISCHARGE_DIFF_MV                  50U
-#define BATT_DELTA_VOLTAGE                          1300  //mv
+#define BATT_DELTA_VOLTAGE                          1500  //mv
 #define BATT_ADC_PACK_V_LOW_MIN_MS                  5000U
 
 #define BATT_SUPPLY_STATUS_PWR_FET_BIT                 0
@@ -206,6 +206,7 @@ typedef struct
     uint16_t temperature_cell_6;    
     uint16_t temperature_cell_7;    
     uint16_t temperature_cell_8;             //byte 50    
+    uint16_t temperature_cell_9;             //byte 50    
     uint16_t temperature_1_int;       
     uint16_t temperature_2_int;       
     uint16_t temperature_3_int;       
