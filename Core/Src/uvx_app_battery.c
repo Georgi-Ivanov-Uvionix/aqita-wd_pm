@@ -685,6 +685,21 @@ static void batt_rotate_fet_bps(void)
 	uint32_t pack;
 	uint32_t now = HAL_GetTick();
 
+	// Sleep must never select another pack for bypass.
+	if(drone_state.state_current == DRONE_SLEEP)
+	{
+		for(i = 0; i < BQ_DEVICES; i++)
+		{
+			bq_data[i].FET_BPS_EN = false;
+			bq_data[i].FET_BPS_STAT_NEW = false;
+		}
+		bps_active_pack = BQ_DEVICES;
+		bps_next_pack = 0;
+		bps_timer_running = false;
+		bps_wait_off = false;
+		return;
+	}
+
 	// Keep prepare_fc set until the packs are ready for FC power-on.
 	if(drone_status.pwr_fc || comm_m2jmb_state.state_current == M2JMB_MODE_SEND_FC_ON_ACK)
 	{

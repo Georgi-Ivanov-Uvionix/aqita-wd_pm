@@ -465,6 +465,27 @@ void UVX_APP(void)
 		break;
 
 		case DRONE_SLEEP:
+#ifndef APP_NO_BATTERY_MODE
+			{
+				uint32_t i;
+				bool bypass_pending = false;
+
+				for(i = 0; i < BQ_DEVICES; i++)
+				{
+					bq_data[i].FET_BPS_EN = false;
+					bq_data[i].FET_BPS_STAT_NEW = false;
+					if(bq_data[i].FET_BPS_STAT || comm_bq[i].RX_Pending)
+					{
+						bypass_pending = true;
+					}
+				}
+				// Keep running UVX_APP_Batt until bypass shutdown completes.
+				if(bypass_pending)
+				{
+					break;
+				}
+			}
+#endif
 			if(timer_app_drone.Timeout == 0) // If timeout occurs
 			{
 				#ifdef APP_NO_BATTERY_MODE
