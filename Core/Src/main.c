@@ -793,7 +793,7 @@ void UVX_APP_PWR_FET(uint8_t state)
 	}
 	else
 	{
-		uvx_gpio_set_pin(GPIO_OUTPUT_PM_INH_CHG, GPIO_PIN_RESET);
+		uvx_gpio_set_pin(GPIO_OUTPUT_PM_INH_CHG, GPIO_PIN_SET);
 		drone_status.pwr_fet = false;
 	}
 

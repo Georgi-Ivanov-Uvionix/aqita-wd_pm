@@ -389,32 +389,42 @@ void UVX_APP_Batt(void)
 
 		case BATT_MODE_CHECK_STATUS:
 
-			// if(batt_data.tc)
-			// {
-			// 	bq_data_1.FET_CHG_STAT_NEW = false;
-			// 	bq_data_2.FET_CHG_STAT_NEW = false;
-			// 	bq_data_3.FET_CHG_STAT_NEW = false;
-			// }
-			// else
-			// {
-			// 	if((batt_data.adc_pack_v_stable_high) && (drone_status.pwr_fet))
-			// 	{				
-			// 		if(drone_state.state_current == DRONE_CHECK_BUTTON_PRESS_ONCE)
-			// 		{
-			// 			uvx_gpio_set_pin(GPIO_OUTPUT_PWR_LED, GPIO_PIN_RESET);
-			// 		}
+			if(batt_data.tc)
+			{
+				// bq_data_1.FET_CHG_STAT_NEW = false;
+				// bq_data_2.FET_CHG_STAT_NEW = false;
+				// bq_data_3.FET_CHG_STAT_NEW = false;
+				bq_data_1.FET_CHG_STAT_NEW = true;
+				bq_data_2.FET_CHG_STAT_NEW = true;
+				bq_data_3.FET_CHG_STAT_NEW = true;
+				bq_data_1.FET_DSG_STAT_NEW = true;
+				bq_data_2.FET_DSG_STAT_NEW = true;
+				bq_data_3.FET_DSG_STAT_NEW = true;
+				UVX_APP_PWR_FET(0);				
+			}
+			else
+			{
+				if((batt_data.adc_pack_v_stable_high) && (drone_status.pwr_fet))
+				{				
+					if(drone_state.state_current == DRONE_CHECK_BUTTON_PRESS_ONCE)
+					{
+						uvx_gpio_set_pin(GPIO_OUTPUT_PWR_LED, GPIO_PIN_RESET);
+					}
 
-			// 		bq_data_1.FET_CHG_STAT_NEW = true;
-			// 		bq_data_2.FET_CHG_STAT_NEW = true;
-			// 		bq_data_3.FET_CHG_STAT_NEW = true;
-			// 	}
-			// 	else
-			// 	{
-			// 		bq_data_1.FET_CHG_STAT_NEW = false;
-			// 		bq_data_2.FET_CHG_STAT_NEW = false;
-			// 		bq_data_3.FET_CHG_STAT_NEW = false;
-			// 	}		
-			// }
+					bq_data_1.FET_CHG_STAT_NEW = true;
+					bq_data_2.FET_CHG_STAT_NEW = true;
+					bq_data_3.FET_CHG_STAT_NEW = true;
+					bq_data_1.FET_DSG_STAT_NEW = true;
+					bq_data_2.FET_DSG_STAT_NEW = true;
+					bq_data_3.FET_DSG_STAT_NEW = true;
+				}
+				else
+				{
+					bq_data_1.FET_CHG_STAT_NEW = false;
+					bq_data_2.FET_CHG_STAT_NEW = false;
+					bq_data_3.FET_CHG_STAT_NEW = false;
+				}		
+			}
 
 			if(!batt_data.cell_ball_2 && !batt_data.cell_ball_1 && !batt_data.cell_ball_3)
 			{
