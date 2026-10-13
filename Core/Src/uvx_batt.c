@@ -104,6 +104,45 @@ UVX_BATT_STATE uvx_batt_find_highest_average_pack_voltage(void)
 	return UVX_BATT_OK;
 }
 
+// Match the three-cell pack mapping and corrected voltages used by batt_data.
+static void uvx_batt_update_pack_cell_delta(void)
+{
+	uint16_t cells[3][3] = {
+		{batt_data.cell_voltage_1, batt_data.cell_voltage_2, batt_data.cell_voltage_3},
+		{batt_data.cell_voltage_4, batt_data.cell_voltage_5, batt_data.cell_voltage_6},
+		{batt_data.cell_voltage_7, batt_data.cell_voltage_8, batt_data.cell_voltage_9}
+	};
+	uint32_t pack;
+	uint32_t cell;
+	uint16_t minimum;
+	uint16_t maximum;
+	uint16_t voltage;
+
+	for(pack = 0; pack < BQ_DEVICES; pack++)
+	{
+		minimum = 0xFFFFU;
+		maximum = 0U;
+		for(cell = 0; cell < 3U; cell++)
+		{
+			voltage = cells[pack][cell];
+			if(voltage > BATT_CELL_DETECT_THRESHOLD_MV)
+			{
+				if(voltage < minimum)
+				{
+					minimum = voltage;
+				}
+				if(voltage > maximum)
+				{
+					maximum = voltage;
+				}
+			}
+		}
+		// Zero or one detected cell has no measurable cell-to-cell spread.
+		bq_data[pack].voltage_delta_cell =
+			(maximum > 0U) ? (uint16_t)(maximum - minimum) : 0U;
+	}
+}
+
 UVX_BATT_STATE uvx_batt_parse_data(void)
 {
 	batt_data.cell_voltage_1  = bq_data_1.cell_voltage_1 - (bq_data_1.current * CELL_1_INTERCONNECT_RESISTANCE)/1000;
@@ -116,6 +155,7 @@ UVX_BATT_STATE uvx_batt_parse_data(void)
 	batt_data.cell_voltage_8  = bq_data_3.cell_voltage_2 - (bq_data_3.current * CELL_8_INTERCONNECT_RESISTANCE)/1000;
 	batt_data.cell_voltage_9  = bq_data_3.cell_voltage_3 - (bq_data_3.current * CELL_9_INTERCONNECT_RESISTANCE)/1000;
 	batt_data.cell_voltage_10 = 0U;
+	uvx_batt_update_pack_cell_delta();
 
 	//convert to little endian 
 	batt_data.payload.cell_voltage_1 = uvx_comm_bq_swap_u16_value(batt_data.cell_voltage_1);
@@ -154,7 +194,7 @@ UVX_BATT_STATE uvx_batt_parse_data(void)
 	uvx_batt_detect_cells();
 	uvx_batt_search_cell_diff();
 
-	batt_data.batt_voltage = bq_data_1.voltage + bq_data_2.voltage + bq_data_3.voltage;
+	batt_data.batt_voltage = bq_data_1.pack_voltage + bq_data_2.pack_voltage + bq_data_3.pack_voltage;
 	batt_data.payload.batt_voltage = uvx_comm_bq_swap_u16_value(batt_data.batt_voltage);	
 
 	batt_data.payload.current = uvx_comm_bq_swap_u16_value((bq_data_1.current + bq_data_2.current + bq_data_3.current) / 3);
@@ -229,8 +269,6 @@ UVX_BATT_STATE uvx_batt_parse_data(void)
 	batt_data.payload.cell_bal_time_8 =  uvx_comm_bq_swap_u16_value(batt_data.cell_bal_time_8);
 	batt_data.payload.cell_bal_time_9 =  uvx_comm_bq_swap_u16_value(batt_data.cell_bal_time_9);
 	batt_data.payload.cell_bal_time_10 = uvx_comm_bq_swap_u16_value(batt_data.cell_bal_time_10);
-
-
 
 	batt_data.cell_dod_1 = bq_data_1.cell_dod_1;
 	batt_data.cell_dod_2 = bq_data_1.cell_dod_2;
@@ -408,9 +446,9 @@ UVX_BATT_STATE uvx_batt_parse_data(void)
 
 	uvx_batt_find_highest_average_pack_voltage();
 
-	batt_data.voltage_diff_pack = (int16_t)(
-		uvx_batt_max_u16_3(bq_data_1.voltage_per_cell, bq_data_2.voltage_per_cell, bq_data_3.voltage_per_cell) -
-		uvx_batt_min_u16_3(bq_data_1.voltage_per_cell, bq_data_2.voltage_per_cell, bq_data_3.voltage_per_cell));
+	batt_data.voltage_delta_cell = (int16_t)uvx_batt_max_u16_3(bq_data_1.voltage_delta_cell, bq_data_2.voltage_delta_cell, bq_data_3.voltage_delta_cell);
+	batt_data.voltage_diff_pack = (int16_t)( uvx_batt_max_u16_3(bq_data_1.voltage_per_cell, bq_data_2.voltage_per_cell, bq_data_3.voltage_per_cell) -
+											 uvx_batt_min_u16_3(bq_data_1.voltage_per_cell, bq_data_2.voltage_per_cell, bq_data_3.voltage_per_cell));
 
 	batt_data.payload.voltage_diff_pack = uvx_comm_bq_swap_u16_value(batt_data.voltage_diff_pack);		
 	batt_data.payload.voltage_delta_cell = uvx_comm_bq_swap_u16_value(batt_data.voltage_delta_cell);
@@ -538,7 +576,6 @@ UVX_BATT_STATE uvx_batt_search_cell_diff(void)
 
 	batt_data.voltage_min_cell = (int16_t)min_cell;
 	batt_data.voltage_max_cell = (int16_t)max_cell;
-	batt_data.voltage_delta_cell = (int16_t)(max_cell - min_cell);
 	batt_data.payload.adc_pack_v = uvx_comm_bq_swap_u16_value(batt_data.adc_pack_v);
 	
 

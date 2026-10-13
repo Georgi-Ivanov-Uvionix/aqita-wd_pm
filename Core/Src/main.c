@@ -793,7 +793,7 @@ void UVX_APP_PWR_FET(uint8_t state)
 	}
 	else
 	{
-		uvx_gpio_set_pin(GPIO_OUTPUT_PM_INH_CHG, GPIO_PIN_SET);
+		uvx_gpio_set_pin(GPIO_OUTPUT_PM_INH_CHG, GPIO_PIN_RESET);
 		drone_status.pwr_fet = false;
 	}
 
@@ -1906,7 +1906,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 	{
 		if(drone_state.state_current == DRONE_SLEEP)
 		{
-			timer_app_batt_pwr_high.Timeout = 0;
+			//timer_app_batt_pwr_high.Timeout = 0;
 			g_Exit_Sleep_Request = 1;
 		}		
 	}

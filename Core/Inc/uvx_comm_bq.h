@@ -411,6 +411,7 @@ typedef struct UVX_BQ_DATA
     uint16_t manufacturer_date;        // Manufacturer Date
     uint16_t serial_number;            // Serial Number
     uint16_t voltage_per_cell;         // Voltage per cell in millivolts batt voltage / cell count
+    uint16_t voltage_delta_cell;       // Highest minus lowest detected cell voltage in mV
 
     //===========0x0071 DAStatus1======================================
     uint8_t  dastatus1;
