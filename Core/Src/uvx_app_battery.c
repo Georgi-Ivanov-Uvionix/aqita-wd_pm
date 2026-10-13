@@ -7,6 +7,7 @@ static UVX_COMM_BQ *p_app_comm_bq;
 static UVX_COMM_BQ_STATE bq_state;
 
 #define BATT_BPS_SWITCH_INTERVAL_MS 10000U
+#define BATT_BPS_MIN_CELL_VOLTAGE_MV 2700
 static uint32_t bps_active_pack = BQ_DEVICES;
 static uint32_t bps_next_pack;
 static uint32_t bps_start_ms;
@@ -730,6 +731,21 @@ static void batt_rotate_fet_bps(void)
 			drone_status.prepare_fc = false;
 		}
 
+		bps_active_pack = BQ_DEVICES;
+		bps_next_pack = 0;
+		bps_timer_running = false;
+		bps_wait_off = false;
+		return;
+	}
+
+	// Stop bypass whenever the minimum detected cell voltage is too low.
+	if(batt_data.voltage_min_cell < BATT_BPS_MIN_CELL_VOLTAGE_MV)
+	{
+		for(i = 0; i < BQ_DEVICES; i++)
+		{
+			bq_data[i].FET_BPS_EN = false;
+			bq_data[i].FET_BPS_STAT_NEW = false;
+		}
 		bps_active_pack = BQ_DEVICES;
 		bps_next_pack = 0;
 		bps_timer_running = false;
