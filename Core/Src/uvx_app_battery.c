@@ -408,7 +408,7 @@ void UVX_APP_Batt(void)
 				{				
 					if(drone_state.state_current == DRONE_CHECK_BUTTON_PRESS_ONCE)
 					{
-						uvx_gpio_set_pin(GPIO_OUTPUT_PWR_LED, GPIO_PIN_RESET);
+						uvx_app_pwr_led(1);
 					}
 
 					bq_data_1.FET_CHG_STAT_NEW = true;
@@ -420,9 +420,9 @@ void UVX_APP_Batt(void)
 				}
 				else
 				{
-					bq_data_1.FET_CHG_STAT_NEW = false;
-					bq_data_2.FET_CHG_STAT_NEW = false;
-					bq_data_3.FET_CHG_STAT_NEW = false;
+					// bq_data_1.FET_CHG_STAT_NEW = false;
+					// bq_data_2.FET_CHG_STAT_NEW = false;
+					// bq_data_3.FET_CHG_STAT_NEW = false;
 				}		
 			}
 

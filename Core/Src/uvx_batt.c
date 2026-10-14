@@ -608,7 +608,7 @@ UVX_BATT_STATE uvx_batt_read_pack_v(void)
 				{					
 					UVX_APP_PWR_FET(1); // power on FC
 					batt_data.adc_pack_v_stable_low = 0;
-					uvx_gpio_set_pin(GPIO_OUT_LED_STRIP_ENABLE, GPIO_PIN_SET);	
+					uvx_gpio_set_pin(GPIO_OUT_LED_STRIP_ENABLE, GPIO_PIN_SET);
 					if(!batt_data.init)
 					{
 						batt_state.state_current = BATT_MODE_INIT;

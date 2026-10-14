@@ -286,6 +286,8 @@ extern UVX_UNIT_TEST unit_test;
 extern uint8_t enable;
 
 void UVX_APP_PWR_FET(uint8_t state);
+void uvx_app_pwr_led(uint8_t state);
+void uvx_app_pwr_led_init(void);
 void UVX_APP_Shutdown_JMB(void);
 
 /* USER CODE END Private defines */
