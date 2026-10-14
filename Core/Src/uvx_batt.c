@@ -326,6 +326,10 @@ UVX_BATT_STATE uvx_batt_parse_data(void)
 	bq_data_2.FET_BPS_STAT = bq_data_2.gpio_pin_15;
 	bq_data_3.FET_BPS_STAT = bq_data_3.gpio_pin_15;
 
+	// Bypass code [Force_balance_2:Force_balance_1]: 00 off, 01 BQ1, 10 BQ2, 11 BQ3.
+	comm_bq_1.Force_balance = bq_data_1.FET_BPS_STAT || bq_data_3.FET_BPS_STAT;
+	comm_bq_2.Force_balance = bq_data_2.FET_BPS_STAT || bq_data_3.FET_BPS_STAT;
+
 	if(batt_data.init)
 	{
 		batt_data.BPS_Passive = bq_data_1.FET_BPS_STAT || bq_data_2.FET_BPS_STAT || bq_data_3.FET_BPS_STAT;
