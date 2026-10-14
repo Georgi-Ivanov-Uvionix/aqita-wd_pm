@@ -7,12 +7,10 @@ static UVX_COMM_BQ *p_app_comm_bq;
 static UVX_COMM_BQ_STATE bq_state;
 
 #define BATT_BPS_SWITCH_INTERVAL_MS 10000U
+#define BATT_BPS_TIMER_NOT_STARTED_MS 0xFFFFFFFFU
 #define BATT_BPS_MIN_CELL_VOLTAGE_MV 2700
 static uint32_t bps_active_pack = BQ_DEVICES;
 static uint32_t bps_next_pack;
-static uint32_t bps_start_ms;
-static bool bps_timer_running;
-static bool bps_wait_off;
 
 static void batt_rotate_fet_bps(void);
 
@@ -31,8 +29,6 @@ void UVX_APP_Batt(void)
 		case BATT_MODE_INIT:
 			bps_active_pack = BQ_DEVICES;
 			bps_next_pack = 0;
-			bps_timer_running = false;
-			bps_wait_off = false;
 			batt_data.BPS_Passive = true;
 			uvx_comm_bq_change_list(&comm_bq_1, bq_1_register_list_read_once);
 			uvx_comm_bq_change_list(&comm_bq_2, bq_2_register_list_read_once);
@@ -706,8 +702,6 @@ static void batt_rotate_fet_bps(void)
 		}
 		bps_active_pack = BQ_DEVICES;
 		bps_next_pack = 0;
-		bps_timer_running = false;
-		bps_wait_off = false;
 		return;
 	}
 
@@ -743,8 +737,6 @@ static void batt_rotate_fet_bps(void)
 
 		bps_active_pack = BQ_DEVICES;
 		bps_next_pack = 0;
-		bps_timer_running = false;
-		bps_wait_off = false;
 		return;
 	}
 
@@ -758,29 +750,33 @@ static void batt_rotate_fet_bps(void)
 		}
 		bps_active_pack = BQ_DEVICES;
 		bps_next_pack = 0;
-		bps_timer_running = false;
-		bps_wait_off = false;
 		return;
 	}
 
 	if(bps_active_pack < BQ_DEVICES)
 	{
-		if(!bps_wait_off)
+		if(bq_data[bps_active_pack].FET_BPS_EN)
 		{
-			if(!bps_timer_running && bq_data[bps_active_pack].FET_BPS_STAT)
+			if(bq_data[bps_active_pack].bypass_time_ms == BATT_BPS_TIMER_NOT_STARTED_MS &&
+			   bq_data[bps_active_pack].FET_BPS_STAT)
 			{
-				bps_start_ms = now;
-				bps_timer_running = true;
+				bq_data[bps_active_pack].bypass_time_start_ms = now;
+				bq_data[bps_active_pack].bypass_time_ms = 0U;
+			}
+			if(bq_data[bps_active_pack].bypass_time_ms != BATT_BPS_TIMER_NOT_STARTED_MS)
+			{
+				bq_data[bps_active_pack].bypass_time_ms =
+					(uint32_t)(now - bq_data[bps_active_pack].bypass_time_start_ms);
 			}
 
-			if(bq_data[bps_active_pack].bps_need_discharge || !bq_data[bps_active_pack].FET_BPS_EN || (bps_timer_running && (uint32_t)(now - bps_start_ms) >= BATT_BPS_SWITCH_INTERVAL_MS))
+			if(bq_data[bps_active_pack].bps_need_discharge || 
+				(bq_data[bps_active_pack].bypass_time_ms != BATT_BPS_TIMER_NOT_STARTED_MS && bq_data[bps_active_pack].bypass_time_ms >= BATT_BPS_SWITCH_INTERVAL_MS))
 			{
 				bq_data[bps_active_pack].FET_BPS_EN = false;
-				bps_wait_off = true;
 			}
 		}
 
-		if(!bps_wait_off)
+		if(bq_data[bps_active_pack].FET_BPS_EN)
 		{
 			return;
 		}
@@ -793,8 +789,6 @@ static void batt_rotate_fet_bps(void)
 
 		bps_next_pack = (bps_active_pack + 1U) % BQ_DEVICES;
 		bps_active_pack = BQ_DEVICES;
-		bps_timer_running = false;
-		bps_wait_off = false;
 	}
 
 	// Also clear any previous bypass requests before starting the sequence.
@@ -817,6 +811,9 @@ static void batt_rotate_fet_bps(void)
 		if(!bq_data[pack].bps_need_discharge && bq_data[pack].p_comm_bq != NULL)
 		{
 			bps_active_pack = pack;
+			bq_data[bps_active_pack].bypass_time_start_ms = 0U;
+			// Reserve this value until bypass is reported on; tick zero is valid.
+			bq_data[bps_active_pack].bypass_time_ms = BATT_BPS_TIMER_NOT_STARTED_MS;
 
 			if((!drone_status.pwr_fet) && (!drone_status.esc_arm) && (!drone_status.esc_psys_arm) && (batt_data.adc_pack_v < batt_data.pwr_min_voltage))
 			{
@@ -985,14 +982,6 @@ static UVX_COMM_BQ_STATE batt_mode_check_fet_chg(UVX_BQ_DATA *p_bq_data)
 	else
 	{
 		state = batt_check_response(p_comm_bq);
-		if(state == UVX_BQ_OK)
-		{
-			if(p_bq_data->bypass_time_start_ms != 0)
-			{
-				p_bq_data->bypass_time_ms = HAL_GetTick() - p_bq_data->bypass_time_start_ms;	
-				p_bq_data->bypass_time_start_ms = 0;	
-			}
-		}
 		return state;
 	}	
 }
