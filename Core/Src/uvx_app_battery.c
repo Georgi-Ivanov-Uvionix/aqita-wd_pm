@@ -7,7 +7,6 @@ static UVX_COMM_BQ *p_app_comm_bq;
 static UVX_COMM_BQ_STATE bq_state;
 
 #define BATT_BPS_SWITCH_INTERVAL_MS 10000U
-#define BATT_BPS_TIMER_NOT_STARTED_MS 0xFFFFFFFFU
 #define BATT_BPS_MIN_CELL_VOLTAGE_MV 2700
 static uint32_t bps_active_pack = BQ_DEVICES;
 static uint32_t bps_next_pack;
@@ -41,18 +40,18 @@ void UVX_APP_Batt(void)
 			p_app_comm_bq = comm_bq;
 			bq_data_1.FET_DSG_CHG_EN = 0;
 			bq_data_1.FET_BPS_EN = 0;
-			bq_data_1.FET_DSG_STAT_NEW = 1;
-			bq_data_1.FET_CHG_STAT_NEW = 1;
+			bq_data_1.FET_DSG_STAT_NEW = 0;
+			bq_data_1.FET_CHG_STAT_NEW = 0;
 
 			bq_data_2.FET_DSG_CHG_EN = 0;
 			bq_data_2.FET_BPS_EN = 0;
-			bq_data_2.FET_DSG_STAT_NEW = 1;
-			bq_data_2.FET_CHG_STAT_NEW = 1;
+			bq_data_2.FET_DSG_STAT_NEW = 0;
+			bq_data_2.FET_CHG_STAT_NEW = 0;
 
 			bq_data_3.FET_DSG_CHG_EN = 0;
 			bq_data_3.FET_BPS_EN = 0;
-			bq_data_3.FET_DSG_STAT_NEW = 1;
-			bq_data_3.FET_CHG_STAT_NEW = 1;
+			bq_data_3.FET_DSG_STAT_NEW = 0;
+			bq_data_3.FET_CHG_STAT_NEW = 0;
 		break;
 
 		case BATT_MODE_INIT_BYPASS:
@@ -400,7 +399,7 @@ void UVX_APP_Batt(void)
 			}
 			else
 			{
-				if((batt_data.adc_pack_v_stable_high) && (drone_status.pwr_fet))
+				if((batt_data.adc_pack_v_stable_high))
 				{				
 					if(drone_state.state_current == DRONE_CHECK_BUTTON_PRESS_ONCE)
 					{
@@ -757,20 +756,11 @@ static void batt_rotate_fet_bps(void)
 	{
 		if(bq_data[bps_active_pack].FET_BPS_EN)
 		{
-			if(bq_data[bps_active_pack].bypass_time_ms == BATT_BPS_TIMER_NOT_STARTED_MS &&
-			   bq_data[bps_active_pack].FET_BPS_STAT)
-			{
-				bq_data[bps_active_pack].bypass_time_start_ms = now;
-				bq_data[bps_active_pack].bypass_time_ms = 0U;
-			}
-			if(bq_data[bps_active_pack].bypass_time_ms != BATT_BPS_TIMER_NOT_STARTED_MS)
-			{
-				bq_data[bps_active_pack].bypass_time_ms =
-					(uint32_t)(now - bq_data[bps_active_pack].bypass_time_start_ms);
-			}
+			bq_data[bps_active_pack].bypass_time_ms =
+				(uint32_t)(now - bq_data[bps_active_pack].bypass_time_start_ms);
 
 			if(bq_data[bps_active_pack].bps_need_discharge || 
-				(bq_data[bps_active_pack].bypass_time_ms != BATT_BPS_TIMER_NOT_STARTED_MS && bq_data[bps_active_pack].bypass_time_ms >= BATT_BPS_SWITCH_INTERVAL_MS))
+				(bq_data[bps_active_pack].bypass_time_ms >= BATT_BPS_SWITCH_INTERVAL_MS))
 			{
 				bq_data[bps_active_pack].FET_BPS_EN = false;
 			}
@@ -811,9 +801,9 @@ static void batt_rotate_fet_bps(void)
 		if(!bq_data[pack].bps_need_discharge && bq_data[pack].p_comm_bq != NULL)
 		{
 			bps_active_pack = pack;
-			bq_data[bps_active_pack].bypass_time_start_ms = 0U;
-			// Reserve this value until bypass is reported on; tick zero is valid.
-			bq_data[bps_active_pack].bypass_time_ms = BATT_BPS_TIMER_NOT_STARTED_MS;
+			bq_data[bps_active_pack].bypass_time_start_ms = now;
+			// Time the enable request even if the reported status is delayed.
+			bq_data[bps_active_pack].bypass_time_ms = 0U;
 
 			if((!drone_status.pwr_fet) && (!drone_status.esc_arm) && (!drone_status.esc_psys_arm) && (batt_data.adc_pack_v < batt_data.pwr_min_voltage))
 			{
@@ -852,9 +842,19 @@ static UVX_COMM_BQ_STATE batt_mode_check_fet_bps(UVX_BQ_DATA *p_bq_data)
 				comm_state = uvx_comm_bq_discharge_fet(p_bq_data, p_bq_data->FET_DSG_STAT_NEW);
 				if(comm_state != UVX_BQ_OK)
 				{
-					while(batt_check_response(p_comm_bq) != UVX_BQ_OK)
-					{				
-						HAL_Delay(1);
+					do
+					{
+						comm_state = batt_check_response(p_comm_bq);
+						if(comm_state == UVX_BQ_ERROR_BUSY)
+						{
+							HAL_Delay(1);
+						}
+					} while(comm_state == UVX_BQ_ERROR_BUSY);
+					if(comm_state != UVX_BQ_OK)
+					{
+						// Retry the desired GPIO state after a failed transaction.
+						p_comm_bq->Bypass_old = !p_comm_bq->Bypass;
+						return (comm_state == UVX_BQ_ERROR_NACK) ? comm_state : UVX_BQ_TIMEOUT;
 					}		
 					p_bq_data->FET_DSG_STAT = false;
 				}
@@ -862,9 +862,19 @@ static UVX_COMM_BQ_STATE batt_mode_check_fet_bps(UVX_BQ_DATA *p_bq_data)
 				comm_state = uvx_comm_bq_charge_fet(p_bq_data, p_bq_data->FET_CHG_STAT_NEW);
 				if(comm_state != UVX_BQ_OK)
 				{
-					while(batt_check_response(p_comm_bq) != UVX_BQ_OK)
-					{				
-						HAL_Delay(1);
+					do
+					{
+						comm_state = batt_check_response(p_comm_bq);
+						if(comm_state == UVX_BQ_ERROR_BUSY)
+						{
+							HAL_Delay(1);
+						}
+					} while(comm_state == UVX_BQ_ERROR_BUSY);
+					if(comm_state != UVX_BQ_OK)
+					{
+						// Retry the desired GPIO state after a failed transaction.
+						p_comm_bq->Bypass_old = !p_comm_bq->Bypass;
+						return (comm_state == UVX_BQ_ERROR_NACK) ? comm_state : UVX_BQ_TIMEOUT;
 					}		
 					p_bq_data->FET_CHG_STAT = false;
 				}
@@ -875,9 +885,19 @@ static UVX_COMM_BQ_STATE batt_mode_check_fet_bps(UVX_BQ_DATA *p_bq_data)
 				comm_state = uvx_comm_bq_bypass(p_comm_bq, p_bq_data->FET_BPS_STAT_NEW);
 				if(comm_state != UVX_BQ_OK)
 				{
-					while(batt_check_response(p_comm_bq) != UVX_BQ_OK)
-					{				
-						HAL_Delay(1);
+					do
+					{
+						comm_state = batt_check_response(p_comm_bq);
+						if(comm_state == UVX_BQ_ERROR_BUSY)
+						{
+							HAL_Delay(1);
+						}
+					} while(comm_state == UVX_BQ_ERROR_BUSY);
+					if(comm_state != UVX_BQ_OK)
+					{
+						// Retry the desired GPIO state after a failed transaction.
+						p_comm_bq->Bypass_old = !p_comm_bq->Bypass;
+						return (comm_state == UVX_BQ_ERROR_NACK) ? comm_state : UVX_BQ_TIMEOUT;
 					}		
 					p_bq_data->FET_BPS_STAT = true;
 				}
@@ -894,9 +914,19 @@ static UVX_COMM_BQ_STATE batt_mode_check_fet_bps(UVX_BQ_DATA *p_bq_data)
 				comm_state = uvx_comm_bq_bypass(p_comm_bq, p_bq_data->FET_BPS_STAT_NEW);
 				if(comm_state != UVX_BQ_OK)
 				{
-					while(batt_check_response(p_comm_bq) != UVX_BQ_OK)
-					{				
-						HAL_Delay(1);
+					do
+					{
+						comm_state = batt_check_response(p_comm_bq);
+						if(comm_state == UVX_BQ_ERROR_BUSY)
+						{
+							HAL_Delay(1);
+						}
+					} while(comm_state == UVX_BQ_ERROR_BUSY);
+					if(comm_state != UVX_BQ_OK)
+					{
+						// Retry the desired GPIO state after a failed transaction.
+						p_comm_bq->Bypass_old = !p_comm_bq->Bypass;
+						return (comm_state == UVX_BQ_ERROR_NACK) ? comm_state : UVX_BQ_TIMEOUT;
 					}		
 					p_bq_data->FET_BPS_STAT = false;
 				}
@@ -907,9 +937,19 @@ static UVX_COMM_BQ_STATE batt_mode_check_fet_bps(UVX_BQ_DATA *p_bq_data)
 				comm_state = uvx_comm_bq_charge_fet(p_bq_data, p_bq_data->FET_CHG_STAT_NEW);
 				if(comm_state != UVX_BQ_OK)
 				{
-					while(batt_check_response(p_comm_bq) != UVX_BQ_OK)
-					{				
-						HAL_Delay(1);
+					do
+					{
+						comm_state = batt_check_response(p_comm_bq);
+						if(comm_state == UVX_BQ_ERROR_BUSY)
+						{
+							HAL_Delay(1);
+						}
+					} while(comm_state == UVX_BQ_ERROR_BUSY);
+					if(comm_state != UVX_BQ_OK)
+					{
+						// Retry the desired GPIO state after a failed transaction.
+						p_comm_bq->Bypass_old = !p_comm_bq->Bypass;
+						return (comm_state == UVX_BQ_ERROR_NACK) ? comm_state : UVX_BQ_TIMEOUT;
 					}		
 					p_bq_data->FET_CHG_STAT = true;
 				}
@@ -918,9 +958,19 @@ static UVX_COMM_BQ_STATE batt_mode_check_fet_bps(UVX_BQ_DATA *p_bq_data)
 				comm_state = uvx_comm_bq_discharge_fet(p_bq_data, p_bq_data->FET_DSG_STAT_NEW);
 				if(comm_state != UVX_BQ_OK)
 				{
-					while(batt_check_response(p_comm_bq) != UVX_BQ_OK)
-					{				
-						HAL_Delay(1);
+					do
+					{
+						comm_state = batt_check_response(p_comm_bq);
+						if(comm_state == UVX_BQ_ERROR_BUSY)
+						{
+							HAL_Delay(1);
+						}
+					} while(comm_state == UVX_BQ_ERROR_BUSY);
+					if(comm_state != UVX_BQ_OK)
+					{
+						// Retry the desired GPIO state after a failed transaction.
+						p_comm_bq->Bypass_old = !p_comm_bq->Bypass;
+						return (comm_state == UVX_BQ_ERROR_NACK) ? comm_state : UVX_BQ_TIMEOUT;
 					}		
 					p_bq_data->FET_DSG_STAT = true;
 				}

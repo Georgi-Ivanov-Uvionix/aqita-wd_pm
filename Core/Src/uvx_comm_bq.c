@@ -466,10 +466,12 @@ UVX_COMM_BQ_STATE uvx_comm_bq_bypass(UVX_COMM_BQ* p_comm_bq, uint8_t enable)
 
 	if(p_comm_bq->Bypass_old != p_comm_bq->Bypass)
 	{
-		p_comm_bq->Bypass_old = p_comm_bq->Bypass;
-
-		uvx_comm_bq_write_register(p_comm_bq, GPIO_WRITE, data, 2);
-		state = UVX_BQ_ERROR_BUSY;
+		state = uvx_comm_bq_write_register(p_comm_bq, GPIO_WRITE, data, 2);
+		if(state == UVX_BQ_OK)
+		{
+			p_comm_bq->Bypass_old = p_comm_bq->Bypass;
+			state = UVX_BQ_ERROR_BUSY;
+		}
 
 	}
 	else
