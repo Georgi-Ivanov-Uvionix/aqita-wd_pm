@@ -165,29 +165,23 @@ typedef packed_struct
 
 typedef struct
 {
+    uint16_t adc_pack_v;                // measured pack voltage in millivolts byte 90 - 91
     uint8_t  adc_pack_v_stable_high;
     uint8_t  adc_pack_v_stable_low;     
-    uint8_t  cells_count;
     uint16_t pwr_min_voltage;
     uint16_t pwr_max_voltage;
-
+    uint8_t  cells_count;
     uint8_t  SOH;                       // State of Health in percentage (0-100%)       byte 1
     uint16_t batt_voltage;              // Battery Voltage in millivolts                bytes 2-3
     int16_t  current;                   // Current in milliamps                         bytes 4-5
     int32_t  power;                     //Power calculated by Voltage() × Current()  
     uint16_t remaining_capacity;        // Remaining Capacity in mAh                      bytes 6-7
     uint8_t relative_state_of_charge;  // Relative State of Charge in percentage (0-100%) bytes 12-13    
+    uint8_t absolute_state_of_charge;  // Absolute State of Charge in percentage (0-100%)   
     uint16_t full_charge_capacity;      // Full Charge Capacity in mAh                  bytes 8-9
     uint16_t design_capacity;           // Design Capacity in mAh                       bytes 10-11
-    uint8_t absolute_state_of_charge;  // Absolute State of Charge in percentage (0-100%)                   
-    uint8_t  supply_status;             //bit 0 - pwr fet byte 14
-                                        //bit 1 - chg fet
-                                        //bit 2 - tc
-                                        //bit 3 - balance
-                                        //bit 4 - force balance BQ 1
-                                        //bit 5 - force balance BQ 2
-                                        //bit 6 - stable l
-                                        //bit 7 - stable h
+    uint16_t  cycle_count;               // Number of charge-discharge cycles byte 89
+                
     uint16_t cell_voltage_1;            // Cell Voltage 1 in millivolts
     uint16_t cell_voltage_2;            // Cell Voltage 2 in millivolts
     uint16_t cell_voltage_3;            // Cell Voltage 3 in millivolts byte 20
@@ -198,6 +192,28 @@ typedef struct
 	uint16_t cell_voltage_8;            // Cell Voltage 8 in millivolts  byte 30
 	uint16_t cell_voltage_9;            // Cell Voltage 9 in millivolts
 	uint16_t cell_voltage_10;           // Cell Voltage 10 in millivolts            
+    int16_t  voltage_diff_pack;         // voltage difference between two packs in millivolts
+    int16_t  voltage_delta_cell;        // voltage difference between cells in millivolts
+    int16_t  voltage_min_cell;          // voltage difference between cells in millivolts byte 60
+    int16_t  voltage_max_cell;          // voltage difference between cells in millivolts     
+
+    uint16_t cell_bal_time_1;           // Cell balancing time for cell 1 in minutes
+    uint16_t cell_bal_time_2;           // Cell balancing time for cell 2 in minutes
+    uint16_t cell_bal_time_3;           // Cell balancing time for cell 3 in minutes
+    uint16_t cell_bal_time_4;           // Cell balancing time for cell 4 in minutes byte 70
+    uint16_t cell_bal_time_5;           // Cell balancing time for cell 5 in minutes
+    uint16_t cell_bal_time_6;           // Cell balancing time for cell 6 in minutes
+    uint16_t cell_bal_time_7;           // Cell balancing time for cell 7 in minutes
+    uint16_t cell_bal_time_8;           // Cell balancing time for cell 8 in minutes
+    uint16_t cell_bal_time_9;           // Cell balancing time for cell 9 in minutes byte 80
+    uint16_t cell_bal_time_10;          // Cell balancing time for cell 10 in minutes                     
+
+    uint16_t avg_time_to_empty_m;       // Average Time to Empty in minutes
+    uint16_t avg_time_to_full_m;        // Average Time to Full in minutes    
+    uint16_t state_time_1_m;            // Time passed since last state change (DISCHARGE, CHARGE, REST)  
+    uint16_t state_time_2_m;            // Time passed since last state change (DISCHARGE, CHARGE, REST)        byte 99
+    uint16_t state_time_3_m;
+
     uint16_t temperature_cell_1;    // Temperature of cell 1 in tenths of degrees Celsius
     uint16_t temperature_cell_2;    
     uint16_t temperature_cell_3;    //byte 40
@@ -210,35 +226,11 @@ typedef struct
     uint16_t temperature_1_int;       
     uint16_t temperature_2_int;       
     uint16_t temperature_3_int;       
-    int16_t  voltage_diff_pack;         // voltage difference between two packs in millivolts
-    int16_t  voltage_delta_cell;        // voltage difference between cells in millivolts
-    int16_t  voltage_min_cell;          // voltage difference between cells in millivolts byte 60
-    int16_t  voltage_max_cell;          // voltage difference between cells in millivolts      
-    uint16_t cell_bal_time_1;           // Cell balancing time for cell 1 in minutes
-    uint16_t cell_bal_time_2;           // Cell balancing time for cell 2 in minutes
-    uint16_t cell_bal_time_3;           // Cell balancing time for cell 3 in minutes
-    uint16_t cell_bal_time_4;           // Cell balancing time for cell 4 in minutes byte 70
-    uint16_t cell_bal_time_5;           // Cell balancing time for cell 5 in minutes
-    uint16_t cell_bal_time_6;           // Cell balancing time for cell 6 in minutes
-    uint16_t cell_bal_time_7;           // Cell balancing time for cell 7 in minutes
-    uint16_t cell_bal_time_8;           // Cell balancing time for cell 8 in minutes
-    uint16_t cell_bal_time_9;           // Cell balancing time for cell 9 in minutes byte 80
-    uint16_t cell_bal_time_10;          // Cell balancing time for cell 10 in minutes                     
-    uint16_t  cycle_count;               // Number of charge-discharge cycles byte 89
-    uint16_t adc_pack_v;                // measured pack voltage in millivolts byte 90 - 91
-    uint16_t avg_time_to_empty_m;       // Average Time to Empty in minutes
-    uint16_t avg_time_to_full_m;        // Average Time to Full in minutes    
-    uint16_t state_time_1_m;            // Time passed since last state change (DISCHARGE, CHARGE, REST)  
-    uint16_t state_time_2_m;            // Time passed since last state change (DISCHARGE, CHARGE, REST)        byte 99
-    uint16_t state_time_3_m;
-    uint8_t  error;                     //bit 0 - BQ 1 no response      byte 100
-                                        //bit 1 - BQ 2 no response
-                                        //bit 2 - reserved
-                                        //bit 3 - reserved
-                                        //bit 4 - reserved
-                                        //bit 5 - reserved
-                                        //bit 6 - reserved
-                                        //bit 7 - reserved
+    uint16_t temperature_bq_1;    // BQ 1 temperature in 0.1 degree Celsius
+    uint16_t temperature_bq_2;    // BQ 2 temperature in 0.1 degree Celsius
+    uint16_t temperature_bq_3;    // BQ 3 temperature in 0.1 degree Celsius     
+
+
     int16_t  Qmax_passed_BQ_1;              // Qmax value from BQ 1 in mAh byte 102                                        
     int16_t  Qmax_passed_BQ_2;              // Qmax value from BQ 2 in mAh byte 104  
     int16_t  Qmax_passed_BQ_3;
@@ -247,43 +239,6 @@ typedef struct
     BATT_DATA_PAYLOAD payload;                                    
     uint16_t size_payload;
 //-----------------------------------------------------------------------------------
-    uint16_t temperature_bq_1;    // BQ 1 temperature in 0.1 degree Celsius
-    uint16_t temperature_bq_2;    // BQ 2 temperature in 0.1 degree Celsius
-    uint16_t temperature_bq_3;    // BQ 3 temperature in 0.1 degree Celsius
-    uint16_t design_voltage;      
-    int16_t cell_current_1;          // Cell Current 1 in milliamps
-    int16_t cell_current_2;          // Cell Current 2 in milliamps
-    int16_t cell_current_3;          // Cell Current 3 in milliamps
-    int16_t cell_current_4;          // Cell Current 4 in milliamps
-	int16_t cell_current_5;          // Cell Current 5 in milliamps
-	int16_t cell_current_6;          // Cell Current 6 in milliamps
-	int16_t cell_current_7;          // Cell Current 7 in milliamps
-	int16_t cell_current_8;          // Cell Current 8 in milliamps
-	int16_t cell_current_9;          // Cell Current 9 in milliamps
-	int16_t cell_current_10;         // Cell Current 10 in milliamps
-
-    int16_t cell_power_1;          // Cell Power 1 in milliwatts
-    int16_t cell_power_2;          // Cell Power 2 in milliwatts
-    int16_t cell_power_3;          // Cell Power 3 in milliwatts
-    int16_t cell_power_4;          // Cell Power 4 in milliwatts
-	int16_t cell_power_5;          // Cell Power 5 in milliwatts
-	int16_t cell_power_6;          // Cell Power 6 in milliwatts
-	int16_t cell_power_7;          // Cell Power 7 in milliwatts
-	int16_t cell_power_8;          // Cell Power 8 in milliwatts
-	int16_t cell_power_9;          // Cell Power 9 in milliwatts
-	int16_t cell_power_10;         // Cell Power 10 in milliwatts
-
-
-    uint16_t cell_dod_1;               // Cell depth of discharge for cell 1 in percentage
-    uint16_t cell_dod_2;               // Cell depth of discharge for cell 2 in percentage
-    uint16_t cell_dod_3;               // Cell depth of discharge for cell 3 in percentage
-    uint16_t cell_dod_4;               // Cell depth of discharge for cell 4 in percentage
-    uint16_t cell_dod_5;               // Cell depth of discharge for cell 5 in percentage
-    uint16_t cell_dod_6;               // Cell depth of discharge for cell 6 in percentage
-    uint16_t cell_dod_7;               // Cell depth of discharge for cell 7 in percentage
-    uint16_t cell_dod_8;               // Cell depth of discharge for cell 8 in percentage
-    uint16_t cell_dod_9;               // Cell depth of discharge for cell 9 in percentage
-    uint16_t cell_dod_10;              // Cell depth of discharge for cell 10 in percentage
 
     uint32_t CHG_FET_1_STAT : 1;
     uint32_t CHG_FET_2_STAT : 1;

@@ -169,28 +169,6 @@ UVX_BATT_STATE uvx_batt_parse_data(void)
 	batt_data.payload.cell_voltage_9 = uvx_comm_bq_swap_u16_value(batt_data.cell_voltage_9);
 	batt_data.payload.cell_voltage_10 = uvx_comm_bq_swap_u16_value(batt_data.cell_voltage_10);
 
-	batt_data.cell_current_1  = bq_data_1.cell_current_1;
-	batt_data.cell_current_2  = bq_data_1.cell_current_2;
-	batt_data.cell_current_3  = bq_data_1.cell_current_3;
-	batt_data.cell_current_4  = bq_data_2.cell_current_1;
-	batt_data.cell_current_5  = bq_data_2.cell_current_2;
-	batt_data.cell_current_6  = bq_data_2.cell_current_3;
-	batt_data.cell_current_7  = bq_data_3.cell_current_1;
-	batt_data.cell_current_8  = bq_data_3.cell_current_2;
-	batt_data.cell_current_9  = bq_data_3.cell_current_3;
-	batt_data.cell_current_10 = 0;
-
-	batt_data.cell_power_1  = bq_data_1.cell_power_1;
-	batt_data.cell_power_2  = bq_data_1.cell_power_2;
-	batt_data.cell_power_3  = bq_data_1.cell_power_3;
-	batt_data.cell_power_4  = bq_data_2.cell_power_1;
-	batt_data.cell_power_5  = bq_data_2.cell_power_2;
-	batt_data.cell_power_6  = bq_data_2.cell_power_3;
-	batt_data.cell_power_7  = bq_data_3.cell_power_1;
-	batt_data.cell_power_8  = bq_data_3.cell_power_2;
-	batt_data.cell_power_9  = bq_data_3.cell_power_3;
-	batt_data.cell_power_10 = 0;
-
 	uvx_batt_detect_cells();
 	uvx_batt_search_cell_diff();
 
@@ -272,17 +250,6 @@ UVX_BATT_STATE uvx_batt_parse_data(void)
 	batt_data.payload.cell_bal_time_8 =  uvx_comm_bq_swap_u16_value(batt_data.cell_bal_time_8);
 	batt_data.payload.cell_bal_time_9 =  uvx_comm_bq_swap_u16_value(batt_data.cell_bal_time_9);
 	batt_data.payload.cell_bal_time_10 = uvx_comm_bq_swap_u16_value(batt_data.cell_bal_time_10);
-
-	batt_data.cell_dod_1 = bq_data_1.cell_dod_1;
-	batt_data.cell_dod_2 = bq_data_1.cell_dod_2;
-	batt_data.cell_dod_3 = bq_data_1.cell_dod_3;
-	batt_data.cell_dod_4 = bq_data_2.cell_dod_1;
-	batt_data.cell_dod_5 = bq_data_2.cell_dod_2;
-	batt_data.cell_dod_6 = bq_data_2.cell_dod_3;
-	batt_data.cell_dod_7 = bq_data_3.cell_dod_1;
-	batt_data.cell_dod_8 = bq_data_3.cell_dod_2;
-	batt_data.cell_dod_9 = bq_data_3.cell_dod_3;
-	batt_data.cell_dod_10 = 0U;
 
 	bq_data_1.manufacturing_status.reg.data = uvx_comm_bq_swap_u16_pointer((uint16_t*)&bq_data_1.manufacturing_status.raw[1]);
 	bq_data_1.operation_status.reg.data = uvx_comm_bq_swap_u32_pointer((uint32_t *)&bq_data_1.operation_status.raw[1]);
@@ -528,8 +495,6 @@ UVX_BATT_STATE uvx_batt_parse_data(void)
 								drone_status.charge_overvoltage << BATT_ERROR_CHARGE_OVERVOLTAGE_BIT |
 								drone_status.charge_cell_count_error << BATT_ERROR_CHARGE_CELL_COUNT_ERROR_BIT;
 
-	batt_data.error = batt_data.payload.error;
-
 	batt_data.payload.supply_status = 	drone_status.pwr_fet 								<< BATT_SUPPLY_STATUS_PWR_FET_BIT |
 										batt_data.CHG_FET_1_STAT							<< BATT_SUPPLY_STATUS_CHG_FET_BIT |
 										batt_data.tc 										<< BATT_SUPPLY_STATUS_TC_BIT |
@@ -538,8 +503,6 @@ UVX_BATT_STATE uvx_batt_parse_data(void)
 										((comm_bq_2.Force_balance) 							<< BATT_SUPPLY_STATUS_FORCE_BALANCE_2_BIT) |
 										((batt_data.adc_pack_v_stable_low)  				<< BATT_SUPPLY_STATUS_STABLE_L_BIT) |
 										((batt_data.adc_pack_v_stable_high) 				<< BATT_SUPPLY_STATUS_STABLE_H_BIT);
-
-	batt_data.supply_status = batt_data.payload.supply_status;
 
 	return UVX_BATT_OK;
 }

@@ -39,7 +39,6 @@ UVX_BQ_REGISTER bq_1_register_list_read[] = {
 // Array of all BQ registers with address and size
 UVX_BQ_REGISTER bq_1_register_list_read_once[] = {
     {DESIGN_CAPACITY, 			2, (uint8_t*) &bq_data_1.design_capacity},
-    {DESIGN_VOLTAGE, 			2, (uint8_t*) &bq_data_1.design_voltage},
     {SPECIFICATION_INFO, 		2, (uint8_t*) &bq_data_1.specification_info},
     {MANUFACTURER_DATE, 		2, (uint8_t*) &bq_data_1.manufacturer_date},
     {SERIAL_NUMBER, 			2, (uint8_t*) &bq_data_1.serial_number},
@@ -79,7 +78,6 @@ UVX_BQ_REGISTER bq_2_register_list_read[] = {
 // Array of all BQ registers with address and size
 UVX_BQ_REGISTER bq_2_register_list_read_once[] = {
     {DESIGN_CAPACITY, 			2, (uint8_t*) &bq_data_2.design_capacity},
-    {DESIGN_VOLTAGE, 			2, (uint8_t*) &bq_data_2.design_voltage},
     {SPECIFICATION_INFO, 		2, (uint8_t*) &bq_data_2.specification_info},
     {MANUFACTURER_DATE, 		2, (uint8_t*) &bq_data_2.manufacturer_date},
     {SERIAL_NUMBER, 			2, (uint8_t*) &bq_data_2.serial_number},
@@ -118,7 +116,6 @@ UVX_BQ_REGISTER bq_3_register_list_read[] = {
 
 UVX_BQ_REGISTER bq_3_register_list_read_once[] = {
     {DESIGN_CAPACITY,            2, (uint8_t*) &bq_data_3.design_capacity},
-    {DESIGN_VOLTAGE,             2, (uint8_t*) &bq_data_3.design_voltage},
     {SPECIFICATION_INFO,         2, (uint8_t*) &bq_data_3.specification_info},
     {MANUFACTURER_DATE,          2, (uint8_t*) &bq_data_3.manufacturer_date},
     {SERIAL_NUMBER,              2, (uint8_t*) &bq_data_3.serial_number},
