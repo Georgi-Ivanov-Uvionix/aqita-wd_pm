@@ -406,6 +406,7 @@ typedef struct UVX_BQ_DATA
     int16_t  charging_current;          // Charging Current in milliamps
     uint16_t charging_voltage;          // Charging Voltage in millivolts
     uint16_t design_capacity;           // Design Capacity in mAh
+    uint16_t design_voltage;            // Design Voltage in millivolts 
     uint16_t specification_info;       // Specification Information
     uint16_t manufacturer_date;        // Manufacturer Date
     uint16_t serial_number;            // Serial Number

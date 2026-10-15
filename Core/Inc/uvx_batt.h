@@ -48,7 +48,7 @@
 #define BATT_CELL_CHARGE_RESUME_VOLTAGE             4100 //mv
 #define BATT_CELL_DETECT_THRESHOLD_MV               1500 //mv
 #define BATT_CELL_VOLTAGE_DIFF                      10  //mv
-#define BATT_BPS_DISCHARGE_DIFF_MV                  50U
+#define BATT_BPS_DISCHARGE_DIFF_MV                  10U
 #define BATT_DELTA_VOLTAGE                          1500  //mv
 #define BATT_ADC_PACK_V_LOW_MIN_MS                  5000U
 
@@ -241,10 +241,10 @@ typedef struct
 //-----------------------------------------------------------------------------------
 
     uint32_t CHG_FET_1_STAT : 1;
+    uint32_t DSG_FET_1_STAT : 1;    
     uint32_t CHG_FET_2_STAT : 1;
-    uint32_t CHG_FET_3_STAT : 1;
-    uint32_t DSG_FET_1_STAT : 1;
     uint32_t DSG_FET_2_STAT : 1;
+    uint32_t CHG_FET_3_STAT : 1;
     uint32_t DSG_FET_3_STAT : 1;    
     uint32_t init     : 1;
     uint32_t tc       : 1; 

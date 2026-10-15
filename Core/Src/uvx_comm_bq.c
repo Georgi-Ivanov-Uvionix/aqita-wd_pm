@@ -451,13 +451,13 @@ UVX_COMM_BQ_STATE uvx_comm_bq_bypass(UVX_COMM_BQ* p_comm_bq, uint8_t enable)
 	if(enable)
 	{
 		data[0] = 0x00;
-		data[1] = 0x01;
+		data[1] = 0x00;
 		p_comm_bq->Bypass = true;
 	}
 	else
 	{
 		data[0] = 0x00;
-		data[1] = 0x00;
+		data[1] = 0x01;
 		p_comm_bq->Bypass = false;
 	}
 

@@ -10,6 +10,24 @@ static UVX_COMM_BQ_STATE bq_state;
 #define BATT_BPS_MIN_CELL_VOLTAGE_MV 2700
 static uint32_t bps_active_pack = BQ_DEVICES;
 static uint32_t bps_next_pack;
+#define BATT_BPS_DISCHARGE_MAH 10U
+
+typedef enum
+{
+	BPS_IDLE,
+	BPS_SELECT_BYPASS,
+	BPS_WAIT_ON,
+	BPS_HOLD,
+	BPS_WAIT_OFF,
+	BPS_COMPLETE
+} BATT_BPS_STATE;
+
+static BATT_BPS_STATE bps_state = BPS_IDLE;
+static uint32_t bps_discharge_pack = BQ_DEVICES;
+static uint16_t bps_qmax_start;
+static uint16_t bps_qmax_time;
+static uint32_t bps_read_sequence[BQ_DEVICES];
+static uint32_t bps_complete_sequence;
 
 static void batt_rotate_fet_bps(void);
 
@@ -28,6 +46,8 @@ void UVX_APP_Batt(void)
 		case BATT_MODE_INIT:
 			bps_active_pack = BQ_DEVICES;
 			bps_next_pack = 0;
+			bps_discharge_pack = BQ_DEVICES;
+			bps_state = BPS_IDLE;
 			batt_data.BPS_Passive = true;
 			uvx_comm_bq_change_list(&comm_bq_1, bq_1_register_list_read_once);
 			uvx_comm_bq_change_list(&comm_bq_2, bq_2_register_list_read_once);
@@ -645,6 +665,10 @@ static UVX_COMM_BQ_STATE batt_mode_read_BQ(UVX_COMM_BQ *p_comm_bq)
 		{
 			p_comm_bq->batt_reg_cnt = 0;
 			uvx_batt_parse_data();
+			if(p_comm_bq->ID > 0U && p_comm_bq->ID <= BQ_DEVICES)
+			{
+				bps_read_sequence[p_comm_bq->ID - 1U]++;
+			}
 			return UVX_BQ_REG_END;
 		}
 
@@ -684,12 +708,13 @@ static UVX_COMM_BQ_STATE batt_mode_check_fet_enable(UVX_BQ_DATA *p_bq_data)
 	}	
 }
 
-// Rotate bypass through packs that do not need discharge, one pack at a time.
+// Discharge one selected pack by 10 mAh, alternating bypass on the other packs.
 static void batt_rotate_fet_bps(void)
 {
 	uint32_t i;
 	uint32_t pack;
 	uint32_t now = HAL_GetTick();
+	int32_t passed_mah;
 
 	// Sleep must never select another pack for bypass.
 	if(drone_state.state_current == DRONE_SLEEP)
@@ -701,6 +726,8 @@ static void batt_rotate_fet_bps(void)
 		}
 		bps_active_pack = BQ_DEVICES;
 		bps_next_pack = 0;
+		bps_discharge_pack = BQ_DEVICES;
+		bps_state = BPS_IDLE;
 		return;
 	}
 
@@ -736,6 +763,8 @@ static void batt_rotate_fet_bps(void)
 
 		bps_active_pack = BQ_DEVICES;
 		bps_next_pack = 0;
+		bps_discharge_pack = BQ_DEVICES;
+		bps_state = BPS_IDLE;
 		return;
 	}
 
@@ -749,72 +778,178 @@ static void batt_rotate_fet_bps(void)
 		}
 		bps_active_pack = BQ_DEVICES;
 		bps_next_pack = 0;
+		bps_discharge_pack = BQ_DEVICES;
+		bps_state = BPS_IDLE;
 		return;
 	}
 
-	if(bps_active_pack < BQ_DEVICES)
+	// Abort balancing if operating conditions or pack communication are invalid.
+	for(i = 0; i < BQ_DEVICES; i++)
 	{
-		if(bq_data[bps_active_pack].FET_BPS_EN)
+		if(drone_status.pwr_fet || drone_status.esc_arm || drone_status.esc_psys_arm ||
+		   batt_data.adc_pack_v >= batt_data.pwr_min_voltage ||
+		   bq_data[i].p_comm_bq == NULL || bq_data[i].p_comm_bq->No_response)
 		{
-			bq_data[bps_active_pack].bypass_time_ms =
-				(uint32_t)(now - bq_data[bps_active_pack].bypass_time_start_ms);
+			uint32_t j;
+			for(j = 0; j < BQ_DEVICES; j++)
+			{
+				bq_data[j].FET_BPS_EN = false;
+				bq_data[j].FET_BPS_STAT_NEW = false;
+			}
+			bps_state = BPS_IDLE;
+			bps_active_pack = BQ_DEVICES;
+			bps_discharge_pack = BQ_DEVICES;
+			return;
+		}
+	}
 
-			if(bq_data[bps_active_pack].bps_need_discharge || 
-				(bq_data[bps_active_pack].bypass_time_ms >= BATT_BPS_SWITCH_INTERVAL_MS))
+	if(bps_discharge_pack < BQ_DEVICES && bps_state != BPS_COMPLETE)
+	{
+		// Qmax_passed increases on discharge. Subtract modulo 16 bits so
+		// crossing the signed counter boundary does not lose the delta.
+		passed_mah = (uint16_t)(bq_data[bps_discharge_pack].Qmax_passed - bps_qmax_start);
+		if(passed_mah > 32767)
+		{
+			passed_mah -= 65536;
+		}
+		// A backwards counter/time change invalidates this batch (e.g. Qmax reset).
+		if(passed_mah >= BATT_BPS_DISCHARGE_MAH || passed_mah < 0 || bq_data[bps_discharge_pack].Qmax_time < bps_qmax_time)
+		{
+			bps_state = BPS_COMPLETE;
+			bps_complete_sequence = bps_read_sequence[bps_discharge_pack];
+		}
+		else
+		{
+			bps_qmax_time = bq_data[bps_discharge_pack].Qmax_time;
+		}
+	}
+
+	switch(bps_state)
+	{
+		case BPS_IDLE:
+			for(i = 0; i < BQ_DEVICES; i++)
+			{
+				bq_data[i].FET_BPS_EN = false;				
+			}
+			for(i = 0; i < BQ_DEVICES; i++)
+			{
+				if(bq_data[i].FET_BPS_STAT || bq_data[i].p_comm_bq->RX_Pending)
+				{
+					return;
+				}
+			}
+			bps_discharge_pack = BQ_DEVICES;
+			for(i = 0; i < BQ_DEVICES; i++)
+			{
+				if(bq_data[i].bps_need_discharge &&
+				   (bps_discharge_pack == BQ_DEVICES ||
+				    bq_data[i].voltage_per_cell > bq_data[bps_discharge_pack].voltage_per_cell))
+				{
+					bps_discharge_pack = i;
+				}
+			}
+			if(bps_discharge_pack == BQ_DEVICES)
+			{
+				return;
+			}
+			bps_qmax_start = bq_data[bps_discharge_pack].Qmax_passed;
+			bps_qmax_time = bq_data[bps_discharge_pack].Qmax_time;
+			bps_next_pack = 0U;
+			bps_state = BPS_SELECT_BYPASS;
+			break;
+
+		case BPS_SELECT_BYPASS:
+			for(i = 0; i < BQ_DEVICES; i++)
+			{
+				if(bq_data[i].FET_BPS_STAT || bq_data[i].p_comm_bq->RX_Pending) // if any pack is still bypassing, wait for it to finish before selecting the next pack
+				{
+					return;
+				}
+			}
+
+			// Clear the bypass status flags so that the next pack can be selected for bypass.
+			for(i = 0; i < BQ_DEVICES; i++)
+			{
+				bq_data[i].FET_CHG_STAT_NEW = true;
+				bq_data[i].FET_DSG_STAT_NEW = true;
+			}
+
+			for(i = 0; i < BQ_DEVICES; i++)
+			{
+				pack = (bps_next_pack + i) % BQ_DEVICES; // Rotate through the packs in order, starting with the next pack after the last one that was bypassed.
+				if(pack != bps_discharge_pack)
+				{
+					bps_active_pack = pack;
+					bq_data[pack].bypass_time_start_ms = now;
+					bq_data[pack].bypass_time_ms = 0U;
+					bq_data[pack].FET_BPS_EN = true;
+					bps_state = BPS_WAIT_ON;
+					break;
+				}
+			}
+			break;
+
+		case BPS_WAIT_ON:
+			bq_data[bps_active_pack].bypass_time_ms = (uint32_t)(now - bq_data[bps_active_pack].bypass_time_start_ms);
+
+			if(bq_data[bps_active_pack].FET_BPS_STAT)
+			{
+				bq_data[bps_active_pack].bypass_time_start_ms = now;
+				bq_data[bps_active_pack].bypass_time_ms = 0U;
+				bps_state = BPS_HOLD;
+			}
+			else if(!bq_data[bps_active_pack].FET_BPS_EN || bq_data[bps_active_pack].bypass_time_ms >= BATT_BPS_SWITCH_INTERVAL_MS)
 			{
 				bq_data[bps_active_pack].FET_BPS_EN = false;
+				bps_state = BPS_WAIT_OFF;
 			}
-		}
+			break;
 
-		if(bq_data[bps_active_pack].FET_BPS_EN)
-		{
-			return;
-		}
+		case BPS_HOLD:
+			bq_data[bps_active_pack].bypass_time_ms = (uint32_t)(now - bq_data[bps_active_pack].bypass_time_start_ms);
 
-		// Finish disabling the previous pack before enabling another.
-		if(bq_data[bps_active_pack].FET_BPS_STAT || bq_data[bps_active_pack].p_comm_bq->RX_Pending)
-		{
-			return;
-		}
-
-		bps_next_pack = (bps_active_pack + 1U) % BQ_DEVICES;
-		bps_active_pack = BQ_DEVICES;
-	}
-
-	// Also clear any previous bypass requests before starting the sequence.
-	for(i = 0; i < BQ_DEVICES; i++)
-	{
-		bq_data[i].FET_BPS_EN = false;
-	}
-
-	for(i = 0; i < BQ_DEVICES; i++)
-	{
-		if(bq_data[i].FET_BPS_STAT || (bq_data[i].p_comm_bq != NULL && bq_data[i].p_comm_bq->RX_Pending))
-		{
-			return;
-		}
-	}
-
-	for(i = 0; i < BQ_DEVICES; i++)
-	{
-		pack = (bps_next_pack + i) % BQ_DEVICES;
-		if(!bq_data[pack].bps_need_discharge && bq_data[pack].p_comm_bq != NULL)
-		{
-			bps_active_pack = pack;
-			bq_data[bps_active_pack].bypass_time_start_ms = now;
-			// Time the enable request even if the reported status is delayed.
-			bq_data[bps_active_pack].bypass_time_ms = 0U;
-
-			if((!drone_status.pwr_fet) && (!drone_status.esc_arm) && (!drone_status.esc_psys_arm) && (batt_data.adc_pack_v < batt_data.pwr_min_voltage))
+			if(!bq_data[bps_active_pack].FET_BPS_EN || bq_data[bps_active_pack].bypass_time_ms >= BATT_BPS_SWITCH_INTERVAL_MS)
 			{
-				bq_data[pack].FET_BPS_EN = true;
+				bq_data[bps_active_pack].FET_BPS_EN = false;
+				bps_state = BPS_WAIT_OFF;
 			}
-			else
+			break;
+
+		case BPS_WAIT_OFF:
+			if(!bq_data[bps_active_pack].FET_BPS_STAT && !bq_data[bps_active_pack].p_comm_bq->RX_Pending)
 			{
-				bq_data[pack].FET_BPS_EN = false;
+				bps_next_pack = (bps_active_pack + 1U) % BQ_DEVICES;
+				bps_active_pack = BQ_DEVICES;
+				bps_state = BPS_SELECT_BYPASS;
 			}
-			return;
-		}
+			break;
+
+		case BPS_COMPLETE:
+			for(i = 0; i < BQ_DEVICES; i++)
+			{
+				bq_data[i].FET_BPS_EN = false;
+				bq_data[i].FET_BPS_STAT_NEW = false;
+			}
+
+			for(i = 0; i < BQ_DEVICES; i++)
+			{
+				if(bq_data[i].FET_BPS_STAT || bq_data[i].p_comm_bq->RX_Pending)
+				{
+					return;
+				}
+			}
+			// Reassess need for discharge using a fresh target-pack read.
+			if(bps_read_sequence[bps_discharge_pack] != bps_complete_sequence)
+			{
+				bps_discharge_pack = BQ_DEVICES;
+				bps_active_pack = BQ_DEVICES;
+				bps_state = BPS_IDLE;
+			}
+			break;
+
+		default:
+			bps_state = BPS_IDLE;
+			break;
 	}
 }
 

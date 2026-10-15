@@ -97,7 +97,7 @@ UVX_BATT_STATE uvx_batt_find_highest_average_pack_voltage(void)
 
 	for(i = 0U; i < BQ_DEVICES; i++)
 	{
-		bq_data[i].bps_need_discharge = ((highest - lowest) > BATT_BPS_DISCHARGE_DIFF_MV) && (bq_data[i].voltage_per_cell == highest);
+		bq_data[i].bps_need_discharge = ( ((highest - lowest) > BATT_BPS_DISCHARGE_DIFF_MV) && (bq_data[i].voltage_per_cell == highest) );
 		bq_data[i].bps_need_charge = (bq_data[i].voltage_per_cell == lowest);
 	}
 
@@ -289,9 +289,9 @@ UVX_BATT_STATE uvx_batt_parse_data(void)
 	bq_data_3.gpio_pin_21 = (bq_data_3.gpio_status & BQ_GPIO_PIN21_MASK) >> 6;
 	bq_data_3.gpio_pin_22 = (bq_data_3.gpio_status & BQ_GPIO_PIN22_MASK) >> 7;
 
-	bq_data_1.FET_BPS_STAT = bq_data_1.gpio_pin_15;
-	bq_data_2.FET_BPS_STAT = bq_data_2.gpio_pin_15;
-	bq_data_3.FET_BPS_STAT = bq_data_3.gpio_pin_15;
+	bq_data_1.FET_BPS_STAT = !bq_data_1.gpio_pin_15;
+	bq_data_2.FET_BPS_STAT = !bq_data_2.gpio_pin_15;
+	bq_data_3.FET_BPS_STAT = !bq_data_3.gpio_pin_15;
 
 	// Bypass code [Force_balance_2:Force_balance_1]: 00 off, 01 BQ1, 10 BQ2, 11 BQ3.
 	comm_bq_1.Force_balance = bq_data_1.FET_BPS_STAT || bq_data_3.FET_BPS_STAT;
