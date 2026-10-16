@@ -94,11 +94,9 @@ void Error_Handler(void);
 #define APP_TIMEOUT_PACK_V_STABLE_LOW      1000 //ms
 
 #define ADC_MAX        4095.0f
-#define VDDA           3.3f
 #define RESISTOR_R124  45.3f
-#define RESISTOR_R8    2.80f
+#define RESISTOR_R8    2.95f
 #define DIV_RATIO      (RESISTOR_R8 / (RESISTOR_R124 + RESISTOR_R8))
-#define PACK_V_GAIN    ((VDDA / (ADC_MAX * DIV_RATIO)) * 1000)
 
 //------------------- APP SETUP UARTs --------------------------------------------
 #define UVX_APP_SETUP_UART_1		UVX_SETUP_UART_1

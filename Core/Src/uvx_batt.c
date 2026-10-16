@@ -552,15 +552,55 @@ UVX_BATT_STATE uvx_batt_search_cell_diff(void)
 	return UVX_BATT_OK;
 }
 
+/* Measure ADC1 with enough sampling time for VREFINT and the divider. */
+static HAL_StatusTypeDef uvx_batt_adc_read(uint32_t channel, uint16_t *raw)
+{
+	ADC_ChannelConfTypeDef config = {0};
+	HAL_StatusTypeDef status;
+	config.Channel = channel;
+	config.Rank = ADC_REGULAR_RANK_1;
+	config.SamplingTime = ADC_SAMPLETIME_640CYCLES_5;
+	config.SingleDiff = ADC_SINGLE_ENDED;
+	config.OffsetNumber = ADC_OFFSET_NONE;
+	status = HAL_ADC_ConfigChannel(&hadc1, &config);
+	if(status != HAL_OK) return status;
+	// ConfigChannel enables the VREFINT input path, not VREFBUF.
+	if(channel == ADC_CHANNEL_VREFINT) HAL_Delay(1);
+	status = HAL_ADC_Start(&hadc1);
+	if(status == HAL_OK)
+	{
+		status = HAL_ADC_PollForConversion(&hadc1, 10U);
+		if(status == HAL_OK) *raw = (uint16_t)HAL_ADC_GetValue(&hadc1);
+	}
+	if(HAL_ADC_Stop(&hadc1) != HAL_OK) return HAL_ERROR;
+	return status;
+}
+
 UVX_BATT_STATE uvx_batt_read_pack_v(void)
 {
-	if(&hadc1 != NULL)
-	{
-		HAL_ADC_Start(&hadc1);
-		HAL_ADC_PollForConversion(&hadc1, 10);
-		HAL_ADC_Stop(&hadc1);
+	uint16_t vref_raw;
+	uint16_t pack_raw;
+	uint32_t vref_mv;
+	float pack_mv;
 
-		batt_data.adc_pack_v = HAL_ADC_GetValue(&hadc1) * PACK_V_GAIN;
+	if(uvx_batt_adc_read(ADC_CHANNEL_VREFINT, &vref_raw) != HAL_OK ||
+	   vref_raw == 0U || vref_raw >= 4095U ||
+	   *VREFINT_CAL_ADDR == 0U || *VREFINT_CAL_ADDR == 0xFFFFU)
+	{
+		return UVX_BATT_ERROR;
+	}
+	if(uvx_batt_adc_read(ADC_CHANNEL_9, &pack_raw) != HAL_OK || pack_raw >= 4095U)
+	{
+		return UVX_BATT_ERROR;
+	}
+	vref_mv = __HAL_ADC_CALC_VREFANALOG_VOLTAGE(vref_raw, ADC_RESOLUTION_12B);
+	pack_mv = ((float)pack_raw * (float)vref_mv) / (ADC_MAX * DIV_RATIO);
+	if(pack_mv > 65535.0f) return UVX_BATT_ERROR;
+	batt_data.adc_vrefint_raw = vref_raw;
+	batt_data.adc_pack_raw = pack_raw;
+	batt_data.adc_vref_mv = (uint16_t)vref_mv;
+	{
+		batt_data.adc_pack_v = (uint16_t)(pack_mv + 0.5f);
 
 		if((batt_data.adc_pack_v > batt_data.pwr_min_voltage) &&
 		   (batt_data.adc_pack_v < batt_data.pwr_max_voltage))
