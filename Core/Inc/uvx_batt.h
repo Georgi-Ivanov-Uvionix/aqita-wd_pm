@@ -48,7 +48,7 @@
 #define BATT_CELL_CHARGE_RESUME_VOLTAGE             4100 //mv
 #define BATT_CELL_DETECT_THRESHOLD_MV               1500 //mv
 #define BATT_CELL_VOLTAGE_DIFF                      10  //mv
-#define BATT_BPS_DISCHARGE_DIFF_MV                  10U
+#define BATT_BPS_DISCHARGE_DIFF_MV                  1U
 #define BATT_DELTA_VOLTAGE                          1500  //mv
 #define BATT_ADC_PACK_V_LOW_MIN_MS                  5000U
 

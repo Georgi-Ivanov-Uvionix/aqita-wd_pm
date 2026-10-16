@@ -11,6 +11,7 @@ static UVX_COMM_BQ_STATE bq_state;
 static uint32_t bps_active_pack = BQ_DEVICES;
 static uint32_t bps_next_pack;
 #define BATT_BPS_DISCHARGE_MAH 10U
+#define BATT_BPS_REST_INTERVAL_MS 20000U
 
 typedef enum
 {
@@ -19,7 +20,9 @@ typedef enum
 	BPS_WAIT_ON,
 	BPS_HOLD,
 	BPS_WAIT_OFF,
-	BPS_COMPLETE
+	BPS_COMPLETE,
+	BPS_REST,
+	BPS_REASSESS
 } BATT_BPS_STATE;
 
 static BATT_BPS_STATE bps_state = BPS_IDLE;
@@ -27,7 +30,8 @@ static uint32_t bps_discharge_pack = BQ_DEVICES;
 static uint16_t bps_qmax_start;
 static uint16_t bps_qmax_time;
 static uint32_t bps_read_sequence[BQ_DEVICES];
-static uint32_t bps_complete_sequence;
+static uint32_t bps_rest_start_ms;
+static uint32_t bps_rest_read_sequence[BQ_DEVICES];
 
 static void batt_rotate_fet_bps(void);
 
@@ -803,7 +807,7 @@ static void batt_rotate_fet_bps(void)
 		}
 	}
 
-	if(bps_discharge_pack < BQ_DEVICES && bps_state != BPS_COMPLETE)
+	if(bps_discharge_pack < BQ_DEVICES && (bps_state == BPS_WAIT_ON || bps_state == BPS_HOLD))
 	{
 		// Qmax_passed increases on discharge. Subtract modulo 16 bits so
 		// crossing the signed counter boundary does not lose the delta.
@@ -816,8 +820,7 @@ static void batt_rotate_fet_bps(void)
 		if(passed_mah >= BATT_BPS_DISCHARGE_MAH || passed_mah < 0 || bq_data[bps_discharge_pack].Qmax_time < bps_qmax_time)
 		{
 			bps_state = BPS_COMPLETE;
-			bps_complete_sequence = bps_read_sequence[bps_discharge_pack];
-		}
+			}
 		else
 		{
 			bps_qmax_time = bq_data[bps_discharge_pack].Qmax_time;
@@ -854,7 +857,6 @@ static void batt_rotate_fet_bps(void)
 			}
 			bps_qmax_start = bq_data[bps_discharge_pack].Qmax_passed;
 			bps_qmax_time = bq_data[bps_discharge_pack].Qmax_time;
-			bps_next_pack = 0U;
 			bps_state = BPS_SELECT_BYPASS;
 			break;
 
@@ -916,35 +918,55 @@ static void batt_rotate_fet_bps(void)
 			break;
 
 		case BPS_WAIT_OFF:
-			if(!bq_data[bps_active_pack].FET_BPS_STAT && !bq_data[bps_active_pack].p_comm_bq->RX_Pending)
-			{
-				bps_next_pack = (bps_active_pack + 1U) % BQ_DEVICES;
-				bps_active_pack = BQ_DEVICES;
-				bps_state = BPS_SELECT_BYPASS;
-			}
-			break;
-
 		case BPS_COMPLETE:
 			for(i = 0; i < BQ_DEVICES; i++)
 			{
 				bq_data[i].FET_BPS_EN = false;
 				bq_data[i].FET_BPS_STAT_NEW = false;
+				bq_data[i].FET_CHG_STAT_NEW = true;
+				bq_data[i].FET_DSG_STAT_NEW = true;
 			}
-
 			for(i = 0; i < BQ_DEVICES; i++)
 			{
-				if(bq_data[i].FET_BPS_STAT || bq_data[i].p_comm_bq->RX_Pending)
+				if(bq_data[i].FET_BPS_STAT || bq_data[i].p_comm_bq->RX_Pending ||
+				   !bq_data[i].FET_CHG_STAT || !bq_data[i].FET_DSG_STAT)
 				{
 					return;
 				}
 			}
-			// Reassess need for discharge using a fresh target-pack read.
-			if(bps_read_sequence[bps_discharge_pack] != bps_complete_sequence)
+			if(bps_active_pack < BQ_DEVICES)
 			{
-				bps_discharge_pack = BQ_DEVICES;
-				bps_active_pack = BQ_DEVICES;
-				bps_state = BPS_IDLE;
+				bps_next_pack = (bps_active_pack + 1U) % BQ_DEVICES;
 			}
+			bps_active_pack = BQ_DEVICES;
+			bps_discharge_pack = BQ_DEVICES;
+			bps_rest_start_ms = now;
+			bps_state = BPS_REST;
+			break;
+
+		case BPS_REST:
+			// Begin recovery only after every bypass is off and FETs are restored.
+			if((uint32_t)(now - bps_rest_start_ms) >= BATT_BPS_REST_INTERVAL_MS)
+			{
+				for(i = 0; i < BQ_DEVICES; i++)
+				{
+					bps_rest_read_sequence[i] = bps_read_sequence[i];
+				}
+				bps_state = BPS_REASSESS;
+			}
+			break;
+
+		case BPS_REASSESS:
+			// All packs must have fresh readings after the recovery interval.
+			for(i = 0; i < BQ_DEVICES; i++)
+			{
+				if(bps_read_sequence[i] == bps_rest_read_sequence[i])
+				{
+					return;
+				}
+			}
+			uvx_batt_find_highest_average_pack_voltage();
+			bps_state = BPS_IDLE;
 			break;
 
 		default:

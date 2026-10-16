@@ -418,7 +418,7 @@ UVX_BATT_STATE uvx_batt_parse_data(void)
 		bq_data_3.voltage_per_cell = 0;
 	}
 
-	uvx_batt_find_highest_average_pack_voltage();
+	//uvx_batt_find_highest_average_pack_voltage();
 
 	batt_data.voltage_delta_cell = (int16_t)uvx_batt_max_u16_3(bq_data_1.voltage_delta_cell, bq_data_2.voltage_delta_cell, bq_data_3.voltage_delta_cell);
 	batt_data.voltage_diff_pack = (int16_t)( uvx_batt_max_u16_3(bq_data_1.voltage_per_cell, bq_data_2.voltage_per_cell, bq_data_3.voltage_per_cell) -
