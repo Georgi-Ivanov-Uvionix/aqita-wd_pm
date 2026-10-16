@@ -25,24 +25,6 @@ typedef enum
 	BPS_REASSESS
 } BATT_BPS_STATE;
 
-typedef enum
-{
-	BPS_BLOCK_NONE = 0,
-	BPS_BLOCK_SLEEP = 1,
-	BPS_BLOCK_FC_POWER = 2,
-	BPS_BLOCK_LOW_CELL = 3,
-	BPS_BLOCK_PWR_FET = 4,
-	BPS_BLOCK_ARMED = 5,
-	BPS_BLOCK_ADC_VOLTAGE = 6,
-	BPS_BLOCK_COMMUNICATION = 7,
-	BPS_BLOCK_WAIT_OFF = 8,
-	BPS_BLOCK_NO_DISCHARGE = 9,
-	BPS_BLOCK_REST = 10,
-	BPS_BLOCK_WAIT_READ = 11
-} BATT_BPS_BLOCK_REASON;
-
-// Inspect in the debugger when balancing does not start.
-volatile BATT_BPS_BLOCK_REASON bps_block_reason = BPS_BLOCK_NONE;
 static BATT_BPS_STATE bps_state = BPS_IDLE;
 static uint32_t bps_discharge_pack = BQ_DEVICES;
 static uint16_t bps_qmax_start[BQ_DEVICES];
@@ -738,12 +720,10 @@ static void batt_rotate_fet_bps(void)
 	uint32_t pack;
 	uint32_t now = HAL_GetTick();
 	int32_t passed_mah;
-	bps_block_reason = BPS_BLOCK_NONE;
 
 	// Sleep must never select another pack for bypass.
 	if(drone_state.state_current == DRONE_SLEEP)
 	{
-		bps_block_reason = BPS_BLOCK_SLEEP;
 		for(i = 0; i < BQ_DEVICES; i++)
 		{
 			bq_data[i].FET_BPS_EN = false;
@@ -759,7 +739,6 @@ static void batt_rotate_fet_bps(void)
 	// Keep prepare_fc set until the packs are ready for FC power-on.
 	if(drone_status.pwr_fc || comm_m2jmb_state.state_current == M2JMB_MODE_SEND_FC_ON_ACK)
 	{
-		bps_block_reason = BPS_BLOCK_FC_POWER;
 		for(i = 0; i < BQ_DEVICES; i++)
 		{
 			bq_data[i].FET_BPS_EN = false;
@@ -797,7 +776,6 @@ static void batt_rotate_fet_bps(void)
 	// Stop bypass whenever the minimum detected cell voltage is too low.
 	if(batt_data.voltage_min_cell < BATT_BPS_MIN_CELL_VOLTAGE_MV)
 	{
-		bps_block_reason = BPS_BLOCK_LOW_CELL;
 		for(i = 0; i < BQ_DEVICES; i++)
 		{
 			bq_data[i].FET_BPS_EN = false;
@@ -818,9 +796,6 @@ static void batt_rotate_fet_bps(void)
 		   bq_data[i].p_comm_bq == NULL || bq_data[i].p_comm_bq->No_response)
 		{
 			uint32_t j;
-			bps_block_reason = drone_status.pwr_fet ? BPS_BLOCK_PWR_FET :
-				(drone_status.esc_arm || drone_status.esc_psys_arm) ? BPS_BLOCK_ARMED :
-				(batt_data.adc_pack_v >= batt_data.pwr_min_voltage) ? BPS_BLOCK_ADC_VOLTAGE : BPS_BLOCK_COMMUNICATION;
 			for(j = 0; j < BQ_DEVICES; j++)
 			{
 				bq_data[j].FET_BPS_EN = false;
@@ -868,7 +843,6 @@ static void batt_rotate_fet_bps(void)
 			{
 				if(bq_data[i].FET_BPS_STAT || bq_data[i].p_comm_bq->RX_Pending)
 				{
-					bps_block_reason = (bps_state == BPS_REASSESS) ? BPS_BLOCK_WAIT_READ : BPS_BLOCK_WAIT_OFF;
 					return;
 				}
 			}
@@ -887,7 +861,6 @@ static void batt_rotate_fet_bps(void)
 			}
 			if(bps_discharge_pack == BQ_DEVICES)
 			{
-				bps_block_reason = BPS_BLOCK_NO_DISCHARGE;
 				return;
 			}
 			// Latch all targets for this interval; reassess only after recovery.
@@ -905,7 +878,6 @@ static void batt_rotate_fet_bps(void)
 			{
 				if(bq_data[i].FET_BPS_STAT || bq_data[i].p_comm_bq->RX_Pending) // if any pack is still bypassing, wait for it to finish before selecting the next pack
 				{
-					bps_block_reason = (bps_state == BPS_REASSESS) ? BPS_BLOCK_WAIT_READ : BPS_BLOCK_WAIT_OFF;
 					return;
 				}
 			}
@@ -972,7 +944,6 @@ static void batt_rotate_fet_bps(void)
 				if(bq_data[i].FET_BPS_STAT || bq_data[i].p_comm_bq->RX_Pending ||
 				   !bq_data[i].FET_CHG_STAT || !bq_data[i].FET_DSG_STAT)
 				{
-					bps_block_reason = (bps_state == BPS_REASSESS) ? BPS_BLOCK_WAIT_READ : BPS_BLOCK_WAIT_OFF;
 					return;
 				}
 			}
@@ -987,7 +958,6 @@ static void batt_rotate_fet_bps(void)
 			break;
 
 		case BPS_REST:
-			bps_block_reason = BPS_BLOCK_REST;
 			// Begin recovery only after every bypass is off and FETs are restored.
 			if((uint32_t)(now - bps_rest_start_ms) >= BATT_BPS_REST_INTERVAL_MS)
 			{
@@ -1000,13 +970,11 @@ static void batt_rotate_fet_bps(void)
 			break;
 
 		case BPS_REASSESS:
-			bps_block_reason = BPS_BLOCK_WAIT_READ;
 			// All packs must have fresh readings after the recovery interval.
 			for(i = 0; i < BQ_DEVICES; i++)
 			{
 				if(bps_read_sequence[i] == bps_rest_read_sequence[i])
 				{
-					bps_block_reason = (bps_state == BPS_REASSESS) ? BPS_BLOCK_WAIT_READ : BPS_BLOCK_WAIT_OFF;
 					return;
 				}
 			}
