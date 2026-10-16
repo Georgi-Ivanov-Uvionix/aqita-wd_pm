@@ -25,10 +25,29 @@ typedef enum
 	BPS_REASSESS
 } BATT_BPS_STATE;
 
+typedef enum
+{
+	BPS_BLOCK_NONE = 0,
+	BPS_BLOCK_SLEEP = 1,
+	BPS_BLOCK_FC_POWER = 2,
+	BPS_BLOCK_LOW_CELL = 3,
+	BPS_BLOCK_PWR_FET = 4,
+	BPS_BLOCK_ARMED = 5,
+	BPS_BLOCK_ADC_VOLTAGE = 6,
+	BPS_BLOCK_COMMUNICATION = 7,
+	BPS_BLOCK_WAIT_OFF = 8,
+	BPS_BLOCK_NO_DISCHARGE = 9,
+	BPS_BLOCK_REST = 10,
+	BPS_BLOCK_WAIT_READ = 11
+} BATT_BPS_BLOCK_REASON;
+
+// Inspect in the debugger when balancing does not start.
+volatile BATT_BPS_BLOCK_REASON bps_block_reason = BPS_BLOCK_NONE;
 static BATT_BPS_STATE bps_state = BPS_IDLE;
 static uint32_t bps_discharge_pack = BQ_DEVICES;
-static uint16_t bps_qmax_start;
-static uint16_t bps_qmax_time;
+static uint16_t bps_qmax_start[BQ_DEVICES];
+static uint16_t bps_qmax_time[BQ_DEVICES];
+static bool bps_discharge_selected[BQ_DEVICES];
 static uint32_t bps_read_sequence[BQ_DEVICES];
 static uint32_t bps_rest_start_ms;
 static uint32_t bps_rest_read_sequence[BQ_DEVICES];
@@ -712,17 +731,19 @@ static UVX_COMM_BQ_STATE batt_mode_check_fet_enable(UVX_BQ_DATA *p_bq_data)
 	}	
 }
 
-// Discharge one selected pack by 10 mAh, alternating bypass on the other packs.
+// Discharge all selected high packs; rotate bypass only among the lower packs.
 static void batt_rotate_fet_bps(void)
 {
 	uint32_t i;
 	uint32_t pack;
 	uint32_t now = HAL_GetTick();
 	int32_t passed_mah;
+	bps_block_reason = BPS_BLOCK_NONE;
 
 	// Sleep must never select another pack for bypass.
 	if(drone_state.state_current == DRONE_SLEEP)
 	{
+		bps_block_reason = BPS_BLOCK_SLEEP;
 		for(i = 0; i < BQ_DEVICES; i++)
 		{
 			bq_data[i].FET_BPS_EN = false;
@@ -738,6 +759,7 @@ static void batt_rotate_fet_bps(void)
 	// Keep prepare_fc set until the packs are ready for FC power-on.
 	if(drone_status.pwr_fc || comm_m2jmb_state.state_current == M2JMB_MODE_SEND_FC_ON_ACK)
 	{
+		bps_block_reason = BPS_BLOCK_FC_POWER;
 		for(i = 0; i < BQ_DEVICES; i++)
 		{
 			bq_data[i].FET_BPS_EN = false;
@@ -775,6 +797,7 @@ static void batt_rotate_fet_bps(void)
 	// Stop bypass whenever the minimum detected cell voltage is too low.
 	if(batt_data.voltage_min_cell < BATT_BPS_MIN_CELL_VOLTAGE_MV)
 	{
+		bps_block_reason = BPS_BLOCK_LOW_CELL;
 		for(i = 0; i < BQ_DEVICES; i++)
 		{
 			bq_data[i].FET_BPS_EN = false;
@@ -795,6 +818,9 @@ static void batt_rotate_fet_bps(void)
 		   bq_data[i].p_comm_bq == NULL || bq_data[i].p_comm_bq->No_response)
 		{
 			uint32_t j;
+			bps_block_reason = drone_status.pwr_fet ? BPS_BLOCK_PWR_FET :
+				(drone_status.esc_arm || drone_status.esc_psys_arm) ? BPS_BLOCK_ARMED :
+				(batt_data.adc_pack_v >= batt_data.pwr_min_voltage) ? BPS_BLOCK_ADC_VOLTAGE : BPS_BLOCK_COMMUNICATION;
 			for(j = 0; j < BQ_DEVICES; j++)
 			{
 				bq_data[j].FET_BPS_EN = false;
@@ -807,23 +833,27 @@ static void batt_rotate_fet_bps(void)
 		}
 	}
 
-	if(bps_discharge_pack < BQ_DEVICES && (bps_state == BPS_WAIT_ON || bps_state == BPS_HOLD))
+	if(bps_state == BPS_WAIT_ON || bps_state == BPS_HOLD)
 	{
-		// Qmax_passed increases on discharge. Subtract modulo 16 bits so
-		// crossing the signed counter boundary does not lose the delta.
-		passed_mah = (uint16_t)(bq_data[bps_discharge_pack].Qmax_passed - bps_qmax_start);
-		if(passed_mah > 32767)
+		// End the interval when any selected discharge pack reaches 10 mAh.
+		for(i = 0; i < BQ_DEVICES; i++)
 		{
-			passed_mah -= 65536;
-		}
-		// A backwards counter/time change invalidates this batch (e.g. Qmax reset).
-		if(passed_mah >= BATT_BPS_DISCHARGE_MAH || passed_mah < 0 || bq_data[bps_discharge_pack].Qmax_time < bps_qmax_time)
-		{
-			bps_state = BPS_COMPLETE;
+			if(!bps_discharge_selected[i])
+			{
+				continue;
 			}
-		else
-		{
-			bps_qmax_time = bq_data[bps_discharge_pack].Qmax_time;
+			passed_mah = (uint16_t)(bq_data[i].Qmax_passed - bps_qmax_start[i]);
+			if(passed_mah > 32767)
+			{
+				passed_mah -= 65536;
+			}
+			if(passed_mah < 0 || passed_mah >= (int32_t)BATT_BPS_DISCHARGE_MAH ||
+			   bq_data[i].Qmax_time < bps_qmax_time[i])
+			{
+				bps_state = BPS_COMPLETE;
+				break;
+			}
+			bps_qmax_time[i] = bq_data[i].Qmax_time;
 		}
 	}
 
@@ -838,9 +868,13 @@ static void batt_rotate_fet_bps(void)
 			{
 				if(bq_data[i].FET_BPS_STAT || bq_data[i].p_comm_bq->RX_Pending)
 				{
+					bps_block_reason = (bps_state == BPS_REASSESS) ? BPS_BLOCK_WAIT_READ : BPS_BLOCK_WAIT_OFF;
 					return;
 				}
 			}
+			// Initialize/recompute flags while all bypasses are off.
+			// Otherwise zero startup flags prevent ever reaching BPS_REASSESS.
+			uvx_batt_find_highest_average_pack_voltage();
 			bps_discharge_pack = BQ_DEVICES;
 			for(i = 0; i < BQ_DEVICES; i++)
 			{
@@ -853,10 +887,16 @@ static void batt_rotate_fet_bps(void)
 			}
 			if(bps_discharge_pack == BQ_DEVICES)
 			{
+				bps_block_reason = BPS_BLOCK_NO_DISCHARGE;
 				return;
 			}
-			bps_qmax_start = bq_data[bps_discharge_pack].Qmax_passed;
-			bps_qmax_time = bq_data[bps_discharge_pack].Qmax_time;
+			// Latch all targets for this interval; reassess only after recovery.
+			for(i = 0; i < BQ_DEVICES; i++)
+			{
+				bps_discharge_selected[i] = bq_data[i].bps_need_discharge;
+				bps_qmax_start[i] = bq_data[i].Qmax_passed;
+				bps_qmax_time[i] = bq_data[i].Qmax_time;
+			}
 			bps_state = BPS_SELECT_BYPASS;
 			break;
 
@@ -865,6 +905,7 @@ static void batt_rotate_fet_bps(void)
 			{
 				if(bq_data[i].FET_BPS_STAT || bq_data[i].p_comm_bq->RX_Pending) // if any pack is still bypassing, wait for it to finish before selecting the next pack
 				{
+					bps_block_reason = (bps_state == BPS_REASSESS) ? BPS_BLOCK_WAIT_READ : BPS_BLOCK_WAIT_OFF;
 					return;
 				}
 			}
@@ -879,7 +920,7 @@ static void batt_rotate_fet_bps(void)
 			for(i = 0; i < BQ_DEVICES; i++)
 			{
 				pack = (bps_next_pack + i) % BQ_DEVICES; // Rotate through the packs in order, starting with the next pack after the last one that was bypassed.
-				if(pack != bps_discharge_pack)
+				if(!bps_discharge_selected[pack])
 				{
 					bps_active_pack = pack;
 					bq_data[pack].bypass_time_start_ms = now;
@@ -931,6 +972,7 @@ static void batt_rotate_fet_bps(void)
 				if(bq_data[i].FET_BPS_STAT || bq_data[i].p_comm_bq->RX_Pending ||
 				   !bq_data[i].FET_CHG_STAT || !bq_data[i].FET_DSG_STAT)
 				{
+					bps_block_reason = (bps_state == BPS_REASSESS) ? BPS_BLOCK_WAIT_READ : BPS_BLOCK_WAIT_OFF;
 					return;
 				}
 			}
@@ -945,6 +987,7 @@ static void batt_rotate_fet_bps(void)
 			break;
 
 		case BPS_REST:
+			bps_block_reason = BPS_BLOCK_REST;
 			// Begin recovery only after every bypass is off and FETs are restored.
 			if((uint32_t)(now - bps_rest_start_ms) >= BATT_BPS_REST_INTERVAL_MS)
 			{
@@ -957,11 +1000,13 @@ static void batt_rotate_fet_bps(void)
 			break;
 
 		case BPS_REASSESS:
+			bps_block_reason = BPS_BLOCK_WAIT_READ;
 			// All packs must have fresh readings after the recovery interval.
 			for(i = 0; i < BQ_DEVICES; i++)
 			{
 				if(bps_read_sequence[i] == bps_rest_read_sequence[i])
 				{
+					bps_block_reason = (bps_state == BPS_REASSESS) ? BPS_BLOCK_WAIT_READ : BPS_BLOCK_WAIT_OFF;
 					return;
 				}
 			}

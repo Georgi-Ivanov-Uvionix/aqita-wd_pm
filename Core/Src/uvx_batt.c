@@ -79,16 +79,11 @@ UVX_BATT_STATE uvx_batt_learn(void)
 
 UVX_BATT_STATE uvx_batt_find_highest_average_pack_voltage(void)
 {
-	uint16_t highest = 0U;
 	uint16_t lowest = UINT16_MAX;
 	uint8_t i;
 
 	for(i = 0U; i < BQ_DEVICES; i++)
 	{
-		if(bq_data[i].voltage_per_cell > highest)
-		{
-			highest = bq_data[i].voltage_per_cell;
-		}
 		if(bq_data[i].voltage_per_cell < lowest)
 		{
 			lowest = bq_data[i].voltage_per_cell;
@@ -97,7 +92,8 @@ UVX_BATT_STATE uvx_batt_find_highest_average_pack_voltage(void)
 
 	for(i = 0U; i < BQ_DEVICES; i++)
 	{
-		bq_data[i].bps_need_discharge = ( ((highest - lowest) > BATT_BPS_DISCHARGE_DIFF_MV) && (bq_data[i].voltage_per_cell == highest) );
+		bq_data[i].bps_need_discharge =
+			(bq_data[i].voltage_per_cell - lowest) > BATT_BPS_DISCHARGE_DIFF_MV;
 		bq_data[i].bps_need_charge = (bq_data[i].voltage_per_cell == lowest);
 	}
 

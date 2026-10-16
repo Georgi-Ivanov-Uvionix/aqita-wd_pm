@@ -545,7 +545,7 @@ typedef struct UVX_BQ_DATA
     uint8_t FET_BPS_EN              : 1; //
     uint8_t FET_BPS_STAT            : 1; //
     uint8_t FET_BPS_STAT_NEW        : 1; //
-    uint8_t bps_need_discharge      : 1; // Highest average cell voltage, with pack spread above threshold
+    uint8_t bps_need_discharge      : 1; // Average cell voltage exceeds lowest pack by configured threshold
     uint8_t bps_need_charge         : 1; // Pack matches lowest average cell voltage
 
     uint32_t bypass_time_start_ms;
