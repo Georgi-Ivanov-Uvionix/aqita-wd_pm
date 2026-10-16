@@ -488,9 +488,11 @@ UVX_BATT_STATE uvx_batt_parse_data(void)
 		batt_data.tc = 0;
 	}
 
-	batt_data.payload.error = 	bq_data_1.No_response << BATT_ERROR_BQ_1_NO_RESPONSE_BIT |
-								bq_data_2.No_response << BATT_ERROR_BQ_2_NO_RESPONSE_BIT |
-								bq_data_3.No_response << BATT_ERROR_BQ_3_NO_RESPONSE_BIT |
+	bq_data_1.No_response = comm_bq_1.No_response || comm_bq_3.No_response;
+	bq_data_2.No_response = comm_bq_2.No_response || comm_bq_3.No_response;
+
+	batt_data.payload.error = 	bq_data_1.No_response << BATT_ERROR_BQ_L_NO_RESPONSE_BIT |
+								bq_data_2.No_response << BATT_ERROR_BQ_H_NO_RESPONSE_BIT |
 								batt_data.batt_max_temp << BATT_ERROR_BATT_MAX_TEMP_BIT |
 								drone_status.charge_overvoltage << BATT_ERROR_CHARGE_OVERVOLTAGE_BIT |
 								drone_status.charge_cell_count_error << BATT_ERROR_CHARGE_CELL_COUNT_ERROR_BIT;
