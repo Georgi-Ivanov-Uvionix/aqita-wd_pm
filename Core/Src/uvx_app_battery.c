@@ -6,11 +6,11 @@ static UVX_BQ_DATA *p_app_bq_data;
 static UVX_COMM_BQ *p_app_comm_bq;
 static UVX_COMM_BQ_STATE bq_state;
 
-#define BATT_BPS_SWITCH_INTERVAL_MS 10000U
+#define BATT_BPS_SWITCH_INTERVAL_MS 15000U
 #define BATT_BPS_MIN_CELL_VOLTAGE_MV 2700
 static uint32_t bps_active_pack = BQ_DEVICES;
 static uint32_t bps_next_pack;
-#define BATT_BPS_DISCHARGE_MAH 10U
+#define BATT_BPS_DISCHARGE_MAH 20U
 #define BATT_BPS_REST_INTERVAL_MS 20000U
 
 typedef enum
@@ -791,8 +791,7 @@ static void batt_rotate_fet_bps(void)
 	// Abort balancing if operating conditions or pack communication are invalid.
 	for(i = 0; i < BQ_DEVICES; i++)
 	{
-		if(drone_status.pwr_fet || drone_status.esc_arm || drone_status.esc_psys_arm ||
-		   batt_data.adc_pack_v >= batt_data.pwr_min_voltage ||
+		if((batt_data.current >= 0) || drone_status.esc_arm || drone_status.esc_psys_arm ||
 		   bq_data[i].p_comm_bq == NULL || bq_data[i].p_comm_bq->No_response)
 		{
 			uint32_t j;

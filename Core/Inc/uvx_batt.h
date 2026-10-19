@@ -44,7 +44,7 @@
 #define BATT_EXPECTED_CELLS                         9
 #define BATT_CELL_MIN_DETECT_VOLTAGE_MV             1500
 #define BATT_CELL_MIN_VOLTAGE                       2200 //mv
-#define BATT_CELL_MAX_VOLTAGE                       4200 //mv
+#define BATT_CELL_MAX_VOLTAGE                       4250 //mv
 #define BATT_CELL_CHARGE_RESUME_VOLTAGE             4100 //mv
 #define BATT_CELL_DETECT_THRESHOLD_MV               1500 //mv
 #define BATT_CELL_VOLTAGE_DIFF                      10  //mv
@@ -148,7 +148,7 @@ typedef packed_struct
     uint16_t avg_time_to_full_m;        // Average Time to Full in minutes    
     uint16_t state_time_1_m;            // Time passed since last state change (DISCHARGE, CHARGE, REST)  
     uint16_t state_time_2_m;            // Time passed since last state change (DISCHARGE, CHARGE, REST)        byte 99
-    uint16_t state_time_3_m;
+    //uint16_t state_time_3_m;
     uint8_t  error;                     //bit 0 - BQ 1 no response      byte 100
                                         //bit 1 - BQ 2 no response
                                         //bit 2 - reserved

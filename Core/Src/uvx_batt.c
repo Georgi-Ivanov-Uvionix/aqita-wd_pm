@@ -365,7 +365,8 @@ UVX_BATT_STATE uvx_batt_parse_data(void)
 	{
 		batt_data.state_time_3_m = 0;
 	}
-	batt_data.payload.state_time_3_m = uvx_comm_bq_swap_u16_value(batt_data.state_time_3_m);
+	
+	//batt_data.payload.state_time_3_m = uvx_comm_bq_swap_u16_value(batt_data.state_time_3_m);
 
 	batt_data.remaining_capacity = uvx_batt_min_u16_3(bq_data_1.remaining_capacity, bq_data_2.remaining_capacity, bq_data_3.remaining_capacity);
 
