@@ -77,16 +77,20 @@
 #define SRAM1 __attribute__((section(".sram1")))
 #define SRAM2 __attribute__((section(".sram2")))
 
-#define CELL_1_INTERCONNECT_RESISTANCE 2 //mOhm
-#define CELL_2_INTERCONNECT_RESISTANCE 1 //mOhm
-#define CELL_3_INTERCONNECT_RESISTANCE 0 //mOhm
-#define CELL_4_INTERCONNECT_RESISTANCE 2 //mOhm
-#define CELL_5_INTERCONNECT_RESISTANCE 0 //mOhm
-#define CELL_6_INTERCONNECT_RESISTANCE 0 //mOhm
-#define CELL_7_INTERCONNECT_RESISTANCE 2 //mOhm
-#define CELL_8_INTERCONNECT_RESISTANCE 1 //mOhm
-#define CELL_9_INTERCONNECT_RESISTANCE 0 //mOhm
+#ifdef DRONE_10
+#define CELL_1_INTERCONNECT_RESISTANCE  2 //mOhm
+#define CELL_2_INTERCONNECT_RESISTANCE  1 //mOhm
+#define CELL_3_INTERCONNECT_RESISTANCE  0 //mOhm
+#define CELL_4_INTERCONNECT_RESISTANCE  3 //mOhm
+#define CELL_5_INTERCONNECT_RESISTANCE  0 //mOhm
+#define CELL_6_INTERCONNECT_RESISTANCE  0 //mOhm
+#define CELL_7_INTERCONNECT_RESISTANCE  2 //mOhm
+#define CELL_8_INTERCONNECT_RESISTANCE  1 //mOhm
+#define CELL_9_INTERCONNECT_RESISTANCE  0 //mOhm
 #define CELL_10_INTERCONNECT_RESISTANCE 0 //mOhm
+#else
+#error "Please define the interconnect resistances for the battery cells in uvx_batt.h"
+#endif
 
 
 typedef packed_struct

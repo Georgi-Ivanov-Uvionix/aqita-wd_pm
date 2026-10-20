@@ -70,6 +70,7 @@ void Error_Handler(void);
 
 //=================== APP SETUP======================================================
 #define PROJECT_AQITA_PM
+#define DRONE_10
 #define APP_TIMEOUT_JMB_HEARTBEAT		    600000 //ms
 #define APP_TIMEOUT_JMB_POWER_ON		    120000 //ms
 #define APP_TIMEOUT_JMB_POWER_OFF		    6000 //ms
