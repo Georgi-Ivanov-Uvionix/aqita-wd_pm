@@ -430,10 +430,17 @@ UVX_I2C_STATE uvx_i2c_read_mem(UVX_I2C_HAL* p_i2c, uint8_t dev_addr, uint16_t re
                     p_i2c->last_mem_write_error = HAL_I2C_GetError(&p_i2c->hi2c);                   
                     if(res != HAL_OK)
                     {
+                        uint32_t cr1 = p_i2c->hi2c.Instance->CR1;
                         p_i2c->RX_Ready = 1;
                         /* Do not overwrite HAL state or hide the failure reason. */
                         if(res == HAL_BUSY)
                         {
+                            if(p_i2c->hi2c.Instance->ISR & I2C_ISR_BUSY)
+                            {
+                                p_i2c->hi2c.Instance->CR1 &= ~I2C_CR1_PE;
+                                p_i2c->hi2c.Instance->CR1 = cr1;
+                            }                            
+                            p_i2c->hi2c.State = HAL_I2C_STATE_READY;
                             return UVX_I2C_BUSY;
                         }
 
