@@ -256,7 +256,8 @@ uint16_t adc_value;
 
 int main(void)
 {
- 	HAL_Init();
+
+	HAL_Init();
 	SystemClock_Config();
 
 	/* Initialize all configured peripherals */

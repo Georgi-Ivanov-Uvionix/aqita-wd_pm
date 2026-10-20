@@ -55,7 +55,7 @@
 
 
 #define BQ_1_I2C_ADDRESS    0x0D // I2C address for BQ communication
-#define BQ_2_I2C_ADDRESS    0x0B // I2C address for BQ communication
+#define BQ_2_I2C_ADDRESS    0x0E // I2C address for BQ communication
 #define BQ_3_I2C_ADDRESS    0x0F // I2C address for BQ communication
 
 #define BQ_DEVICES          3
