@@ -33,7 +33,7 @@ extern "C" {
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 // Board selection must be available to the battery configuration header.
-#define DRONE_10
+#define DRONE_11
 #define UVX_COMM_M2JMB_V2_0
 
 #include "uvx_batt.h"

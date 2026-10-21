@@ -453,8 +453,8 @@ UVX_BATT_STATE uvx_batt_parse_data(void)
 		drone_status.charge_cell_count_error = 0U;
 	}
 
-	if((batt_data.temperature_bq_2 > MAX_HIS_CELL_TEMPERATURE) ||
-	   (batt_data.temperature_bq_1 > MAX_HIS_CELL_TEMPERATURE) ||
+	if((batt_data.temperature_bq_1 > MAX_HIS_CELL_TEMPERATURE) ||
+	   (batt_data.temperature_bq_2 > MAX_HIS_CELL_TEMPERATURE) ||
 	   (batt_data.temperature_bq_3 > MAX_HIS_CELL_TEMPERATURE))
 	{
 		//UVX_APP_PWR_FET(0); // power off FC
@@ -475,7 +475,7 @@ UVX_BATT_STATE uvx_batt_parse_data(void)
 	batt_data.cell_ball_3 = bq_data_3.operation_status.reg.bits.CB;
 	if( (drone_status.charge_overvoltage) || 
 		(drone_status.charge_cell_count_error) ||
-		(batt_data.batt_max_temp) ||
+		/*(batt_data.batt_max_temp) ||*/
 		(drone_status.pwr_fc))
 	{
 		batt_data.tc = 1;
@@ -612,7 +612,22 @@ UVX_BATT_STATE uvx_batt_read_pack_v(void)
 					(drone_status.pwr_fc == 0) &&
 				    (!batt_data.tc) && (!batt_data.BPS_Passive))				   
 				{					
-					UVX_APP_PWR_FET(1); // power on FC
+					if(batt_data.batt_max_temp)
+					{
+						if((!bq_data_1.FET_CHG_STAT) && (!bq_data_2.FET_CHG_STAT) && (!bq_data_3.FET_CHG_STAT))
+						{
+							UVX_APP_PWR_FET(1); // power on FC
+						}						
+						else
+						{
+							UVX_APP_PWR_FET(0); // power off FC
+						}
+					}
+					else
+					{
+						UVX_APP_PWR_FET(1); // power on FC	
+					}
+
 					batt_data.adc_pack_v_stable_low = 0;
 					uvx_gpio_set_pin(GPIO_OUT_LED_STRIP_ENABLE, GPIO_PIN_SET);
 					if(!batt_data.init)

@@ -411,16 +411,22 @@ void UVX_APP_Batt(void)
 
 			if(batt_data.tc)
 			{
-				// bq_data_1.FET_CHG_STAT_NEW = false;
-				// bq_data_2.FET_CHG_STAT_NEW = false;
-				// bq_data_3.FET_CHG_STAT_NEW = false;
 				bq_data_1.FET_CHG_STAT_NEW = true;
 				bq_data_2.FET_CHG_STAT_NEW = true;
 				bq_data_3.FET_CHG_STAT_NEW = true;
 				bq_data_1.FET_DSG_STAT_NEW = true;
 				bq_data_2.FET_DSG_STAT_NEW = true;
 				bq_data_3.FET_DSG_STAT_NEW = true;
-				UVX_APP_PWR_FET(0);				
+
+				if( (bq_data_1.FET_CHG_STAT) && (bq_data_2.FET_CHG_STAT) && (bq_data_3.FET_CHG_STAT) &&
+				    (bq_data_1.FET_DSG_STAT) && (bq_data_2.FET_DSG_STAT) && (bq_data_3.FET_DSG_STAT) )
+				{
+					UVX_APP_PWR_FET(0);	
+				}
+				else
+				{
+					UVX_APP_PWR_FET(1);	
+				}							
 			}
 			else
 			{
@@ -728,6 +734,22 @@ static void batt_rotate_fet_bps(void)
 		{
 			bq_data[i].FET_BPS_EN = false;
 			bq_data[i].FET_BPS_STAT_NEW = false;
+		}
+		bps_active_pack = BQ_DEVICES;
+		bps_next_pack = 0;
+		bps_discharge_pack = BQ_DEVICES;
+		bps_state = BPS_IDLE;
+		return;
+	}
+
+	if(batt_data.batt_max_temp)
+	{
+		for(i = 0; i < BQ_DEVICES; i++)
+		{
+			bq_data[i].FET_BPS_EN = false;
+			bq_data[i].FET_BPS_STAT_NEW = false;
+			bq_data[i].FET_CHG_STAT_NEW = false;
+			bq_data[i].FET_DSG_STAT_NEW = false;			
 		}
 		bps_active_pack = BQ_DEVICES;
 		bps_next_pack = 0;
