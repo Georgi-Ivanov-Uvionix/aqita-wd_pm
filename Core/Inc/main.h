@@ -32,6 +32,8 @@ extern "C" {
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+// Board selection must be available to the battery configuration header.
+#define DRONE_10
 #define UVX_COMM_M2JMB_V2_0
 
 #include "uvx_batt.h"
@@ -70,7 +72,6 @@ void Error_Handler(void);
 
 //=================== APP SETUP======================================================
 #define PROJECT_AQITA_PM
-#define DRONE_10
 #define APP_TIMEOUT_JMB_HEARTBEAT		    600000 //ms
 #define APP_TIMEOUT_JMB_POWER_ON		    120000 //ms
 #define APP_TIMEOUT_JMB_POWER_OFF		    6000 //ms
