@@ -333,7 +333,6 @@ UVX_BATT_STATE uvx_batt_parse_data(void);
 UVX_BATT_STATE uvx_batt_find_highest_average_pack_voltage(void);
 UVX_BATT_STATE uvx_batt_read_data(uint16_t reg_index);
 UVX_BATT_STATE uvx_batt_read_pack_v(void);
-uint8_t uvx_batt_dock_cooling_ready(void);
 UVX_BATT_STATE uvx_batt_detect_cells(void);
 UVX_BATT_STATE uvx_batt_search_cell_diff(void);
 UVX_BATT_STATE uvx_batt_learn(void);

@@ -574,27 +574,6 @@ static HAL_StatusTypeDef uvx_batt_adc_read(uint32_t channel, uint16_t *raw)
 	return status;
 }
 
-// The dock may supply the system during cooling only with batteries isolated.
-uint8_t uvx_batt_dock_cooling_ready(void)
-{
-	uint32_t i;
-	if(!batt_data.batt_max_temp || !batt_data.adc_pack_v_stable_high ||
-	   drone_status.charge_overvoltage || drone_status.charge_cell_count_error)
-	{
-		return false;
-	}
-	for(i = 0; i < BQ_DEVICES; i++)
-	{
-		if(bq_data[i].FET_CHG_STAT || bq_data[i].FET_DSG_STAT ||
-		   bq_data[i].FET_BPS_STAT || bq_data[i].FET_BPS_EN ||
-		   bq_data[i].p_comm_bq == NULL || bq_data[i].p_comm_bq->No_response)
-		{
-			return false;
-		}
-	}
-	return true;
-}
-
 UVX_BATT_STATE uvx_batt_read_pack_v(void)
 {
 	uint16_t vref_raw;
