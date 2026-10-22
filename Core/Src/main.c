@@ -785,17 +785,20 @@ void UVX_APP_PWR_FET(uint8_t state)
 		{
 			uvx_gpio_set_pin(GPIO_OUTPUT_PM_INH_CHG, GPIO_PIN_RESET);
 			drone_status.pwr_fet = true;	
+			drone_status.time_since_pwr_fet_on = HAL_GetTick(); // Record the time when power FET is turned on
 		}
 		else
 		{
 			uvx_gpio_set_pin(GPIO_OUTPUT_PM_INH_CHG, GPIO_PIN_SET);
 			drone_status.pwr_fet = false;
+			drone_status.time_since_pwr_fet_on = 0; // Reset the time since power FET is turned on
 		}
 	}
 	else
 	{
 		uvx_gpio_set_pin(GPIO_OUTPUT_PM_INH_CHG, GPIO_PIN_SET);
 		drone_status.pwr_fet = false;
+		drone_status.time_since_pwr_fet_on = 0; // Reset the time since power FET is turned on
 	}
 
 }

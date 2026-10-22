@@ -408,96 +408,8 @@ void UVX_APP_Batt(void)
 		break;		
 
 		case BATT_MODE_CHECK_STATUS:
-
-			if(batt_data.tc)
-			{
-				bq_data_1.FET_CHG_STAT_NEW = true;
-				bq_data_2.FET_CHG_STAT_NEW = true;
-				bq_data_3.FET_CHG_STAT_NEW = true;
-				bq_data_1.FET_DSG_STAT_NEW = true;
-				bq_data_2.FET_DSG_STAT_NEW = true;
-				bq_data_3.FET_DSG_STAT_NEW = true;
-
-				if( (bq_data_1.FET_CHG_STAT) && (bq_data_2.FET_CHG_STAT) && (bq_data_3.FET_CHG_STAT) &&
-				    (bq_data_1.FET_DSG_STAT) && (bq_data_2.FET_DSG_STAT) && (bq_data_3.FET_DSG_STAT) )
-				{
-					UVX_APP_PWR_FET(0);	
-				}
-				else
-				{
-					UVX_APP_PWR_FET(1);	
-				}							
-			}
-			else
-			{
-				if((batt_data.adc_pack_v_stable_high))
-				{				
-					if(drone_state.state_current == DRONE_CHECK_BUTTON_PRESS_ONCE)
-					{
-						uvx_app_pwr_led(1);
-					}
-
-					bq_data_1.FET_CHG_STAT_NEW = true;
-					bq_data_2.FET_CHG_STAT_NEW = true;
-					bq_data_3.FET_CHG_STAT_NEW = true;
-					bq_data_1.FET_DSG_STAT_NEW = true;
-					bq_data_2.FET_DSG_STAT_NEW = true;
-					bq_data_3.FET_DSG_STAT_NEW = true;
-				}
-				else
-				{
-					// bq_data_1.FET_CHG_STAT_NEW = false;
-					// bq_data_2.FET_CHG_STAT_NEW = false;
-					// bq_data_3.FET_CHG_STAT_NEW = false;
-				}		
-			}
-
-			if(!batt_data.cell_ball_2 && !batt_data.cell_ball_1 && !batt_data.cell_ball_3)
-			{
-				// if((batt_data.voltage_diff_pack > BATT_CELL_VOLTAGE_DIFF) && (batt_data.CHG_fet_stat))
-				// {
-				// 	if((bq_data_1.voltage_per_cell >= bq_data_2.voltage_per_cell) &&
-				// 	   (bq_data_1.voltage_per_cell >= bq_data_3.voltage_per_cell))
-				// 	{
-				// 		uvx_comm_bq_force_balance(&comm_bq_1, 1);
-				// 		batt_state.state_next = BATT_MODE_READ_CHECK_PACK_V;
-				// 	}
-				// 	else if(bq_data_2.voltage_per_cell >= bq_data_3.voltage_per_cell)
-				// 	{
-				// 		uvx_comm_bq_force_balance(&comm_bq_2, 1);
-				// 		batt_state.state_next = BATT_MODE_READ_CHECK_PACK_V;
-				// 	}
-				// 	else
-				// 	{
-				// 		uvx_comm_bq_force_balance(&comm_bq_3, 1);
-				// 		batt_state.state_next = BATT_MODE_READ_CHECK_PACK_V;
-				// 	}
-				// }
-				// else
-				// {
-				// 	if(comm_bq_3.Force_balance)
-				// 	{
-				// 		batt_state.state_next = BATT_MODE_OFF_BALANCE_3;
-				// 	}
-				// 	else if(comm_bq_2.Force_balance)
-				// 	{
-				// 		batt_state.state_next = BATT_MODE_OFF_BALANCE_2;
-				// 	}
-				// 	else if(comm_bq_1.Force_balance)
-				// 	{
-				// 		batt_state.state_next = BATT_MODE_OFF_BALANCE_1;
-				// 	}
-				// 	else
-				// 	{
-				// 		batt_state.state_next = BATT_MODE_READ_CHECK_PACK_V;
-				// 	}					
-				// }	
-			}		
 						
-			batt_state.state_current = BATT_MODE_READ_CHECK_PACK_V;
-
-
-	
+			batt_state.state_current = BATT_MODE_READ_CHECK_PACK_V;	
 		break;
 		
 		case BATT_MODE_READ_CHECK_PACK_V:
@@ -742,21 +654,63 @@ static void batt_rotate_fet_bps(void)
 		return;
 	}
 
-	if(batt_data.batt_max_temp)
+	if((batt_data.batt_max_temp) && (!drone_status.pwr_fc))
+	{
+		if((drone_status.pwr_fet) && (HAL_GetTick() - drone_status.time_since_pwr_fet_on > 1000))
+		{
+			for(i = 0; i < BQ_DEVICES; i++)
+			{
+				bq_data[i].FET_BPS_EN = false;
+				bq_data[i].FET_BPS_STAT_NEW = false;
+				bq_data[i].FET_CHG_STAT_NEW = false;
+				bq_data[i].FET_DSG_STAT_NEW = false;			
+			}
+			bps_active_pack = BQ_DEVICES;
+			bps_next_pack = 0;
+			bps_discharge_pack = BQ_DEVICES;
+			bps_state = BPS_IDLE;
+			return;			
+		}
+	}
+
+	if((batt_data.tc))
 	{
 		for(i = 0; i < BQ_DEVICES; i++)
 		{
 			bq_data[i].FET_BPS_EN = false;
-			bq_data[i].FET_BPS_STAT_NEW = false;
-			bq_data[i].FET_CHG_STAT_NEW = false;
-			bq_data[i].FET_DSG_STAT_NEW = false;			
+			bq_data[i].FET_BPS_STAT_NEW = true;
+			bq_data[i].FET_CHG_STAT_NEW = true;
+			bq_data[i].FET_DSG_STAT_NEW = true;			
 		}
-		bps_active_pack = BQ_DEVICES;
-		bps_next_pack = 0;
-		bps_discharge_pack = BQ_DEVICES;
-		bps_state = BPS_IDLE;
-		return;
+
+		if( (bq_data_1.FET_CHG_STAT) && (bq_data_2.FET_CHG_STAT) && (bq_data_3.FET_CHG_STAT) &&
+			(bq_data_1.FET_DSG_STAT) && (bq_data_2.FET_DSG_STAT) && (bq_data_3.FET_DSG_STAT) )
+		{
+			UVX_APP_PWR_FET(0);
+		}
+		else
+		{
+			UVX_APP_PWR_FET(1);
+		}
 	}
+	else
+	{
+		if((drone_status.pwr_fet))
+		{				
+			if(drone_state.state_current == DRONE_CHECK_BUTTON_PRESS_ONCE)
+			{
+				uvx_app_pwr_led(1);
+			}
+
+			for(i = 0; i < BQ_DEVICES; i++)
+			{
+				bq_data[i].FET_BPS_EN = false;
+				bq_data[i].FET_BPS_STAT_NEW = false;
+				bq_data[i].FET_CHG_STAT_NEW = true;
+				bq_data[i].FET_DSG_STAT_NEW = true;
+			}
+		}	
+	}		
 
 	// Keep prepare_fc set until the packs are ready for FC power-on.
 	if(drone_status.pwr_fc || comm_m2jmb_state.state_current == M2JMB_MODE_SEND_FC_ON_ACK)
@@ -1122,8 +1076,8 @@ static UVX_COMM_BQ_STATE batt_mode_check_fet_bps(UVX_BQ_DATA *p_bq_data)
 					p_bq_data->FET_BPS_STAT = false;
 				}
 
-				p_bq_data->FET_DSG_STAT_NEW = true;
-				p_bq_data->FET_CHG_STAT_NEW = true;
+				p_bq_data->FET_DSG_STAT_NEW = !batt_data.batt_max_temp;
+				p_bq_data->FET_CHG_STAT_NEW = !batt_data.batt_max_temp;
 
 				comm_state = uvx_comm_bq_charge_fet(p_bq_data, p_bq_data->FET_CHG_STAT_NEW);
 				if(comm_state != UVX_BQ_OK)
@@ -1142,7 +1096,7 @@ static UVX_COMM_BQ_STATE batt_mode_check_fet_bps(UVX_BQ_DATA *p_bq_data)
 						p_comm_bq->Bypass_old = !p_comm_bq->Bypass;
 						return (comm_state == UVX_BQ_ERROR_NACK) ? comm_state : UVX_BQ_TIMEOUT;
 					}		
-					p_bq_data->FET_CHG_STAT = true;
+					p_bq_data->FET_CHG_STAT = p_bq_data->FET_CHG_STAT_NEW;
 				}
 
 
@@ -1163,7 +1117,7 @@ static UVX_COMM_BQ_STATE batt_mode_check_fet_bps(UVX_BQ_DATA *p_bq_data)
 						p_comm_bq->Bypass_old = !p_comm_bq->Bypass;
 						return (comm_state == UVX_BQ_ERROR_NACK) ? comm_state : UVX_BQ_TIMEOUT;
 					}		
-					p_bq_data->FET_DSG_STAT = true;
+					p_bq_data->FET_DSG_STAT = p_bq_data->FET_DSG_STAT_NEW;
 				}
 				
 				return UVX_BQ_OK;				

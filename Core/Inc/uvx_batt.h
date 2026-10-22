@@ -69,7 +69,7 @@
 
 #define MAX_CELL_TEMPERATURE                        650
 #define MAX_HIS_CELL_TEMPERATURE                    600 //max histeresis cell temperature for power on after high temp cutoff
-#define MIN_HIS_CELL_TEMPERATURE                    500 //min histeresis cell temperature for power on after high temp cutoff
+#define MIN_HIS_CELL_TEMPERATURE                    450 //min histeresis cell temperature for power on after high temp cutoff
 #define SOC_START_LOW_POWER                         95
 
 #define KELVIN_TO_DEG_C                             2732
@@ -333,6 +333,7 @@ UVX_BATT_STATE uvx_batt_parse_data(void);
 UVX_BATT_STATE uvx_batt_find_highest_average_pack_voltage(void);
 UVX_BATT_STATE uvx_batt_read_data(uint16_t reg_index);
 UVX_BATT_STATE uvx_batt_read_pack_v(void);
+uint8_t uvx_batt_dock_cooling_ready(void);
 UVX_BATT_STATE uvx_batt_detect_cells(void);
 UVX_BATT_STATE uvx_batt_search_cell_diff(void);
 UVX_BATT_STATE uvx_batt_learn(void);

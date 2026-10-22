@@ -457,14 +457,13 @@ UVX_BATT_STATE uvx_batt_parse_data(void)
 	   (batt_data.temperature_bq_2 > MAX_HIS_CELL_TEMPERATURE) ||
 	   (batt_data.temperature_bq_3 > MAX_HIS_CELL_TEMPERATURE))
 	{
-		//UVX_APP_PWR_FET(0); // power off FC
 		batt_data.batt_max_temp = 1;
 	}
 	else
 	{
-		if((batt_data.temperature_bq_2 < MIN_HIS_CELL_TEMPERATURE) &&
-		   (batt_data.temperature_bq_1 < MIN_HIS_CELL_TEMPERATURE) &&
-		   (batt_data.temperature_bq_3 < MIN_HIS_CELL_TEMPERATURE))
+		if((batt_data.temperature_bq_2 <= MIN_HIS_CELL_TEMPERATURE) &&
+		   (batt_data.temperature_bq_1 <= MIN_HIS_CELL_TEMPERATURE) &&
+		   (batt_data.temperature_bq_3 <= MIN_HIS_CELL_TEMPERATURE))
 		{
 			batt_data.batt_max_temp = 0;
 		}
@@ -575,6 +574,27 @@ static HAL_StatusTypeDef uvx_batt_adc_read(uint32_t channel, uint16_t *raw)
 	return status;
 }
 
+// The dock may supply the system during cooling only with batteries isolated.
+uint8_t uvx_batt_dock_cooling_ready(void)
+{
+	uint32_t i;
+	if(!batt_data.batt_max_temp || !batt_data.adc_pack_v_stable_high ||
+	   drone_status.charge_overvoltage || drone_status.charge_cell_count_error)
+	{
+		return false;
+	}
+	for(i = 0; i < BQ_DEVICES; i++)
+	{
+		if(bq_data[i].FET_CHG_STAT || bq_data[i].FET_DSG_STAT ||
+		   bq_data[i].FET_BPS_STAT || bq_data[i].FET_BPS_EN ||
+		   bq_data[i].p_comm_bq == NULL || bq_data[i].p_comm_bq->No_response)
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
 UVX_BATT_STATE uvx_batt_read_pack_v(void)
 {
 	uint16_t vref_raw;
@@ -612,22 +632,7 @@ UVX_BATT_STATE uvx_batt_read_pack_v(void)
 					(drone_status.pwr_fc == 0) &&
 				    (!batt_data.tc) && (!batt_data.BPS_Passive))				   
 				{					
-					if(batt_data.batt_max_temp)
-					{
-						if((!bq_data_1.FET_CHG_STAT) && (!bq_data_2.FET_CHG_STAT) && (!bq_data_3.FET_CHG_STAT))
-						{
-							UVX_APP_PWR_FET(1); // power on FC
-						}						
-						else
-						{
-							UVX_APP_PWR_FET(0); // power off FC
-						}
-					}
-					else
-					{
-						UVX_APP_PWR_FET(1); // power on FC	
-					}
-
+					UVX_APP_PWR_FET(1); // Dock power / normal charging
 					batt_data.adc_pack_v_stable_low = 0;
 					uvx_gpio_set_pin(GPIO_OUT_LED_STRIP_ENABLE, GPIO_PIN_SET);
 					if(!batt_data.init)
@@ -641,7 +646,7 @@ UVX_BATT_STATE uvx_batt_read_pack_v(void)
 				}				
 				else if(drone_status.pwr_fc == 1)
 				{
-					UVX_APP_PWR_FET(0); // power off FC
+					UVX_APP_PWR_FET(0); // power off dock
 					uvx_gpio_set_pin(GPIO_OUT_LED_STRIP_ENABLE, GPIO_PIN_RESET);
 				}
 			}
@@ -671,13 +676,8 @@ UVX_BATT_STATE uvx_batt_read_pack_v(void)
 
 				if(batt_data.init)
 				{
-					UVX_APP_PWR_FET(0); // power off
-				}
-				
-				// if((drone_state.state_current == DRONE_SLEEP))
-				// {
-				// 	batt_state.state_current = BATT_MODE_CHECK_STATUS;
-				// }				
+					UVX_APP_PWR_FET(0); // power off dock
+				}				
 			}				
 		}		
 	}

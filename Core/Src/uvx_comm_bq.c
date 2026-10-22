@@ -482,6 +482,12 @@ UVX_COMM_BQ_STATE uvx_comm_bq_bypass(UVX_COMM_BQ* p_comm_bq, uint8_t enable)
 UVX_COMM_BQ_STATE uvx_comm_bq_discharge_fet(UVX_BQ_DATA* p_bq_data, bool state)
 {
 	UVX_COMM_BQ *p_comm_bq = p_bq_data->p_comm_bq;
+	// Temperature inhibition takes priority over any FET-enable request.
+	// if((batt_data.batt_max_temp) && (batt_data.adc_pack_v_stable_high) )
+	// {
+ 	// 	state = false;
+	// }
+	
 
 	if((p_bq_data == NULL) || (p_comm_bq == NULL))
 	{
@@ -511,6 +517,11 @@ UVX_COMM_BQ_STATE uvx_comm_bq_discharge_fet(UVX_BQ_DATA* p_bq_data, bool state)
 UVX_COMM_BQ_STATE uvx_comm_bq_charge_fet(UVX_BQ_DATA* p_bq_data, bool state)
 {
 	UVX_COMM_BQ *p_comm_bq = p_bq_data->p_comm_bq;
+	// Temperature inhibition takes priority over any FET-enable request.
+	// if((batt_data.batt_max_temp) && (batt_data.adc_pack_v_stable_high))
+	// {
+	// 	state = false;
+	// }
 
 	if((p_bq_data == NULL) || (p_comm_bq == NULL))
 	{

@@ -271,6 +271,8 @@ typedef struct
   uint8_t charge_overvoltage : 1;
   uint8_t charge_cell_count_error : 1;
 
+  uint32_t time_since_pwr_fet_on; // Time since power FET was turned on
+
   DRONE_CHARGE_STATE charge_state;
 } UVX_DRONE_STATUS;
 
