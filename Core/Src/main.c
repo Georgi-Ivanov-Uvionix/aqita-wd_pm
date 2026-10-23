@@ -925,19 +925,34 @@ void UVX_APP_Comm_m2jmb(void)
 			if(!drone_status.prepare_fc)
 			{
 				if(uvx_comm_m2jmb_send(CMD_PWR_ON_FC_ACK, NULL, NULL) == UVX_M2JMB_OK)
-				{
+				{					
 					drone_state.state_current = DRONE_JETSON_POWERED_ON;
-					drone_status.pwr_fc = true;
-					comm_m2jmb_state.state_current = M2JMB_MODE_WAIT_RESPONSE; // Wait for response
-					uvx_gpio_set_pin(GPIO_OUTPUT_GREEN_LED, GPIO_PIN_RESET);		
+					drone_status.pwr_fc = true;									
+					comm_m2jmb_state.state_current = M2JMB_MODE_WAIT_RESPONSE; // Wait for response				
 					uvx_gpio_set_pin(GPIO_OUTPUT_DRONE_START_FET_EN, GPIO_PIN_SET);				
 					uvx_gpio_set_pin(GPIO_OUTPUT_ESC_EN, GPIO_PIN_SET);				
 					uvx_gpio_set_pin(GPIO_OUTPUT_5V_EN, GPIO_PIN_SET);		
 					uvx_gpio_set_pin(GPIO_OUTPUT_CUBE_EN, GPIO_PIN_SET);
-				}						
+					led_strip_state.state_next = LED_STRIP_MODE_COMM_FC;
+				}
+			}
+			else
+			{
+				if(uvx_comm_m2jmb_send(CMD_PWR_OFF_FC_ACK, NULL, NULL) == UVX_M2JMB_OK)
+				{
+					drone_state.state_current = DRONE_JETSON_POWERED_OFF;
+					drone_status.pwr_fc = false;
+					drone_status.esc_comm = false;
+					uvx_gpio_set_pin(GPIO_OUTPUT_ESC_EN, GPIO_PIN_RESET);					
+					uvx_gpio_set_pin(GPIO_OUTPUT_5V_EN, GPIO_PIN_RESET);	
+					uvx_gpio_set_pin(GPIO_OUTPUT_CUBE_EN, GPIO_PIN_RESET); // power off FC										
+				}		
+
+				led_strip_state.state_next = LED_STRIP_MODE_WAITING;
 			}
 
-			led_strip_state.state_next = LED_STRIP_MODE_COMM_FC;
+			uvx_gpio_set_pin(GPIO_OUTPUT_GREEN_LED, GPIO_PIN_RESET);	
+				
 		break;
 
 		case M2JMB_MODE_SEND_FC_OFF_ACK:
@@ -947,8 +962,7 @@ void UVX_APP_Comm_m2jmb(void)
 				drone_status.pwr_fc = false;
 				drone_status.esc_comm = false;
 				comm_m2jmb_state.state_current = M2JMB_MODE_WAIT_RESPONSE; // Wait for response
-				uvx_gpio_set_pin(GPIO_OUTPUT_GREEN_LED, GPIO_PIN_SET);		
-				//uvx_gpio_set_pin(GPIO_OUTPUT_DRONE_START_FET_EN, GPIO_PIN_RESET);					
+				uvx_gpio_set_pin(GPIO_OUTPUT_GREEN_LED, GPIO_PIN_SET);					
 				uvx_gpio_set_pin(GPIO_OUTPUT_ESC_EN, GPIO_PIN_RESET);					
 				uvx_gpio_set_pin(GPIO_OUTPUT_5V_EN, GPIO_PIN_RESET);	
 				uvx_gpio_set_pin(GPIO_OUTPUT_CUBE_EN, GPIO_PIN_RESET); // power off FC
