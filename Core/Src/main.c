@@ -938,15 +938,22 @@ void UVX_APP_Comm_m2jmb(void)
 			}
 			else
 			{
-				if(uvx_comm_m2jmb_send(CMD_PWR_OFF_FC_ACK, NULL, NULL) == UVX_M2JMB_OK)
+				if(drone_status.time_start_prepare_fc < HAL_GetTick())
 				{
-					drone_state.state_current = DRONE_JETSON_POWERED_OFF;
-					drone_status.pwr_fc = false;
-					drone_status.esc_comm = false;
-					uvx_gpio_set_pin(GPIO_OUTPUT_ESC_EN, GPIO_PIN_RESET);					
-					uvx_gpio_set_pin(GPIO_OUTPUT_5V_EN, GPIO_PIN_RESET);	
-					uvx_gpio_set_pin(GPIO_OUTPUT_CUBE_EN, GPIO_PIN_RESET); // power off FC										
-				}		
+					drone_status.time_since_prepare_fc = (HAL_GetTick() - drone_status.time_start_prepare_fc);
+					if(drone_status.time_since_prepare_fc > APP_TIMEOUT_PREPARE_FC)
+					{
+						if(uvx_comm_m2jmb_send(CMD_PWR_OFF_FC_ACK, NULL, NULL) == UVX_M2JMB_OK)
+						{
+							//drone_state.state_current = DRONE_JETSON_POWERED_OFF;
+							drone_status.pwr_fc = false;
+							drone_status.esc_comm = false;
+							uvx_gpio_set_pin(GPIO_OUTPUT_ESC_EN, GPIO_PIN_RESET);					
+							uvx_gpio_set_pin(GPIO_OUTPUT_5V_EN, GPIO_PIN_RESET);	
+							uvx_gpio_set_pin(GPIO_OUTPUT_CUBE_EN, GPIO_PIN_RESET); // power off FC										
+						}		
+					}
+				}
 
 				led_strip_state.state_next = LED_STRIP_MODE_WAITING;
 			}
@@ -1039,6 +1046,7 @@ void UVX_APP_Comm_m2jmb(void)
 					comm_m2jmb_state.state_current = M2JMB_MODE_SEND_FC_ON_ACK; // Set next state to send ACK
 					batt_data.adc_pack_v_stable_high = 0;
 					UVX_APP_PWR_FET(0); // power off					
+					drone_status.time_start_prepare_fc = HAL_GetTick();
 				}
 				else if(buff_rx_m2jmb[M2JMB_BYTE_CMD] == CMD_PWR_OFF_FC)
 				{					

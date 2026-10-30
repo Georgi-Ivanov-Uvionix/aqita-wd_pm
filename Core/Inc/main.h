@@ -86,6 +86,7 @@ void Error_Handler(void);
 #define APP_TIMEOUT_JMB_BEFORE_TURN_ON  1000 //ms
 #define APP_TIMEOUT_LAND                5000 //ms
 #define APP_TIMEOUT_BATT_LOW_VOLTAGE    10000 //ms
+#define APP_TIMEOUT_PREPARE_FC          4000 //ms
 #ifdef APP_JETSON_PWR_FC
 #define APP_TIMEOUT_JMB_MAX_TURN_OFF  30000 //ms
 #else
@@ -272,6 +273,8 @@ typedef struct
   uint8_t charge_cell_count_error : 1;
 
   uint32_t time_since_pwr_fet_on; // Time since power FET was turned on
+  uint32_t time_start_prepare_fc; // Time since power FET was turned on
+  uint32_t time_since_prepare_fc; // Time since power FET was turned on
 
   DRONE_CHARGE_STATE charge_state;
 } UVX_DRONE_STATUS;
