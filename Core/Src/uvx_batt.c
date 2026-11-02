@@ -139,6 +139,77 @@ static void uvx_batt_update_pack_cell_delta(void)
 	}
 }
 
+// Qmax_passed increases during discharge: minimum is full, maximum is empty.
+static void uvx_batt_update_remaining_percent(void)
+{
+	uint32_t i;
+	int64_t minimum;
+	int64_t maximum;
+	int64_t current;
+	int64_t range;
+
+	if(batt_data.Qmax_passed_BQ_1 < bq_data_1.Qmax_passed_min)
+	{
+		bq_data_1.Qmax_passed_min = batt_data.Qmax_passed_BQ_1;
+		bq_data_1.pm_full_cap = bq_data_1.Qmax_passed_max - bq_data_1.Qmax_passed_min;
+	}
+
+	if(batt_data.Qmax_passed_BQ_2 < bq_data_2.Qmax_passed_min)
+	{
+		bq_data_2.Qmax_passed_min = batt_data.Qmax_passed_BQ_2;
+		bq_data_2.pm_full_cap = bq_data_2.Qmax_passed_max - bq_data_2.Qmax_passed_min;
+	}
+
+	if(batt_data.Qmax_passed_BQ_3 < bq_data_3.Qmax_passed_min)
+	{
+		bq_data_3.Qmax_passed_min = batt_data.Qmax_passed_BQ_3;
+		bq_data_3.pm_full_cap = bq_data_3.Qmax_passed_max - bq_data_3.Qmax_passed_min;
+	}
+
+	if(batt_data.Qmax_passed_BQ_1 > bq_data_1.Qmax_passed_max)
+	{
+		bq_data_1.Qmax_passed_max = batt_data.Qmax_passed_BQ_1;
+		bq_data_1.pm_full_cap = bq_data_1.Qmax_passed_max - bq_data_1.Qmax_passed_min;
+	}
+
+	if(batt_data.Qmax_passed_BQ_2 > bq_data_2.Qmax_passed_max)
+	{
+		bq_data_2.Qmax_passed_max = batt_data.Qmax_passed_BQ_2;
+		bq_data_2.pm_full_cap = bq_data_2.Qmax_passed_max - bq_data_2.Qmax_passed_min;
+	}
+
+	if(batt_data.Qmax_passed_BQ_3 > bq_data_3.Qmax_passed_max)
+	{
+		bq_data_3.Qmax_passed_max = batt_data.Qmax_passed_BQ_3;
+		bq_data_3.pm_full_cap = bq_data_3.Qmax_passed_max - bq_data_3.Qmax_passed_min;
+	}
+		
+	for(i = 0U; i < BQ_DEVICES; i++)
+	{
+		minimum = bq_data[i].Qmax_passed_min;
+		maximum = bq_data[i].Qmax_passed_max;
+		current = (int16_t)bq_data[i].Qmax_passed;
+		range = maximum - minimum;
+		if(range <= 0)
+		{
+			bq_data[i].pm_rem_cap = 0U; // No usable learned range yet.
+		}
+		else if(current <= minimum)
+		{
+			bq_data[i].pm_rem_cap = 100U;
+		}
+		else if(current >= maximum)
+		{
+			bq_data[i].pm_rem_cap = 0U;
+		}
+		else
+		{
+			bq_data[i].pm_rem_cap =
+				(uint16_t)(((maximum - current) * 100 + range / 2) / range);
+		}
+	}
+}
+
 UVX_BATT_STATE uvx_batt_parse_data(void)
 {
 	batt_data.cell_voltage_1  = bq_data_1.cell_voltage_1 - (bq_data_1.current * CELL_1_INTERCONNECT_RESISTANCE)/1000;
@@ -325,42 +396,10 @@ UVX_BATT_STATE uvx_batt_parse_data(void)
 	batt_data.payload.Qmax_passed_BQ_2 = uvx_comm_bq_swap_u16_value(batt_data.Qmax_passed_BQ_2); 
 	batt_data.payload.Qmax_passed_BQ_3 = uvx_comm_bq_swap_u16_value(batt_data.Qmax_passed_BQ_3);
 
-	if(batt_data.Qmax_passed_BQ_1 < bq_data_1.Qmax_passed_min)
-	{
-		bq_data_1.Qmax_passed_min = batt_data.Qmax_passed_BQ_1;
-		bq_data_1.pm_full_cap = bq_data_1.Qmax_passed_max - bq_data_1.Qmax_passed_min;
-	}
 
-	if(batt_data.Qmax_passed_BQ_2 < bq_data_2.Qmax_passed_min)
-	{
-		bq_data_2.Qmax_passed_min = batt_data.Qmax_passed_BQ_2;
-		bq_data_2.pm_full_cap = bq_data_2.Qmax_passed_max - bq_data_2.Qmax_passed_min;
-	}
-
-	if(batt_data.Qmax_passed_BQ_3 < bq_data_3.Qmax_passed_min)
-	{
-		bq_data_3.Qmax_passed_min = batt_data.Qmax_passed_BQ_3;
-		bq_data_3.pm_full_cap = bq_data_3.Qmax_passed_max - bq_data_3.Qmax_passed_min;
-	}
-
-	if(batt_data.Qmax_passed_BQ_1 > bq_data_1.Qmax_passed_max)
-	{
-		bq_data_1.Qmax_passed_max = batt_data.Qmax_passed_BQ_1;
-		bq_data_1.pm_full_cap = bq_data_1.Qmax_passed_max - bq_data_1.Qmax_passed_min;
-	}
-
-	if(batt_data.Qmax_passed_BQ_2 > bq_data_2.Qmax_passed_max)
-	{
-		bq_data_2.Qmax_passed_max = batt_data.Qmax_passed_BQ_2;
-		bq_data_2.pm_full_cap = bq_data_2.Qmax_passed_max - bq_data_2.Qmax_passed_min;
-	}
-
-	if(batt_data.Qmax_passed_BQ_3 > bq_data_3.Qmax_passed_max)
-	{
-		bq_data_3.Qmax_passed_max = batt_data.Qmax_passed_BQ_3;
-		bq_data_3.pm_full_cap = bq_data_3.Qmax_passed_max - bq_data_3.Qmax_passed_min;
-	}
 	
+
+	uvx_batt_update_remaining_percent();
 
 	batt_data.SOH = (uint8_t)uvx_batt_min_u16_3(bq_data_1.SOH, bq_data_2.SOH, bq_data_3.SOH);
 
