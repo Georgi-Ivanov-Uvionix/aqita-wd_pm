@@ -661,6 +661,8 @@ UVX_BATT_STATE uvx_batt_read_pack_v(void)
 		}		
 	}
 
+	uvx_batt_parse_data();
+
 	return UVX_BATT_OK;
 }
 
