@@ -550,6 +550,10 @@ typedef struct UVX_BQ_DATA
 
     uint32_t bypass_time_start_ms;
     uint32_t bypass_time_ms;
+    int32_t  Qmax_passed_min;       // Passed capacity since last QMax DOD value is saved. mAh
+    int32_t  Qmax_passed_max;       // Passed capacity since last QMax DOD value is saved. mAh
+    uint16_t pm_rem_cap;        // Remaining Capacity in mAh
+    uint16_t pm_full_cap;      // Full Charge Capacity in mAh    
     UVX_COMM_BQ* p_comm_bq;             // Pointer to the communication structure for BQ
 }UVX_BQ_DATA;
 
