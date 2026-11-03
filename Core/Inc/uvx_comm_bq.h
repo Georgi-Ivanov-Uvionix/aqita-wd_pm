@@ -554,6 +554,9 @@ typedef struct UVX_BQ_DATA
     int32_t  Qmax_passed_max;       // Passed capacity since last QMax DOD value is saved. mAh
     uint16_t pm_rem_cap;        // Remaining capacity in percent (0-100)
     uint16_t pm_full_cap;      // Full Charge Capacity in mAh    
+    uint32_t pm_avg_discharge_current_ma; // Smoothed discharge current magnitude in mA
+    uint32_t pm_time_remaining_m; // Estimated remaining discharge time in minutes
+    bool pm_time_remaining_valid; // False when no discharge estimate is available
     UVX_COMM_BQ* p_comm_bq;             // Pointer to the communication structure for BQ
 }UVX_BQ_DATA;
 

@@ -210,6 +210,54 @@ static void uvx_batt_update_remaining_percent(void)
 	}
 }
 
+static void uvx_batt_update_time_remaining(void)
+{
+	static int32_t discharge_current_q8[BQ_DEVICES];
+	uint32_t i;
+	int32_t discharge_ma;
+	uint64_t numerator;
+
+	for(i = 0U; i < BQ_DEVICES; i++)
+	{
+		bq_data[i].pm_time_remaining_valid = false;
+		bq_data[i].pm_time_remaining_m = 0U;
+		discharge_ma = -(int32_t)bq_data[i].current; // BQ current is negative during discharge.
+		if(discharge_ma <= 0 || bq_data[i].p_comm_bq == NULL ||
+		   bq_data[i].p_comm_bq->No_response)
+		{
+			discharge_current_q8[i] = 0;
+			bq_data[i].pm_avg_discharge_current_ma = 0U;
+			continue;
+		}
+
+		// Exponential average: each parsed sample contributes 1/8.
+		if(discharge_current_q8[i] == 0)
+		{
+			discharge_current_q8[i] = discharge_ma * 256;
+		}
+		else
+		{
+			discharge_current_q8[i] +=
+				(discharge_ma * 256 - discharge_current_q8[i]) / 8;
+		}
+		bq_data[i].pm_avg_discharge_current_ma =
+			(uint32_t)((discharge_current_q8[i] + 128) / 256);
+
+		if(bq_data[i].pm_full_cap == 0U ||
+		   bq_data[i].Qmax_passed_max <= bq_data[i].Qmax_passed_min)
+		{
+			continue;
+		}
+
+		// minutes = full capacity (mAh) * remaining (%) * 60 / (100 * mA).
+		numerator = (uint64_t)bq_data[i].pm_full_cap *
+		            bq_data[i].pm_rem_cap * 60U;
+		bq_data[i].pm_time_remaining_m = (uint32_t)
+			(numerator / (100U * bq_data[i].pm_avg_discharge_current_ma));
+		bq_data[i].pm_time_remaining_valid = true;
+	}
+}
+
 UVX_BATT_STATE uvx_batt_parse_data(void)
 {
 	batt_data.cell_voltage_1  = bq_data_1.cell_voltage_1 - (bq_data_1.current * CELL_1_INTERCONNECT_RESISTANCE)/1000;
@@ -400,6 +448,7 @@ UVX_BATT_STATE uvx_batt_parse_data(void)
 	
 
 	uvx_batt_update_remaining_percent();
+	uvx_batt_update_time_remaining();
 
 	batt_data.SOH = (uint8_t)uvx_batt_min_u16_3(bq_data_1.SOH, bq_data_2.SOH, bq_data_3.SOH);
 
