@@ -32,6 +32,8 @@ extern "C" {
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+// Board selection must be available to the battery configuration header.
+#define DRONE_10
 #define UVX_COMM_M2JMB_V2_0
 
 #include "uvx_batt.h"
@@ -84,6 +86,7 @@ void Error_Handler(void);
 #define APP_TIMEOUT_JMB_BEFORE_TURN_ON  1000 //ms
 #define APP_TIMEOUT_LAND                5000 //ms
 #define APP_TIMEOUT_BATT_LOW_VOLTAGE    10000 //ms
+#define APP_TIMEOUT_PREPARE_FC          4000 //ms
 #ifdef APP_JETSON_PWR_FC
 #define APP_TIMEOUT_JMB_MAX_TURN_OFF  30000 //ms
 #else
@@ -94,11 +97,9 @@ void Error_Handler(void);
 #define APP_TIMEOUT_PACK_V_STABLE_LOW      1000 //ms
 
 #define ADC_MAX        4095.0f
-#define VDDA           3.3f
 #define RESISTOR_R124  45.3f
-#define RESISTOR_R8    2.80f
+#define RESISTOR_R8    2.95f
 #define DIV_RATIO      (RESISTOR_R8 / (RESISTOR_R124 + RESISTOR_R8))
-#define PACK_V_GAIN    ((VDDA / (ADC_MAX * DIV_RATIO)) * 1000)
 
 //------------------- APP SETUP UARTs --------------------------------------------
 #define UVX_APP_SETUP_UART_1		UVX_SETUP_UART_1
@@ -259,6 +260,7 @@ typedef struct
   uint8_t pwr_fet     : 1;
   uint8_t pwr_jtson   : 1;
   uint8_t pwr_fc      : 1;
+  uint8_t prepare_fc  : 1;
   uint8_t hall_land_2 : 1;
   uint8_t esc_comm    : 1;
   uint8_t esc_init    : 1;
@@ -269,6 +271,10 @@ typedef struct
   uint8_t esc_psys_arm_old : 1;
   uint8_t charge_overvoltage : 1;
   uint8_t charge_cell_count_error : 1;
+
+  uint32_t time_since_pwr_fet_on; // Time since power FET was turned on
+  uint32_t time_start_prepare_fc; // Time since power FET was turned on
+  uint32_t time_since_prepare_fc; // Time since power FET was turned on
 
   DRONE_CHARGE_STATE charge_state;
 } UVX_DRONE_STATUS;
@@ -285,6 +291,8 @@ extern UVX_UNIT_TEST unit_test;
 extern uint8_t enable;
 
 void UVX_APP_PWR_FET(uint8_t state);
+void uvx_app_pwr_led(uint8_t state);
+void uvx_app_pwr_led_init(void);
 void UVX_APP_Shutdown_JMB(void);
 void uvx_app_pwr_led(uint8_t state);
 void uvx_app_pwr_led_init(void);

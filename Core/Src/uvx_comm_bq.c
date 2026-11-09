@@ -4,89 +4,122 @@
 #include <string.h>
 
 
-SRAM1 UVX_BQ_DATA bq_data_l;
-SRAM1 UVX_BQ_DATA bq_data_h;
-
-SRAM1 UVX_COMM_BQ comm_bq_l; // BQ communication structure
-SRAM1 UVX_COMM_BQ comm_bq_h; // BQ communication structure
+SRAM1 UVX_BQ_DATA bq_data[BQ_DEVICES];
+SRAM1 UVX_COMM_BQ comm_bq[BQ_DEVICES]; // BQ communication structure
 SRAM1 UVX_COMM_BQ_STATE_MACHINE comm_bq_state;
 
-// Array of all BQ_L registers with address and size
-UVX_BQ_REGISTER bq_l_register_list_read[] = {
-    {TEMPERATURE, 				2, (uint8_t*) &bq_data_l.temperature},
-    {VOLTAGE, 					2, (uint8_t*) &bq_data_l.voltage},
-    {CURRENT, 					2, (uint8_t*) &bq_data_l.current},
-    {RELATIVE_STATE_OF_CHARGE, 	1, (uint8_t*) &bq_data_l.relative_state_of_charge},
-    {ABSOLUTE_STATE_OF_CHARGE, 	1, (uint8_t*) &bq_data_l.absolute_state_of_charge},
-    {REMAINING_CAPACITY, 		2, (uint8_t*) &bq_data_l.remaining_capacity},
-    {FULL_CHARGE_CAPACITY, 		2, (uint8_t*) &bq_data_l.full_charge_capacity},
-    {AVERAGE_TIME_TO_EMPTY, 	2, (uint8_t*) &bq_data_l.average_time_to_empty},
-    {AVERAGE_TIME_TO_FULL, 		2, (uint8_t*) &bq_data_l.average_time_to_full},
-    {CHARGING_CURRENT, 			2, (uint8_t*) &bq_data_l.charging_current},
-    {CHARGING_VOLTAGE, 			2, (uint8_t*) &bq_data_l.charging_voltage},
-	{DA_STATUS1, 			   32, (uint8_t*) &bq_data_l.dastatus1_size},
-	{DA_STATUS2, 			   16, (uint8_t*) &bq_data_l.dastatus2_size},
-	{DA_STATUS3, 			   18, (uint8_t*) &bq_data_l.dastatus3_size},
-	{OPERATION_STATUS, 		    5, (uint8_t*) &bq_data_l.operation_status.raw},
-    {GAUGING_STATUS, 		    4, (uint8_t*) &bq_data_l.gauging_status.raw},
-    {GAUGING_STATUS_2, 		   32, (uint8_t*) &bq_data_l.gauging_status_2_size},
-    {GAUGING_STATUS_3, 		   32, (uint8_t*) &bq_data_l.gauging_status_3_size},
-	{MANUFACTURING_STATUS,   	3, (uint8_t*) &bq_data_l.manufacturing_status.raw},	
-	{CBSTATUS,   			   30, (uint8_t*) &bq_data_l.CBSTATUS_size},	
-	{STATE_OF_HEALTH,   	    1, (uint8_t*) &bq_data_l.SOH},	
-	{CYCLE_COUNT,   	    	2, (uint8_t*) &bq_data_l.cycle_count},
-	{GPIO_READ,   	    		2, (uint8_t*) &bq_data_l.gpio_status},
+// Array of all BQ_1 registers with address and size
+UVX_BQ_REGISTER bq_1_register_list_read[] = {
+    {TEMPERATURE, 				2, (uint8_t*) &bq_data_1.temperature},
+    {VOLTAGE, 					2, (uint8_t*) &bq_data_1.voltage},
+    {CURRENT, 					2, (uint8_t*) &bq_data_1.current},
+    {RELATIVE_STATE_OF_CHARGE, 	1, (uint8_t*) &bq_data_1.relative_state_of_charge},
+    {ABSOLUTE_STATE_OF_CHARGE, 	1, (uint8_t*) &bq_data_1.absolute_state_of_charge},
+    {REMAINING_CAPACITY, 		2, (uint8_t*) &bq_data_1.remaining_capacity},
+    {FULL_CHARGE_CAPACITY, 		2, (uint8_t*) &bq_data_1.full_charge_capacity},
+    {AVERAGE_TIME_TO_EMPTY, 	2, (uint8_t*) &bq_data_1.average_time_to_empty},
+    {AVERAGE_TIME_TO_FULL, 		2, (uint8_t*) &bq_data_1.average_time_to_full},
+    {CHARGING_CURRENT, 			2, (uint8_t*) &bq_data_1.charging_current},
+    {CHARGING_VOLTAGE, 			2, (uint8_t*) &bq_data_1.charging_voltage},
+	{DA_STATUS1, 			   32, (uint8_t*) &bq_data_1.dastatus1_size},
+	{DA_STATUS2, 			   16, (uint8_t*) &bq_data_1.dastatus2_size},
+	{DA_STATUS3, 			   18, (uint8_t*) &bq_data_1.dastatus3_size},
+	{OPERATION_STATUS, 		    5, (uint8_t*) &bq_data_1.operation_status.raw},
+    {GAUGING_STATUS, 		    4, (uint8_t*) &bq_data_1.gauging_status.raw},
+    {GAUGING_STATUS_2, 		   32, (uint8_t*) &bq_data_1.gauging_status_2_size},
+    {GAUGING_STATUS_3, 		   32, (uint8_t*) &bq_data_1.gauging_status_3_size},
+	{MANUFACTURING_STATUS,   	3, (uint8_t*) &bq_data_1.manufacturing_status.raw},	
+	{CBSTATUS,   			   30, (uint8_t*) &bq_data_1.CBSTATUS_size},	
+	{STATE_OF_HEALTH,   	    1, (uint8_t*) &bq_data_1.SOH},	
+	{CYCLE_COUNT,   	    	2, (uint8_t*) &bq_data_1.cycle_count},
+	{GPIO_READ,   	    		2, (uint8_t*) &bq_data_1.gpio_status},
     {END_REGISTER, 				0, NULL} // End marker
 };
 
 // Array of all BQ registers with address and size
-UVX_BQ_REGISTER bq_l_register_list_read_once[] = {
-    {DESIGN_CAPACITY, 			2, (uint8_t*) &bq_data_l.design_capacity},
-    {DESIGN_VOLTAGE, 			2, (uint8_t*) &bq_data_l.design_voltage},
-    {SPECIFICATION_INFO, 		2, (uint8_t*) &bq_data_l.specification_info},
-    {MANUFACTURER_DATE, 		2, (uint8_t*) &bq_data_l.manufacturer_date},
-    {SERIAL_NUMBER, 			2, (uint8_t*) &bq_data_l.serial_number},
+UVX_BQ_REGISTER bq_1_register_list_read_once[] = {
+    {DESIGN_CAPACITY, 			2, (uint8_t*) &bq_data_1.design_capacity},
+    {SPECIFICATION_INFO, 		2, (uint8_t*) &bq_data_1.specification_info},
+    {MANUFACTURER_DATE, 		2, (uint8_t*) &bq_data_1.manufacturer_date},
+    {SERIAL_NUMBER, 			2, (uint8_t*) &bq_data_1.serial_number},
     {END_REGISTER,		 		0, NULL} // End marker
 };
 
 //====================================================================================================
 
-// Array of all BQ_L registers with address and size
-UVX_BQ_REGISTER bq_h_register_list_read[] = {
-    {TEMPERATURE, 				2, (uint8_t*) &bq_data_h.temperature},
-    {VOLTAGE, 					2, (uint8_t*) &bq_data_h.voltage},
-    {CURRENT, 					2, (uint8_t*) &bq_data_h.current},
-    {RELATIVE_STATE_OF_CHARGE, 	1, (uint8_t*) &bq_data_h.relative_state_of_charge},
-    {ABSOLUTE_STATE_OF_CHARGE, 	1, (uint8_t*) &bq_data_h.absolute_state_of_charge},
-    {REMAINING_CAPACITY, 		2, (uint8_t*) &bq_data_h.remaining_capacity},
-    {FULL_CHARGE_CAPACITY, 		2, (uint8_t*) &bq_data_h.full_charge_capacity},
-    {AVERAGE_TIME_TO_EMPTY, 	2, (uint8_t*) &bq_data_h.average_time_to_empty},
-    {AVERAGE_TIME_TO_FULL, 		2, (uint8_t*) &bq_data_h.average_time_to_full},
-    {CHARGING_CURRENT, 			2, (uint8_t*) &bq_data_h.charging_current},
-    {CHARGING_VOLTAGE, 			2, (uint8_t*) &bq_data_h.charging_voltage},
-	{DA_STATUS1, 			   32, (uint8_t*) &bq_data_h.dastatus1_size},
-	{DA_STATUS2, 			   16, (uint8_t*) &bq_data_h.dastatus2_size},
-	{DA_STATUS3, 			   18, (uint8_t*) &bq_data_h.dastatus3_size},
-	{OPERATION_STATUS, 		    5, (uint8_t*) &bq_data_h.operation_status.raw},	
-    {GAUGING_STATUS, 		    4, (uint8_t*) &bq_data_h.gauging_status.raw},
-	{GAUGING_STATUS_2, 		   32, (uint8_t*) &bq_data_h.gauging_status_2_size},
-	{GAUGING_STATUS_3, 		   32, (uint8_t*) &bq_data_h.gauging_status_3_size},
-	{MANUFACTURING_STATUS,   	3, (uint8_t*) &bq_data_h.manufacturing_status.raw},
-	{CBSTATUS,   			   30, (uint8_t*) &bq_data_h.CBSTATUS_size},
-	{STATE_OF_HEALTH,   	    1, (uint8_t*) &bq_data_h.SOH},
-	{CYCLE_COUNT,   	    	2, (uint8_t*) &bq_data_h.cycle_count},
-	{GPIO_READ,   	    		2, (uint8_t*) &bq_data_h.gpio_status},
+// Array of all BQ_2 registers with address and size
+UVX_BQ_REGISTER bq_2_register_list_read[] = {
+    {TEMPERATURE, 				2, (uint8_t*) &bq_data_2.temperature},
+    {VOLTAGE, 					2, (uint8_t*) &bq_data_2.voltage},
+    {CURRENT, 					2, (uint8_t*) &bq_data_2.current},
+    {RELATIVE_STATE_OF_CHARGE, 	1, (uint8_t*) &bq_data_2.relative_state_of_charge},
+    {ABSOLUTE_STATE_OF_CHARGE, 	1, (uint8_t*) &bq_data_2.absolute_state_of_charge},
+    {REMAINING_CAPACITY, 		2, (uint8_t*) &bq_data_2.remaining_capacity},
+    {FULL_CHARGE_CAPACITY, 		2, (uint8_t*) &bq_data_2.full_charge_capacity},
+    {AVERAGE_TIME_TO_EMPTY, 	2, (uint8_t*) &bq_data_2.average_time_to_empty},
+    {AVERAGE_TIME_TO_FULL, 		2, (uint8_t*) &bq_data_2.average_time_to_full},
+    {CHARGING_CURRENT, 			2, (uint8_t*) &bq_data_2.charging_current},
+    {CHARGING_VOLTAGE, 			2, (uint8_t*) &bq_data_2.charging_voltage},
+	{DA_STATUS1, 			   32, (uint8_t*) &bq_data_2.dastatus1_size},
+	{DA_STATUS2, 			   16, (uint8_t*) &bq_data_2.dastatus2_size},
+	{DA_STATUS3, 			   18, (uint8_t*) &bq_data_2.dastatus3_size},
+	{OPERATION_STATUS, 		    5, (uint8_t*) &bq_data_2.operation_status.raw},	
+    {GAUGING_STATUS, 		    4, (uint8_t*) &bq_data_2.gauging_status.raw},
+	{GAUGING_STATUS_2, 		   32, (uint8_t*) &bq_data_2.gauging_status_2_size},
+	{GAUGING_STATUS_3, 		   32, (uint8_t*) &bq_data_2.gauging_status_3_size},
+	{MANUFACTURING_STATUS,   	3, (uint8_t*) &bq_data_2.manufacturing_status.raw},
+	{CBSTATUS,   			   30, (uint8_t*) &bq_data_2.CBSTATUS_size},
+	{STATE_OF_HEALTH,   	    1, (uint8_t*) &bq_data_2.SOH},
+	{CYCLE_COUNT,   	    	2, (uint8_t*) &bq_data_2.cycle_count},
+	{GPIO_READ,   	    		2, (uint8_t*) &bq_data_2.gpio_status},
     {END_REGISTER, 				0, NULL} // End marker
 };
 
 // Array of all BQ registers with address and size
-UVX_BQ_REGISTER bq_h_register_list_read_once[] = {
-    {DESIGN_CAPACITY, 			2, (uint8_t*) &bq_data_h.design_capacity},
-    {DESIGN_VOLTAGE, 			2, (uint8_t*) &bq_data_h.design_voltage},
-    {SPECIFICATION_INFO, 		2, (uint8_t*) &bq_data_h.specification_info},
-    {MANUFACTURER_DATE, 		2, (uint8_t*) &bq_data_h.manufacturer_date},
-    {SERIAL_NUMBER, 			2, (uint8_t*) &bq_data_h.serial_number},
+UVX_BQ_REGISTER bq_2_register_list_read_once[] = {
+    {DESIGN_CAPACITY, 			2, (uint8_t*) &bq_data_2.design_capacity},
+    {SPECIFICATION_INFO, 		2, (uint8_t*) &bq_data_2.specification_info},
+    {MANUFACTURER_DATE, 		2, (uint8_t*) &bq_data_2.manufacturer_date},
+    {SERIAL_NUMBER, 			2, (uint8_t*) &bq_data_2.serial_number},
     {END_REGISTER,		 		0, NULL} // End marker
+};
+
+//====================================================================================================
+
+// Array of all BQ_3 registers with address and size
+UVX_BQ_REGISTER bq_3_register_list_read[] = {
+    {TEMPERATURE,                2, (uint8_t*) &bq_data_3.temperature},
+    {VOLTAGE,                    2, (uint8_t*) &bq_data_3.voltage},
+    {CURRENT,                    2, (uint8_t*) &bq_data_3.current},
+    {RELATIVE_STATE_OF_CHARGE,   1, (uint8_t*) &bq_data_3.relative_state_of_charge},
+    {ABSOLUTE_STATE_OF_CHARGE,   1, (uint8_t*) &bq_data_3.absolute_state_of_charge},
+    {REMAINING_CAPACITY,         2, (uint8_t*) &bq_data_3.remaining_capacity},
+    {FULL_CHARGE_CAPACITY,       2, (uint8_t*) &bq_data_3.full_charge_capacity},
+    {AVERAGE_TIME_TO_EMPTY,      2, (uint8_t*) &bq_data_3.average_time_to_empty},
+    {AVERAGE_TIME_TO_FULL,       2, (uint8_t*) &bq_data_3.average_time_to_full},
+    {CHARGING_CURRENT,           2, (uint8_t*) &bq_data_3.charging_current},
+    {CHARGING_VOLTAGE,           2, (uint8_t*) &bq_data_3.charging_voltage},
+    {DA_STATUS1,                32, (uint8_t*) &bq_data_3.dastatus1_size},
+    {DA_STATUS2,                16, (uint8_t*) &bq_data_3.dastatus2_size},
+    {DA_STATUS3,                18, (uint8_t*) &bq_data_3.dastatus3_size},
+    {OPERATION_STATUS,           5, (uint8_t*) &bq_data_3.operation_status.raw},
+    {GAUGING_STATUS,             4, (uint8_t*) &bq_data_3.gauging_status.raw},
+    {GAUGING_STATUS_2,          32, (uint8_t*) &bq_data_3.gauging_status_2_size},
+    {GAUGING_STATUS_3,          32, (uint8_t*) &bq_data_3.gauging_status_3_size},
+    {MANUFACTURING_STATUS,       3, (uint8_t*) &bq_data_3.manufacturing_status.raw},
+    {CBSTATUS,                  30, (uint8_t*) &bq_data_3.CBSTATUS_size},
+    {STATE_OF_HEALTH,            1, (uint8_t*) &bq_data_3.SOH},
+    {CYCLE_COUNT,                2, (uint8_t*) &bq_data_3.cycle_count},
+	{GPIO_READ,                  2, (uint8_t*) &bq_data_3.gpio_status},
+    {END_REGISTER,               0, NULL}
+};
+
+UVX_BQ_REGISTER bq_3_register_list_read_once[] = {
+    {DESIGN_CAPACITY,            2, (uint8_t*) &bq_data_3.design_capacity},
+    {SPECIFICATION_INFO,         2, (uint8_t*) &bq_data_3.specification_info},
+    {MANUFACTURER_DATE,          2, (uint8_t*) &bq_data_3.manufacturer_date},
+    {SERIAL_NUMBER,              2, (uint8_t*) &bq_data_3.serial_number},
+    {END_REGISTER,               0, NULL}
 };
 
 UVX_COMM_BQ_STATE uvx_comm_bq_init(UVX_COMM_BQ* p_comm_bq, UVX_I2C* i2c, uint8_t i2c_addr, UVX_BQ_REGISTER* p_register_list)
@@ -97,8 +130,8 @@ UVX_COMM_BQ_STATE uvx_comm_bq_init(UVX_COMM_BQ* p_comm_bq, UVX_I2C* i2c, uint8_t
 		p_comm_bq->addr_i2c = i2c_addr; // Set the I2C device address
 		p_comm_bq->p_hal_i2c = &i2c->hal_i2c; // Set the pointer to the I2C HAL structure
 		p_comm_bq->i2c = i2c; // Set the pointer to the I2C structure
-		p_comm_bq->TX_Ready = 1;
-		p_comm_bq->RX_Ready = 1;
+		p_comm_bq->BQ_TX_Ready = 1;
+		p_comm_bq->BQ_RX_Ready = 1;
 		p_comm_bq->Force_balance_old = 1; // Initialize Force_balance_old to a different value to ensure the first write occurs
 
 		#ifdef PROJECT_AQITA_PM
@@ -118,13 +151,7 @@ UVX_COMM_BQ_STATE uvx_comm_bq_change_list(UVX_COMM_BQ* p_comm_bq, UVX_BQ_REGISTE
 	if((p_comm_bq != NULL) && (p_register_list != NULL))
 	{
 		p_comm_bq->p_register_list = p_register_list; // Set the pointer to the register list
-
-		// #ifdef PROJECT_AQITA_PM
-		// 	if(uvx_i2c_init(p_comm_bq->i2c/*, buff_tx_bq, buff_rx_bq*/)) // Initialize the I2C peripheral
-		// 	{
-		// 		return UVX_BQ_ERROR_INIT_I2C; // Return error if initialization fails
-		// 	}
-		// #endif
+		p_comm_bq->batt_reg_cnt = 0; // Reset the register counter
 	}
 
 	return UVX_BQ_OK; // Return success
@@ -132,28 +159,30 @@ UVX_COMM_BQ_STATE uvx_comm_bq_change_list(UVX_COMM_BQ* p_comm_bq, UVX_BQ_REGISTE
 
 UVX_COMM_BQ_STATE uvx_comm_bq_read_list(UVX_COMM_BQ* p_comm_bq, uint16_t reg_index) 
 {    
-	if(p_comm_bq->RX_Ready == 1)
+	if(p_comm_bq->BQ_RX_Ready == 1)
 	{					
 		if(p_comm_bq->p_register_list[reg_index].reg_addr == END_REGISTER)
 		{
 			return UVX_BQ_REG_END;
 		}
 
-		if(p_comm_bq->p_register_list[reg_index].reg_addr == DA_STATUS1)
+		if(p_comm_bq->p_register_list[reg_index].reg_addr == TEMPERATURE)
 		{
-			p_comm_bq->RX_Ready = 1; // Reset TX ready flag	
+			p_comm_bq->BQ_RX_Ready = 1; // Reset TX ready flag	
 		}		
 		
-		p_comm_bq->RX_Ready = 0; // Reset TX ready flag	
+		p_comm_bq->BQ_RX_Ready = 0; // Reset TX ready flag			
+
+		uvx_i2c_lock(p_comm_bq->p_hal_i2c, (uint32_t*)p_comm_bq); // Lock the I2C bus for this communication instance
 
 		if(uvx_i2c_read_mem(p_comm_bq->p_hal_i2c, p_comm_bq->addr_i2c,
 			p_comm_bq->p_register_list[reg_index].reg_addr, 1,
 			p_comm_bq->p_register_list[reg_index].p_data,
 			p_comm_bq->p_register_list[reg_index].size_data) != UVX_I2C_OK)
 		{
+			//p_comm_bq->BQ_RX_Ready = 1;
 			return UVX_BQ_ERROR;
-		}			
-		
+		}					
 	}
 	else
 	{
@@ -169,9 +198,9 @@ UVX_COMM_BQ_STATE uvx_comm_bq_read_register(UVX_COMM_BQ* p_comm_bq, UVX_BQ_REGIS
 
 
 	UVX_COMM_BQ_STATE state = UVX_BQ_OK;
-	if(p_comm_bq->RX_Ready == 1)
+	if(p_comm_bq->BQ_RX_Ready == 1)
 	{		
-		p_comm_bq->RX_Ready = 0; // Reset TX ready flag				
+		p_comm_bq->BQ_RX_Ready = 0; // Reset TX ready flag				
 		
 		state = uvx_comm_bq_get_index_register(p_comm_bq->p_register_list, reg_addr, &reg_index);
 		if(state != UVX_BQ_OK)
@@ -195,6 +224,63 @@ UVX_COMM_BQ_STATE uvx_comm_bq_read_register(UVX_COMM_BQ* p_comm_bq, UVX_BQ_REGIS
 	return UVX_BQ_OK; // Return success
 }  
 
+/* Read the response to a previously selected ManufacturerBlockAccess subcommand.
+ * Sends reg_addr (0x44 for MBA), repeated START, then receives exactly size raw bytes (no PEC).
+ * UVX_BQ_OK means started; data must remain valid until response completion.
+ * The response is [byte count][subcommand LSB][subcommand MSB][payload...].
+ * size must be the expected byte count + 1, e.g. 35 for count 0x22.
+ */
+UVX_COMM_BQ_STATE uvx_comm_bq_read_mba_register(UVX_COMM_BQ* p_comm_bq, UVX_BQ_REGISTERS reg_addr, uint8_t* data, uint16_t size)
+{
+	UVX_I2C_HAL* p_i2c;
+
+	if((p_comm_bq == NULL) || (p_comm_bq->p_hal_i2c == NULL) ||
+	   (data == NULL) || (size < 3U) || (size > 255U))
+	{
+		return UVX_BQ_ERROR;
+	}
+	p_i2c = p_comm_bq->p_hal_i2c;
+	if(p_i2c->hi2c.Instance == NULL)
+	{
+		return UVX_BQ_ERROR_INIT_I2C;
+	}
+	if((p_comm_bq->BQ_RX_Ready == 0U) || (p_comm_bq->RX_Pending != 0U) ||
+	   (p_i2c->I2C_RX_Ready == 0U) ||
+	   (HAL_I2C_GetState(&p_i2c->hi2c) != HAL_I2C_STATE_READY) ||
+	   ((p_i2c->hi2c.Instance->ISR & I2C_ISR_BUSY) != 0U))
+	{
+		return UVX_BQ_ERROR_BUSY;
+	}
+	if(uvx_i2c_lock(p_i2c, (uint32_t*)p_comm_bq) != UVX_I2C_OK)
+	{
+		return UVX_BQ_ERROR_BUSY;
+	}
+
+	p_comm_bq->BQ_RX_Ready = 0U;
+	p_comm_bq->i2c_state = uvx_i2c_read_mem(p_i2c, p_comm_bq->addr_i2c, reg_addr, I2C_MEMADD_SIZE_8BIT, data, size);
+	if(p_comm_bq->i2c_state != UVX_I2C_OK)
+	{
+		p_comm_bq->BQ_RX_Ready = 1U;
+		uvx_i2c_unlock(p_i2c, (uint32_t*)p_comm_bq);
+		if((p_comm_bq->i2c_state == UVX_I2C_NACK) ||
+		   ((HAL_I2C_GetError(&p_i2c->hi2c) & HAL_I2C_ERROR_AF) != 0U))
+		{
+			return UVX_BQ_ERROR_NACK;
+		}
+		if((p_comm_bq->i2c_state == UVX_I2C_BUSY) ||
+		   (p_comm_bq->i2c_state == UVX_I2C_LOCKED))
+		{
+			return UVX_BQ_ERROR_BUSY;
+		}
+		return UVX_BQ_ERROR;
+	}
+
+	p_comm_bq->cnt_no_response = 0U;
+	p_comm_bq->RX_Pending = 1U;
+	/* Keep the bus lock until the caller processes transfer completion. */
+	return UVX_BQ_OK;
+}
+
 //read ManufactureAddress() function only for test
 UVX_COMM_BQ_STATE uvx_comm_bq_read_ma_register(UVX_COMM_BQ* p_comm_bq, UVX_BQ_REGISTERS reg_addr) 
 {    
@@ -202,7 +288,7 @@ UVX_COMM_BQ_STATE uvx_comm_bq_read_ma_register(UVX_COMM_BQ* p_comm_bq, UVX_BQ_RE
 	UVX_COMM_BQ_STATE state = UVX_BQ_OK;
 	uint8_t i2c_data[10] = {0};
 	
-	p_comm_bq->RX_Ready = 0; // Reset TX ready flag		
+	p_comm_bq->BQ_RX_Ready = 0; // Reset TX ready flag		
 	
 	state = uvx_comm_bq_get_index_register(p_comm_bq->p_register_list, reg_addr, &reg_index);
 	if(state != UVX_BQ_OK)
@@ -247,49 +333,68 @@ UVX_COMM_BQ_STATE uvx_comm_bq_get_index_register(UVX_BQ_REGISTER *list, UVX_BQ_R
 	return UVX_BQ_ERROR; // Return error if register not found
 }
 
-UVX_COMM_BQ_STATE uvx_comm_bq_write_register(UVX_COMM_BQ* p_comm_bq, uint16_t reg_addr, uint8_t* data, uint16_t size) 
-{    
-	if((p_comm_bq == NULL) || (data == NULL) || (size == 0) || (size > UVX_BQ_I2C_TX_STAGING_SIZE))
+UVX_COMM_BQ_STATE uvx_comm_bq_write_register(UVX_COMM_BQ* p_comm_bq, uint16_t reg_addr, uint8_t* data, uint16_t size)
+{
+	if((p_comm_bq == NULL) || (p_comm_bq->p_hal_i2c == NULL) ||
+	   (data == NULL) || (size == 0) || (size > UVX_BQ_I2C_TX_STAGING_SIZE))
 	{
 		return UVX_BQ_ERROR;
 	}
-
-	if(p_comm_bq->TX_Ready == 1)
+	if((HAL_I2C_GetState(&p_comm_bq->p_hal_i2c->hi2c) != HAL_I2C_STATE_READY) || (p_comm_bq->BQ_TX_Ready == 0))
 	{
-		p_comm_bq->TX_Ready = 0; // Reset TX ready flag
-
-		memcpy(p_comm_bq->i2c_tx_staging, data, size);
-
-		if(uvx_i2c_send_mem(p_comm_bq->p_hal_i2c, p_comm_bq->addr_i2c, reg_addr, 1, p_comm_bq->i2c_tx_staging, size) != UVX_I2C_OK)
-		{
-			return UVX_BQ_ERROR;
-		}
-	}
-	else
-	{
-		if(uvx_i2c_check_state(p_comm_bq->p_hal_i2c) == UVX_I2C_TX_READY)
-		{
-			p_comm_bq->TX_Ready = 1;
-		}
-
 		return UVX_BQ_ERROR_BUSY;
 	}
-	
-	return UVX_BQ_OK; // Return success
+
+	if(uvx_i2c_lock(p_comm_bq->p_hal_i2c, (uint32_t*)p_comm_bq) != UVX_I2C_OK)
+	{
+		return UVX_BQ_ERROR_BUSY;
+	}
+
+	p_comm_bq->BQ_TX_Ready = 0;
+	memcpy(p_comm_bq->i2c_tx_staging, data, size);
+	p_comm_bq->i2c_state = uvx_i2c_send_mem(p_comm_bq->p_hal_i2c, p_comm_bq->addr_i2c, reg_addr, I2C_MEMADD_SIZE_8BIT, p_comm_bq->i2c_tx_staging, size);
+	if(p_comm_bq->i2c_state != UVX_I2C_OK)
+	{
+		/* No asynchronous transfer started. Restore readiness for a retry. */
+		p_comm_bq->BQ_TX_Ready = 1;
+		uvx_i2c_unlock(p_comm_bq->p_hal_i2c, (uint32_t*)p_comm_bq);
+		if(p_comm_bq->i2c_state == UVX_I2C_NACK)
+		{
+			// if(p_comm_bq->cnt_nack != UINT32_MAX)
+			// {
+			// 	p_comm_bq->cnt_nack++;
+			// }
+			p_comm_bq->No_response = true;
+			return UVX_BQ_ERROR_NACK;
+		}
+		if((p_comm_bq->i2c_state == UVX_I2C_BUSY) || (p_comm_bq->i2c_state == UVX_I2C_LOCKED))
+		{
+			return UVX_BQ_ERROR_BUSY;
+		}
+		/* Keep a failed initialization on this device; do not skip it. */
+		return UVX_BQ_ERROR;
+	}
+	/* Retain ownership until the asynchronous completion is checked. */
+	return UVX_BQ_OK;
 }
 
 UVX_COMM_BQ_STATE uvx_comm_bq_write_mba_register(UVX_COMM_BQ* p_comm_bq, UVX_BQ_MA_REGISTERS reg_addr, uint8_t* data, uint16_t size) 
 {    
 	uint8_t i2c_data[20] = {0};
 
-	if(p_comm_bq->TX_Ready == 1)
+	if(p_comm_bq->BQ_TX_Ready == 1)
 	{
-		p_comm_bq->TX_Ready = 0; // Reset TX ready flag
+		p_comm_bq->BQ_TX_Ready = 0; // Reset TX ready flag
 
 		i2c_data[0] = 0x44;
 		i2c_data[1] = 0x02;
 		i2c_data[2] = reg_addr;
 		i2c_data[3] = 0x00;
+
+		if(uvx_i2c_lock(p_comm_bq->p_hal_i2c, (uint32_t*)p_comm_bq) != UVX_I2C_OK)
+		{
+			return UVX_BQ_ERROR_BUSY;
+		}
 
 		if(uvx_i2c_send(p_comm_bq->p_hal_i2c, p_comm_bq->addr_i2c, i2c_data, 4) != UVX_I2C_OK)
 		{
@@ -300,7 +405,7 @@ UVX_COMM_BQ_STATE uvx_comm_bq_write_mba_register(UVX_COMM_BQ* p_comm_bq, UVX_BQ_
 	{
 		if(uvx_i2c_check_state(p_comm_bq->p_hal_i2c) == UVX_I2C_TX_READY)
 		{
-			p_comm_bq->TX_Ready = 1;
+			p_comm_bq->BQ_TX_Ready = 1;
 		}
 
 		return UVX_BQ_ERROR_BUSY;
@@ -337,22 +442,94 @@ UVX_COMM_BQ_STATE uvx_comm_bq_force_balance(UVX_COMM_BQ* p_comm_bq, uint8_t enab
 	}	
 }
 
-UVX_COMM_BQ_STATE uvx_comm_bq_charge_fet(UVX_COMM_BQ* p_comm_bq, uint8_t state)
+UVX_COMM_BQ_STATE uvx_comm_bq_bypass(UVX_COMM_BQ* p_comm_bq, uint8_t enable)
 {
+	UVX_COMM_BQ_STATE state;
+	uint8_t data[2];
+
+	if(enable)
+	{
+		data[0] = 0x00;
+		data[1] = 0x00;
+		p_comm_bq->Bypass = true;
+	}
+	else
+	{
+		data[0] = 0x00;
+		data[1] = 0x01;
+		p_comm_bq->Bypass = false;
+	}
+
+//	if(p_comm_bq->Bypass_old != p_comm_bq->Bypass)
+	{
+		state = uvx_comm_bq_write_register(p_comm_bq, GPIO_WRITE, data, 2);
+		if(state == UVX_BQ_OK)
+		{
+			p_comm_bq->Bypass_old = p_comm_bq->Bypass;
+			state = UVX_BQ_ERROR_BUSY;
+		}
+
+	}
+	// else
+	// {
+	// 	state = UVX_BQ_OK; // No change, return success
+	// }	
+
+	return state;
+}
+
+UVX_COMM_BQ_STATE uvx_comm_bq_discharge_fet(UVX_BQ_DATA* p_bq_data, bool state)
+{
+	UVX_COMM_BQ *p_comm_bq = p_bq_data->p_comm_bq;
+
+	if((p_bq_data == NULL) || (p_comm_bq == NULL))
+	{
+		return UVX_BQ_ERROR;
+	}
+
 	if(state)
 	{
-		if(!batt_data.CHG_fet_stat &&
-		   (batt_data.temperature_cell_l < MAX_CHARGE_START_CELL_TEMPERATURE) &&
-		   (batt_data.temperature_cell_h < MAX_CHARGE_START_CELL_TEMPERATURE))
+		if(!p_bq_data->FET_DSG_STAT)
 		{
-			uvx_comm_bq_write_mba_register(&comm_bq_h, BQ_MA_CHG_FET_TOGGLE, NULL, 0);
+			uvx_comm_bq_write_mba_register(p_comm_bq, BQ_MA_DSG_FET_TOGGLE, NULL, 0);
+			return UVX_BQ_ERROR_BUSY;
 		}
 	}
 	else
 	{
-		if(batt_data.CHG_fet_stat)
+		if(p_bq_data->FET_DSG_STAT)
 		{
-			uvx_comm_bq_write_mba_register(&comm_bq_h, BQ_MA_CHG_FET_TOGGLE, NULL, 0);
+			uvx_comm_bq_write_mba_register(p_comm_bq, BQ_MA_DSG_FET_TOGGLE, NULL, 0);
+			return UVX_BQ_ERROR_BUSY;
+		}
+	}
+
+	return UVX_BQ_OK; // Return success
+}
+
+UVX_COMM_BQ_STATE uvx_comm_bq_charge_fet(UVX_BQ_DATA* p_bq_data, bool state)
+{
+	UVX_COMM_BQ *p_comm_bq = p_bq_data->p_comm_bq;
+
+	if((p_bq_data == NULL) || (p_comm_bq == NULL))
+	{
+		return UVX_BQ_ERROR;
+	}
+
+	if(state)
+	{
+		if(!p_bq_data->FET_CHG_STAT)
+		{
+			uvx_comm_bq_write_mba_register(p_comm_bq, BQ_MA_CHG_FET_TOGGLE, NULL, 0);
+			return UVX_BQ_ERROR_BUSY;
+		}
+	}
+	else
+	{
+		if(p_bq_data->FET_CHG_STAT)
+		{
+			uvx_comm_bq_write_mba_register(p_comm_bq, BQ_MA_CHG_FET_TOGGLE, NULL, 0);
+			return UVX_BQ_ERROR_BUSY;
 		}
 	}
 

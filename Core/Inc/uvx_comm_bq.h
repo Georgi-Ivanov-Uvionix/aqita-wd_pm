@@ -53,11 +53,24 @@
 #define BYTE_SIZE_LSB   4 // Payload size LSB index in the packet
 #define BYTE_DATA       5 // Data byte index in the packet
 
-#define BQ_H_I2C_ADDRESS    0x0B // I2C address for BQ communication
-#define BQ_L_I2C_ADDRESS    0x0D // I2C address for BQ communication
 
-#define BQ_DEVICES          2
-#define BQ_MAX_NO_RESPONSE  1000 
+#define BQ_1_I2C_ADDRESS    0x0D // I2C address for BQ communication
+#define BQ_2_I2C_ADDRESS    0x0E // I2C address for BQ communication
+#define BQ_3_I2C_ADDRESS    0x0F // I2C address for BQ communication
+
+#define BQ_DEVICES          3
+#define BQ_MAX_NO_RESPONSE  2000 
+
+// GPIO_READ (0x48) masks for physical BQ40Z80 pins; shared by BQ L and BQ H.
+// Valid when the pin is configured as GPIO. GPIO_WRITE uses two bits per pin.
+#define BQ_GPIO_PIN12_MASK  (0x01) // RC2
+#define BQ_GPIO_PIN13_MASK  (0x02) // RC3
+#define BQ_GPIO_PIN17_MASK  (0x04) // RH0
+#define BQ_GPIO_PIN16_MASK  (0x08) // RH1
+#define BQ_GPIO_PIN15_MASK  (0x10) // RH2
+#define BQ_GPIO_PIN20_MASK  (0x20) // RL0
+#define BQ_GPIO_PIN21_MASK  (0x40) // RL1
+#define BQ_GPIO_PIN22_MASK  (0x80) // RL2
 
 // GPIO_READ (0x48) masks for physical BQ40Z80 pins; shared by BQ L and BQ H.
 // Valid when the pin is configured as GPIO. GPIO_WRITE uses two bits per pin.
@@ -71,6 +84,188 @@
 #define BQ_GPIO_PIN22_MASK  (0x80) // RL2
 
 #define SRAM1 __attribute__((section(".sram1")))
+
+typedef enum
+{
+    /* 0x00–0x1F: Standard BQ Commands */
+    MANUFACTURER_ACCESS            = 0x00,
+    REMAINING_CAPACITY_ALARM       = 0x01,
+    REMAINING_TIME_ALARM           = 0x02,
+    BATTERY_MODE                   = 0x03,
+    AT_RATE                        = 0x04,
+    AT_RATE_TIME_TO_FULL           = 0x05,
+    AT_RATE_TIME_TO_EMPTY          = 0x06,
+    AT_RATE_OK                     = 0x07,
+    TEMPERATURE                    = 0x08,
+    VOLTAGE                        = 0x09,
+    CURRENT                        = 0x0A,
+    AVERAGE_CURRENT                = 0x0B,
+    MAX_ERROR                      = 0x0C,
+    RELATIVE_STATE_OF_CHARGE       = 0x0D,
+    ABSOLUTE_STATE_OF_CHARGE       = 0x0E,
+    REMAINING_CAPACITY             = 0x0F,
+    FULL_CHARGE_CAPACITY           = 0x10,
+    RUN_TIME_TO_EMPTY              = 0x11,
+    AVERAGE_TIME_TO_EMPTY          = 0x12,
+    AVERAGE_TIME_TO_FULL           = 0x13,
+    CHARGING_CURRENT               = 0x14,
+    CHARGING_VOLTAGE               = 0x15,
+    BATTERY_STATUS                 = 0x16,
+    CYCLE_COUNT                    = 0x17,
+    DESIGN_CAPACITY                = 0x18,
+    DESIGN_VOLTAGE                 = 0x19,
+    SPECIFICATION_INFO             = 0x1A,
+    MANUFACTURER_DATE              = 0x1B,
+    SERIAL_NUMBER                  = 0x1C,
+
+    /* 0x20–0x2F: BQ String / Extended */
+    MANUFACTURER_NAME              = 0x20,
+    DEVICE_NAME                    = 0x21,
+    DEVICE_CHEMISTRY               = 0x22,
+    MANUFACTURER_DATA              = 0x23,
+    RESERVED_24                    = 0x24,
+    RESERVED_25                    = 0x25,
+    RESERVED_26                    = 0x26,
+    RESERVED_27                    = 0x27,
+    RESERVED_28                    = 0x28,
+    RESERVED_29                    = 0x29,
+    RESERVED_2A                    = 0x2A,
+    RESERVED_2B                    = 0x2B,
+    RESERVED_2C                    = 0x2C,
+    RESERVED_2D                    = 0x2D,
+    RESERVED_2E                    = 0x2E,
+    AUTHENTICATE                   = 0x2F,
+
+    /* 0x30–0x3F: TI Extensions / Cell Voltages */
+    CELL_VOLTAGE5                  = 0x30,
+    CELL_VOLTAGE6                  = 0x31,
+    CELL_VOLTAGE7                  = 0x32,
+    CELL_VOLTAGE8                  = 0x33,
+    CELL_VOLTAGE9                  = 0x34,
+    CELL_VOLTAGE10                 = 0x35,
+    CELL_VOLTAGE11                 = 0x36,
+    CELL_VOLTAGE12                 = 0x37,
+    CELL_VOLTAGE13                 = 0x38,
+    CELL_VOLTAGE14                 = 0x39,
+    CELL_VOLTAGE15                 = 0x3A,
+    CELL_VOLTAGE16                 = 0x3B,
+    CELL_VOLTAGE4                  = 0x3C,
+    CELL_VOLTAGE3                  = 0x3D,
+    CELL_VOLTAGE2                  = 0x3E,
+    CELL_VOLTAGE1                  = 0x3F,
+
+    /* 0x40–0x4F: Manufacturer / GPIO */
+    MANUFACTURER_BLOCK_ACCESS      = 0x44,
+    GPIO_READ                      = 0x48,    
+    GPIO_WRITE                     = 0x49,
+    STATE_OF_HEALTH                = 0x4F,
+
+    /* 0x50–0x5F: Status / Alerts (per TI documentation) */
+    SAFETY_ALERT                  = 0x50,
+    SAFETY_STATUS                 = 0x51,
+    PF_ALERT                      = 0x52,
+    PF_STATUS                     = 0x53,
+    OPERATION_STATUS              = 0x54,
+    CHARGING_STATUS               = 0x55,
+    GAUGING_STATUS                = 0x56,
+    MANUFACTURING_STATUS          = 0x57,
+    AFE_REGISTERS                 = 0x58,
+    RESERVED_59                    = 0x59,
+    RESERVED_5A                    = 0x5A,
+    RESERVED_5B                    = 0x5B,
+    RESERVED_5C                    = 0x5C,
+    RESERVED_5D                    = 0x5D,
+    RESERVED_5E                    = 0x5E,
+    RESERVED_5F                    = 0x5F,
+
+    /* 0x60–0x82: Reserved / Manufacturer Specific */
+    LIFETIME_DATA_BLOCK1          = 0x60,
+    LIFETIME_DATA_BLOCK2          = 0x61,
+    LIFETIME_DATA_BLOCK3          = 0x62,
+    LIFETIME_DATA_BLOCK4          = 0x63,
+    LIFETIME_DATA_BLOCK5          = 0x64,
+    LIFETIME_DATA_BLOCK6          = 0x65,
+    LIFETIME_DATA_BLOCK7          = 0x66,
+    LIFETIME_DATA_BLOCK8          = 0x67,
+    RESERVED_68                    = 0x68,
+    RESERVED_69                    = 0x69,
+    RESERVED_6A                    = 0x6A,
+    RESERVED_6B                    = 0x6B,
+    RESERVED_6C                    = 0x6C,
+    RESERVED_6D                    = 0x6D,
+    RESERVED_6E                    = 0x6E,
+    RESERVED_6F                    = 0x6F,
+    RESERVED_70                    = 0x70,
+    DA_STATUS1                     = 0x71,
+    DA_STATUS2                     = 0x72,
+    RESERVED_73                    = 0x73,
+    GAUGING_STATUS_2               = 0x74,
+    GAUGING_STATUS_3               = 0x75,
+    CBSTATUS                       = 0x76,
+    RESERVED_77                    = 0x77,
+    RESERVED_78                    = 0x78,
+    RESERVED_79                    = 0x79,
+    RESERVED_7A                    = 0x7A,
+    DA_STATUS3                     = 0x7B,
+    RESERVED_7C                    = 0x7C,
+    RESERVED_7D                    = 0x7D,
+    RESERVED_7E                    = 0x7E,
+    RESERVED_7F                    = 0x7F,
+    RESERVED_80                    = 0x80,
+    RESERVED_81                    = 0x81,
+    RESERVED_82                    = 0x82,
+    END_REGISTER                   = 0xFF
+}UVX_BQ_REGISTERS;
+
+typedef struct 
+{
+  UVX_BQ_REGISTERS reg_addr;
+  uint8_t size_data;
+  uint8_t *p_data;
+} UVX_BQ_REGISTER;
+
+typedef struct UVX_COMM_BQ
+{
+	uint8_t 		            ID;		  // I2C ID 
+    UVX_I2C_HAL*            p_hal_i2c; // HAL I2C structure
+    UVX_I2C*                i2c; // I2C structure
+    UVX_I2C_STATE           i2c_state; // I2C state
+    uint8_t                 addr_i2c; // I2C device address
+    UVX_BQ_REGISTER*       p_register_list; // Pointer to the register list
+
+    uint8_t Enable 		        : 1; // Flag to indicate if I2C is enabled
+    uint8_t is_Initilized 	    : 1; // Flag to indicate if HAL timer is initialied
+    uint8_t Error 		        : 1; // Error flag
+    uint8_t BQ_RX_Ready 	    : 1; // RX byte ready
+    uint8_t BQ_TX_Ready 	    : 1; // TX byte ready
+    uint8_t TX_Ready_Buffer     : 1; // TX buffer ready
+    uint8_t RX_Ready_Buffer     : 1; // RX buffer ready        
+    uint8_t RX_Pending          : 1; // Flag to indicate if RX is pending
+    uint8_t TX_Pending          : 1; // Flag to indicate if TX is pending
+    uint8_t Bypass              : 1; //
+    uint8_t Bypass_old          : 1; //
+    uint8_t Force_balance       : 1; // Requested force-balance state
+    uint8_t Force_balance_old   : 1; // Previous force-balance state
+    uint8_t No_response         : 1; //
+
+    uint16_t                buff_size_rx; // RX buffer size
+    uint16_t                buff_size_tx; // TX buffer size
+    uint16_t                buff_tx_cnt;  // RX buffer count
+    uint16_t                buff_rx_cnt;  // TX buffer count
+    uint8_t*                p_buff_tx_start; // Pointer to the start of the TX buffer
+    uint8_t*                p_buff_rx_start; // Pointer to the start of the RX buffer
+    uint8_t*                p_buff_tx; // Pointer to the TX buffer
+    uint8_t*                p_buff_rx; // Pointer to the RX buffer  
+    uint8_t                 i2c_tx_staging[UVX_BQ_I2C_TX_STAGING_SIZE]; // Must persist for HAL_I2C_Mem_Write_IT
+    uint16_t                size_frame;
+    uint16_t                size_payload;
+    uint16_t                batt_reg_cnt;
+
+    uint32_t                cnt_no_response;
+    uint32_t                cnt_nack; // Failed transfers with an acknowledgement failure
+    uint32_t                time_stamp; // Failed transfers with an acknowledgement failure
+
+}UVX_COMM_BQ;
 
 typedef union MANUFACTURE_STATUS_U
 {
@@ -207,7 +402,7 @@ typedef struct GAUGING_STATUS_S
 } GAUGING_STATUS_S;
 
 typedef struct UVX_BQ_DATA
-{
+{    
     uint16_t temperature;               // Temperature in 0.1 Kelvin
     uint16_t voltage;                   // Voltage in millivolts    
     int16_t  current;                   // Current in milliamps
@@ -227,6 +422,7 @@ typedef struct UVX_BQ_DATA
     uint16_t manufacturer_date;        // Manufacturer Date
     uint16_t serial_number;            // Serial Number
     uint16_t voltage_per_cell;         // Voltage per cell in millivolts batt voltage / cell count
+    uint16_t voltage_delta_cell;       // Highest minus lowest detected cell voltage in mV
 
     //===========0x0071 DAStatus1======================================
     uint8_t  dastatus1;
@@ -335,7 +531,7 @@ typedef struct UVX_BQ_DATA
     uint16_t cell_current_7;    
     uint16_t cell_power_7;
 
-    uint8_t No_response : 1; // Flag to indicate no response from BQ
+    uint8_t No_response             : 1; // Flag to indicate if there was no response from the BQ device 
 
     MANUFACTURE_STATUS_S manufacturing_status;
     OPERATION_STATUS_S operation_status; 
@@ -350,6 +546,29 @@ typedef struct UVX_BQ_DATA
     uint8_t  gpio_pin_20 : 1;           // GPIO pin 20 status
     uint8_t  gpio_pin_21 : 1;           // GPIO pin 21 status
     uint8_t  gpio_pin_22 : 1;           // GPIO pin 22 status    
+
+    uint8_t FET_DSG_CHG_EN          : 1; // 
+    uint8_t FET_DSG_CHG_EN_NEW      : 1; // 
+    uint8_t FET_CHG_STAT            : 1; //
+    uint8_t FET_CHG_STAT_NEW        : 1; //
+    uint8_t FET_DSG_STAT            : 1; //
+    uint8_t FET_DSG_STAT_NEW        : 1; //
+    uint8_t FET_BPS_EN              : 1; //
+    uint8_t FET_BPS_STAT            : 1; //
+    uint8_t FET_BPS_STAT_NEW        : 1; //
+    uint8_t bps_need_discharge      : 1; // Average cell voltage exceeds lowest pack by configured threshold
+    uint8_t bps_need_charge         : 1; // Pack matches lowest average cell voltage
+
+    uint32_t bypass_time_start_ms;
+    uint32_t bypass_time_ms;
+    int32_t  Qmax_passed_min;       // Passed capacity since last QMax DOD value is saved. mAh
+    int32_t  Qmax_passed_max;       // Passed capacity since last QMax DOD value is saved. mAh
+    uint16_t pm_rem_cap;        // Remaining capacity in percent (0-100)
+    uint16_t pm_full_cap;      // Full Charge Capacity in mAh    
+    uint32_t pm_avg_discharge_current_ma; // Smoothed discharge current magnitude in mA
+    uint32_t pm_time_remaining_m; // Estimated remaining discharge time in minutes
+    bool pm_time_remaining_valid; // False when no discharge estimate is available
+    UVX_COMM_BQ* p_comm_bq;             // Pointer to the communication structure for BQ
 }UVX_BQ_DATA;
 
 typedef enum 
@@ -460,176 +679,7 @@ typedef enum
 } UVX_BQ_MA_REGISTERS;
 
 
-typedef enum
-{
-    /* 0x00–0x1F: Standard BQ Commands */
-    MANUFACTURER_ACCESS            = 0x00,
-    REMAINING_CAPACITY_ALARM       = 0x01,
-    REMAINING_TIME_ALARM           = 0x02,
-    BATTERY_MODE                   = 0x03,
-    AT_RATE                        = 0x04,
-    AT_RATE_TIME_TO_FULL           = 0x05,
-    AT_RATE_TIME_TO_EMPTY          = 0x06,
-    AT_RATE_OK                     = 0x07,
-    TEMPERATURE                    = 0x08,
-    VOLTAGE                        = 0x09,
-    CURRENT                        = 0x0A,
-    AVERAGE_CURRENT                = 0x0B,
-    MAX_ERROR                      = 0x0C,
-    RELATIVE_STATE_OF_CHARGE       = 0x0D,
-    ABSOLUTE_STATE_OF_CHARGE       = 0x0E,
-    REMAINING_CAPACITY             = 0x0F,
-    FULL_CHARGE_CAPACITY           = 0x10,
-    RUN_TIME_TO_EMPTY              = 0x11,
-    AVERAGE_TIME_TO_EMPTY          = 0x12,
-    AVERAGE_TIME_TO_FULL           = 0x13,
-    CHARGING_CURRENT               = 0x14,
-    CHARGING_VOLTAGE               = 0x15,
-    BATTERY_STATUS                 = 0x16,
-    CYCLE_COUNT                    = 0x17,
-    DESIGN_CAPACITY                = 0x18,
-    DESIGN_VOLTAGE                 = 0x19,
-    SPECIFICATION_INFO             = 0x1A,
-    MANUFACTURER_DATE              = 0x1B,
-    SERIAL_NUMBER                  = 0x1C,
 
-    /* 0x20–0x2F: BQ String / Extended */
-    MANUFACTURER_NAME              = 0x20,
-    DEVICE_NAME                    = 0x21,
-    DEVICE_CHEMISTRY               = 0x22,
-    MANUFACTURER_DATA              = 0x23,
-    RESERVED_24                    = 0x24,
-    RESERVED_25                    = 0x25,
-    RESERVED_26                    = 0x26,
-    RESERVED_27                    = 0x27,
-    RESERVED_28                    = 0x28,
-    RESERVED_29                    = 0x29,
-    RESERVED_2A                    = 0x2A,
-    RESERVED_2B                    = 0x2B,
-    RESERVED_2C                    = 0x2C,
-    RESERVED_2D                    = 0x2D,
-    RESERVED_2E                    = 0x2E,
-    AUTHENTICATE                   = 0x2F,
-
-    /* 0x30–0x3F: TI Extensions / Cell Voltages */
-    CELL_VOLTAGE5                  = 0x30,
-    CELL_VOLTAGE6                  = 0x31,
-    CELL_VOLTAGE7                  = 0x32,
-    CELL_VOLTAGE8                  = 0x33,
-    CELL_VOLTAGE9                  = 0x34,
-    CELL_VOLTAGE10                 = 0x35,
-    CELL_VOLTAGE11                 = 0x36,
-    CELL_VOLTAGE12                 = 0x37,
-    CELL_VOLTAGE13                 = 0x38,
-    CELL_VOLTAGE14                 = 0x39,
-    CELL_VOLTAGE15                 = 0x3A,
-    CELL_VOLTAGE16                 = 0x3B,
-    CELL_VOLTAGE4                  = 0x3C,
-    CELL_VOLTAGE3                  = 0x3D,
-    CELL_VOLTAGE2                  = 0x3E,
-    CELL_VOLTAGE1                  = 0x3F,
-
-    /* 0x40–0x4F: Manufacturer / GPIO */
-    MANUFACTURER_BLOCK_ACCESS      = 0x44,
-    GPIO_WRITE                     = 0x49,
-    GPIO_READ                      = 0x48,
-    STATE_OF_HEALTH                = 0x4F,
-
-    /* 0x50–0x5F: Status / Alerts (per TI documentation) */
-    SAFETY_ALERT                  = 0x50,
-    SAFETY_STATUS                 = 0x51,
-    PF_ALERT                      = 0x52,
-    PF_STATUS                     = 0x53,
-    OPERATION_STATUS              = 0x54,
-    CHARGING_STATUS               = 0x55,
-    GAUGING_STATUS                = 0x56,
-    MANUFACTURING_STATUS          = 0x57,
-    AFE_REGISTERS                 = 0x58,
-    RESERVED_59                    = 0x59,
-    RESERVED_5A                    = 0x5A,
-    RESERVED_5B                    = 0x5B,
-    RESERVED_5C                    = 0x5C,
-    RESERVED_5D                    = 0x5D,
-    RESERVED_5E                    = 0x5E,
-    RESERVED_5F                    = 0x5F,
-
-    /* 0x60–0x82: Reserved / Manufacturer Specific */
-    LIFETIME_DATA_BLOCK1          = 0x60,
-    LIFETIME_DATA_BLOCK2          = 0x61,
-    LIFETIME_DATA_BLOCK3          = 0x62,
-    LIFETIME_DATA_BLOCK4          = 0x63,
-    LIFETIME_DATA_BLOCK5          = 0x64,
-    LIFETIME_DATA_BLOCK6          = 0x65,
-    LIFETIME_DATA_BLOCK7          = 0x66,
-    LIFETIME_DATA_BLOCK8          = 0x67,
-    RESERVED_68                    = 0x68,
-    RESERVED_69                    = 0x69,
-    RESERVED_6A                    = 0x6A,
-    RESERVED_6B                    = 0x6B,
-    RESERVED_6C                    = 0x6C,
-    RESERVED_6D                    = 0x6D,
-    RESERVED_6E                    = 0x6E,
-    RESERVED_6F                    = 0x6F,
-    RESERVED_70                    = 0x70,
-    DA_STATUS1                     = 0x71,
-    DA_STATUS2                     = 0x72,
-    RESERVED_73                    = 0x73,
-    GAUGING_STATUS_2               = 0x74,
-    GAUGING_STATUS_3               = 0x75,
-    CBSTATUS                       = 0x76,
-    RESERVED_77                    = 0x77,
-    RESERVED_78                    = 0x78,
-    RESERVED_79                    = 0x79,
-    RESERVED_7A                    = 0x7A,
-    DA_STATUS3                     = 0x7B,
-    RESERVED_7C                    = 0x7C,
-    RESERVED_7D                    = 0x7D,
-    RESERVED_7E                    = 0x7E,
-    RESERVED_7F                    = 0x7F,
-    RESERVED_80                    = 0x80,
-    RESERVED_81                    = 0x81,
-    RESERVED_82                    = 0x82,
-    END_REGISTER                   = 0xFF
-}UVX_BQ_REGISTERS;
-
-typedef struct 
-{
-  UVX_BQ_REGISTERS reg_addr;
-  uint8_t size_data;
-  uint8_t *p_data;
-} UVX_BQ_REGISTER;
-
-typedef struct UVX_COMM_BQ
-{
-	  uint8_t 		            ID;		  // I2C ID 
-    UVX_I2C_HAL*            p_hal_i2c; // HAL I2C structure
-    UVX_I2C*                i2c; // I2C structure
-    uint8_t                 addr_i2c; // I2C device address
-    UVX_BQ_REGISTER*       p_register_list; // Pointer to the register list
-
-    uint8_t Enable 		        : 1; // Flag to indicate if I2C is enabled
-    uint8_t is_Initilized 	    : 1; // Flag to indicate if HAL timer is initialied
-    uint8_t Error 		        : 1; // Error flag
-    uint8_t RX_Ready 	        : 1; // RX byte ready
-    uint8_t TX_Ready 	        : 1; // TX byte ready
-    uint8_t TX_Ready_Buffer     : 1; // TX buffer ready
-    uint8_t RX_Ready_Buffer     : 1; // RX buffer ready        
-    uint8_t Force_balance       : 1; // Reserved for future use
-    uint8_t Force_balance_old   : 1; // Reserved for future use
-
-    uint16_t                buff_size_rx; // RX buffer size
-    uint16_t                buff_size_tx; // TX buffer size
-    uint16_t                buff_tx_cnt;  // RX buffer count
-    uint16_t                buff_rx_cnt;  // TX buffer count
-    uint8_t*                p_buff_tx_start; // Pointer to the start of the TX buffer
-    uint8_t*                p_buff_rx_start; // Pointer to the start of the RX buffer
-    uint8_t*                p_buff_tx; // Pointer to the TX buffer
-    uint8_t*                p_buff_rx; // Pointer to the RX buffer  
-    uint8_t                 i2c_tx_staging[UVX_BQ_I2C_TX_STAGING_SIZE]; // Must persist for HAL_I2C_Mem_Write_IT
-    uint16_t                size_frame;
-    uint16_t                size_payload;
-
-}UVX_COMM_BQ;
 
  typedef enum
  {
@@ -638,8 +688,11 @@ typedef struct UVX_COMM_BQ
    UVX_BQ_ERROR_INIT,
    UVX_BQ_ERROR_INIT_I2C,
    UVX_BQ_ERROR_BUSY,
+   UVX_BQ_ERROR_NACK,
    UVX_BQ_ERROR_UNKNOWN_CMD,
    UVX_BQ_ERROR_CRC,
+   UVX_BQ_ERROR_LOCK,
+   UVX_BQ_ERROR_UNLOCKED,
    UVX_BQ_REG_END,
    UVX_BQ_TIMEOUT
  } UVX_COMM_BQ_STATE;
@@ -662,25 +715,38 @@ typedef struct
   UVX_COMM_MODE state_next; // Next state of the BQ communication
 } UVX_COMM_BQ_STATE_MACHINE;
 
-extern SRAM1 UVX_BQ_DATA bq_data_l;
-extern SRAM1 UVX_BQ_DATA bq_data_h;
-extern SRAM1 UVX_COMM_BQ comm_bq_l; // BQ communication structure
-extern SRAM1 UVX_COMM_BQ comm_bq_h; // BQ communication structure
+extern SRAM1 UVX_BQ_DATA bq_data[BQ_DEVICES];
+extern SRAM1 UVX_COMM_BQ comm_bq[BQ_DEVICES];
+
+// Keep existing device names mapped to the shared communication array.
+#define bq_data_1 (bq_data[0])
+#define bq_data_2 (bq_data[1])
+#define bq_data_3 (bq_data[2])
+
+#define comm_bq_1 (comm_bq[0])
+#define comm_bq_2 (comm_bq[1])
+#define comm_bq_3 (comm_bq[2])
 extern SRAM1 UVX_COMM_BQ_STATE_MACHINE comm_bq_state;
 extern UVX_COMM_BQ_STATE_MACHINE comm_state; // BQ communication state machine
 
 extern uint8_t buff_tx_bq[BUFF_SIZE_TX_BQ]; // TX buffer for BQ communication
 extern uint8_t buff_rx_bq[BUFF_SIZE_RX_BQ]; // RX buffer for BQ communication
-extern UVX_BQ_REGISTER bq_l_register_list_read[]; // Array of BQ registers for read operations
-extern UVX_BQ_REGISTER bq_l_register_list_read_once[]; // Array of BQ registers for one-time read operations
-extern UVX_BQ_REGISTER bq_h_register_list_read[]; // Array of BQ registers for read operations
-extern UVX_BQ_REGISTER bq_h_register_list_read_once[]; // Array of BQ registers for one-time read operations
+extern UVX_BQ_REGISTER bq_1_register_list_read[]; // Array of BQ registers for read operations
+extern UVX_BQ_REGISTER bq_1_register_list_read_once[]; // Array of BQ registers for one-time read operations
+extern UVX_BQ_REGISTER bq_2_register_list_read[]; // Array of BQ registers for read operations
+extern UVX_BQ_REGISTER bq_2_register_list_read_once[]; // Array of BQ registers for one-time read operations
+extern UVX_BQ_REGISTER bq_3_register_list_read[]; // Array of BQ registers for read operations
+extern UVX_BQ_REGISTER bq_3_register_list_read_once[]; // Array of BQ registers for one-time read operations
 extern UVX_BQ_DATA bq_data[BQ_DEVICES]; // BQ data structure
 /* Function prototypes */
 UVX_COMM_BQ_STATE uvx_comm_bq_init(UVX_COMM_BQ* p_comm_bq, UVX_I2C* i2c, uint8_t i2c_addr, UVX_BQ_REGISTER* p_register_list);
 UVX_COMM_BQ_STATE uvx_comm_bq_change_list(UVX_COMM_BQ* p_comm_bq, UVX_BQ_REGISTER* p_register_list);
 UVX_COMM_BQ_STATE uvx_comm_bq_read_list(UVX_COMM_BQ* p_comm_bq, uint16_t reg_index);
 UVX_COMM_BQ_STATE uvx_comm_bq_read_register (UVX_COMM_BQ* p_comm_bq, UVX_BQ_REGISTERS reg_addr);
+/* Async raw command read after subcommand selection. Use reg_addr = MANUFACTURER_BLOCK_ACCESS.
+ * size is the exact receive length, including count and echo,
+ * excludes PEC. Keep data alive; process completion before reading it. */
+UVX_COMM_BQ_STATE uvx_comm_bq_read_mba_register(UVX_COMM_BQ* p_comm_bq, UVX_BQ_REGISTERS reg_addr, uint8_t* data, uint16_t size);
 UVX_COMM_BQ_STATE uvx_comm_bq_read_ma_register(UVX_COMM_BQ* p_comm_bq, UVX_BQ_REGISTERS reg_addr);
 UVX_COMM_BQ_STATE uvx_comm_bq_get_index_register(UVX_BQ_REGISTER *list, UVX_BQ_REGISTERS reg_addr, uint8_t* p_index);
 UVX_COMM_BQ_STATE uvx_comm_bq_write_register(UVX_COMM_BQ* p_comm_bq, uint16_t reg_addr, uint8_t* data, uint16_t size) ;
@@ -690,7 +756,9 @@ UVX_COMM_BQ_STATE uvx_comm_bq_send_error(uint8_t data);
 UVX_COMM_BQ_STATE uvx_comm_bq_process_rx(uint8_t byte_rx);
 UVX_COMM_BQ_STATE uvx_comm_bq_process_rx_data(void);
 UVX_COMM_BQ_STATE uvx_comm_bq_force_balance(UVX_COMM_BQ* p_comm_bq, uint8_t enable);
-UVX_COMM_BQ_STATE uvx_comm_bq_charge_fet(UVX_COMM_BQ* p_comm_bq, uint8_t state);
+UVX_COMM_BQ_STATE uvx_comm_bq_bypass(UVX_COMM_BQ* p_comm_bq, uint8_t enable);
+UVX_COMM_BQ_STATE uvx_comm_bq_charge_fet(UVX_BQ_DATA* p_bq_data, bool state);
+UVX_COMM_BQ_STATE uvx_comm_bq_discharge_fet(UVX_BQ_DATA* p_bq_data, bool state);
 uint8_t uvx_comm_bq_swap_u8(uint8_t* v);
 uint16_t uvx_comm_bq_swap_u16_pointer(uint16_t* v);
 uint16_t uvx_comm_bq_swap_u16_value(uint16_t v);

@@ -44,19 +44,20 @@
 #define BATT_EXPECTED_CELLS                         9
 #define BATT_CELL_MIN_DETECT_VOLTAGE_MV             1500
 #define BATT_CELL_MIN_VOLTAGE                       2200 //mv
-#define BATT_CELL_MAX_VOLTAGE                       4200 //mv
+#define BATT_CELL_MAX_VOLTAGE                       4250 //mv
 #define BATT_CELL_CHARGE_RESUME_VOLTAGE             4100 //mv
 #define BATT_CELL_DETECT_THRESHOLD_MV               1500 //mv
 #define BATT_CELL_VOLTAGE_DIFF                      10  //mv
-#define BATT_DELTA_VOLTAGE                          1300  //mv
+#define BATT_BPS_DISCHARGE_DIFF_MV                  5U
+#define BATT_DELTA_VOLTAGE                          1500  //mv
 #define BATT_ADC_PACK_V_LOW_MIN_MS                  5000U
 
 #define BATT_SUPPLY_STATUS_PWR_FET_BIT                 0
 #define BATT_SUPPLY_STATUS_CHG_FET_BIT                 1
 #define BATT_SUPPLY_STATUS_TC_BIT                      2
 #define BATT_SUPPLY_STATUS_BALANCE_BIT                 3
-#define BATT_SUPPLY_STATUS_FORCE_BALANCE_L_BIT         4
-#define BATT_SUPPLY_STATUS_FORCE_BALANCE_H_BIT         5
+#define BATT_SUPPLY_STATUS_FORCE_BALANCE_1_BIT         4
+#define BATT_SUPPLY_STATUS_FORCE_BALANCE_2_BIT         5
 #define BATT_SUPPLY_STATUS_STABLE_L_BIT                6
 #define BATT_SUPPLY_STATUS_STABLE_H_BIT                7
 
@@ -69,7 +70,7 @@
 #define MAX_CELL_TEMPERATURE                        650
 #define MAX_CHARGE_START_CELL_TEMPERATURE            450 //0.1 degree Celsius; charge start requires strictly below
 #define MAX_HIS_CELL_TEMPERATURE                    600 //max histeresis cell temperature for power on after high temp cutoff
-#define MIN_HIS_CELL_TEMPERATURE                    500 //min histeresis cell temperature for power on after high temp cutoff
+#define MIN_HIS_CELL_TEMPERATURE                    450 //min histeresis cell temperature for power on after high temp cutoff
 #define SOC_START_LOW_POWER                         95
 
 #define KELVIN_TO_DEG_C                             2732
@@ -77,16 +78,42 @@
 #define SRAM1 __attribute__((section(".sram1")))
 #define SRAM2 __attribute__((section(".sram2")))
 
-#define CELL_1_INTERCONNECT_RESISTANCE 14 //mOhm
-#define CELL_2_INTERCONNECT_RESISTANCE 1 //mOhm
-#define CELL_3_INTERCONNECT_RESISTANCE 1 //mOhm
-#define CELL_4_INTERCONNECT_RESISTANCE 10 //mOhm
-#define CELL_5_INTERCONNECT_RESISTANCE 1 //mOhm
-#define CELL_6_INTERCONNECT_RESISTANCE 25 //mOhm
-#define CELL_7_INTERCONNECT_RESISTANCE 9 //mOhm
-#define CELL_8_INTERCONNECT_RESISTANCE 1 //mOhm
-#define CELL_9_INTERCONNECT_RESISTANCE 1 //mOhm
+#if defined(DRONE_10)
+#define CELL_1_INTERCONNECT_RESISTANCE  0 //mOhm
+#define CELL_2_INTERCONNECT_RESISTANCE  1 //mOhm
+#define CELL_3_INTERCONNECT_RESISTANCE  1 //mOhm
+#define CELL_4_INTERCONNECT_RESISTANCE  0 //mOhm
+#define CELL_5_INTERCONNECT_RESISTANCE  0 //mOhm
+#define CELL_6_INTERCONNECT_RESISTANCE  0 //mOhm
+#define CELL_7_INTERCONNECT_RESISTANCE  0 //mOhm
+#define CELL_8_INTERCONNECT_RESISTANCE  1 //mOhm
+#define CELL_9_INTERCONNECT_RESISTANCE  1 //mOhm
 #define CELL_10_INTERCONNECT_RESISTANCE 0 //mOhm
+#elif defined(DRONE_9)
+#define CELL_1_INTERCONNECT_RESISTANCE  1 //mOhm
+#define CELL_2_INTERCONNECT_RESISTANCE  1 //mOhm
+#define CELL_3_INTERCONNECT_RESISTANCE  0 //mOhm
+#define CELL_4_INTERCONNECT_RESISTANCE  2 //mOhm
+#define CELL_5_INTERCONNECT_RESISTANCE  0 //mOhm
+#define CELL_6_INTERCONNECT_RESISTANCE  0 //mOhm
+#define CELL_7_INTERCONNECT_RESISTANCE  2 //mOhm
+#define CELL_8_INTERCONNECT_RESISTANCE  1 //mOhm
+#define CELL_9_INTERCONNECT_RESISTANCE  0 //mOhm
+#define CELL_10_INTERCONNECT_RESISTANCE 0 //mOhm
+#elif defined(DRONE_11)
+#define CELL_1_INTERCONNECT_RESISTANCE  0 //mOhm
+#define CELL_2_INTERCONNECT_RESISTANCE  1 //mOhm
+#define CELL_3_INTERCONNECT_RESISTANCE  1 //mOhm
+#define CELL_4_INTERCONNECT_RESISTANCE  0 //mOhm
+#define CELL_5_INTERCONNECT_RESISTANCE  0 //mOhm
+#define CELL_6_INTERCONNECT_RESISTANCE  0 //mOhm
+#define CELL_7_INTERCONNECT_RESISTANCE  0 //mOhm
+#define CELL_8_INTERCONNECT_RESISTANCE  0 //mOhm
+#define CELL_9_INTERCONNECT_RESISTANCE  0 //mOhm
+#define CELL_10_INTERCONNECT_RESISTANCE 0 //mOhm
+#else
+#error "Please define the interconnect resistances for the battery cells in uvx_batt.h"
+#endif
 
 
 typedef packed_struct
@@ -102,8 +129,8 @@ typedef packed_struct
                                         //bit 1 - chg fet
                                         //bit 2 - tc
                                         //bit 3 - balance
-                                        //bit 4 - force balance l
-                                        //bit 5 - force balance h
+                                        //bit 4 - force balance BQ 1
+                                        //bit 5 - force balance BQ 2
                                         //bit 6 - stable l
                                         //bit 7 - stable h
     uint16_t cell_voltage_1;            // Cell Voltage 1 in millivolts
@@ -124,8 +151,8 @@ typedef packed_struct
     uint16_t temperature_cell_6;    
     uint16_t temperature_cell_7;    
     uint16_t temperature_cell_8;             //byte 50    
-    uint16_t temperature_l_int;       
-    uint16_t temperature_h_int;       
+    uint16_t temperature_1_int;       
+    uint16_t temperature_2_int;       
     int16_t  voltage_diff_pack;         // voltage difference between two packs in millivolts
     int16_t  voltage_delta_cell;        // voltage difference between cells in millivolts
     int16_t  voltage_min_cell;          // voltage difference between cells in millivolts byte 60
@@ -146,45 +173,41 @@ typedef packed_struct
     uint16_t adc_pack_v;                // measured pack voltage in millivolts byte 90 - 91
     uint16_t avg_time_to_empty_m;       // Average Time to Empty in minutes
     uint16_t avg_time_to_full_m;        // Average Time to Full in minutes    
-    uint16_t state_time_l_m;            // Time passed since last state change (DISCHARGE, CHARGE, REST)  
-    uint16_t state_time_h_m;            // Time passed since last state change (DISCHARGE, CHARGE, REST)        byte 99
-    uint8_t  error;                     //bit 0 - BQ L no response      byte 100
-                                        //bit 1 - BQ H no response
+    uint16_t state_time_1_m;            // Time passed since last state change (DISCHARGE, CHARGE, REST)  
+    uint16_t state_time_2_m;            // Time passed since last state change (DISCHARGE, CHARGE, REST)        byte 99
+    //uint16_t state_time_3_m;
+    uint8_t  error;                     //bit 0 - BQ 1 no response      byte 100
+                                        //bit 1 - BQ 2 no response
                                         //bit 2 - reserved
                                         //bit 3 - reserved
                                         //bit 4 - reserved
                                         //bit 5 - reserved
                                         //bit 6 - reserved
                                         //bit 7 - reserved
-    int16_t  Qmax_passed_BQ_l;              // Qmax value from BQ L in mAh byte 102                                        
-    int16_t  Qmax_passed_BQ_h;              // Qmax value from BQ H in mAh byte 104                                       
+    int16_t  Qmax_passed_BQ_1;              // Qmax value from BQ 1 in mAh byte 102                                        
+    int16_t  Qmax_passed_BQ_2;              // Qmax value from BQ 2 in mAh byte 104                                       
+    int16_t  Qmax_passed_BQ_3;
 } BATT_DATA_PAYLOAD;
 
 typedef struct
 {
+    uint16_t adc_pack_v;                // measured pack voltage in millivolts byte 90 - 91
     uint8_t  adc_pack_v_stable_high;
     uint8_t  adc_pack_v_stable_low;     
-    uint8_t  cells_count;
     uint16_t pwr_min_voltage;
     uint16_t pwr_max_voltage;
-
+    uint8_t  cells_count;
     uint8_t  SOH;                       // State of Health in percentage (0-100%)       byte 1
     uint16_t batt_voltage;              // Battery Voltage in millivolts                bytes 2-3
     int16_t  current;                   // Current in milliamps                         bytes 4-5
     int32_t  power;                     //Power calculated by Voltage() × Current()  
     uint16_t remaining_capacity;        // Remaining Capacity in mAh                      bytes 6-7
     uint8_t relative_state_of_charge;  // Relative State of Charge in percentage (0-100%) bytes 12-13    
+    uint8_t absolute_state_of_charge;  // Absolute State of Charge in percentage (0-100%)   
     uint16_t full_charge_capacity;      // Full Charge Capacity in mAh                  bytes 8-9
     uint16_t design_capacity;           // Design Capacity in mAh                       bytes 10-11
-    uint8_t absolute_state_of_charge;  // Absolute State of Charge in percentage (0-100%)                   
-    uint8_t  supply_status;             //bit 0 - pwr fet byte 14
-                                        //bit 1 - chg fet
-                                        //bit 2 - tc
-                                        //bit 3 - balance
-                                        //bit 4 - force balance l
-                                        //bit 5 - force balance h
-                                        //bit 6 - stable l
-                                        //bit 7 - stable h
+    uint16_t  cycle_count;               // Number of charge-discharge cycles byte 89
+                
     uint16_t cell_voltage_1;            // Cell Voltage 1 in millivolts
     uint16_t cell_voltage_2;            // Cell Voltage 2 in millivolts
     uint16_t cell_voltage_3;            // Cell Voltage 3 in millivolts byte 20
@@ -195,20 +218,11 @@ typedef struct
 	uint16_t cell_voltage_8;            // Cell Voltage 8 in millivolts  byte 30
 	uint16_t cell_voltage_9;            // Cell Voltage 9 in millivolts
 	uint16_t cell_voltage_10;           // Cell Voltage 10 in millivolts            
-    uint16_t temperature_cell_1;    // Temperature of cell 1 in tenths of degrees Celsius
-    uint16_t temperature_cell_2;    
-    uint16_t temperature_cell_3;    //byte 40
-    uint16_t temperature_cell_4; 
-    uint16_t temperature_cell_5;    
-    uint16_t temperature_cell_6;    
-    uint16_t temperature_cell_7;    
-    uint16_t temperature_cell_8;             //byte 50    
-    uint16_t temperature_l_int;       
-    uint16_t temperature_h_int;       
     int16_t  voltage_diff_pack;         // voltage difference between two packs in millivolts
     int16_t  voltage_delta_cell;        // voltage difference between cells in millivolts
     int16_t  voltage_min_cell;          // voltage difference between cells in millivolts byte 60
-    int16_t  voltage_max_cell;          // voltage difference between cells in millivolts      
+    int16_t  voltage_max_cell;          // voltage difference between cells in millivolts     
+
     uint16_t cell_bal_time_1;           // Cell balancing time for cell 1 in minutes
     uint16_t cell_bal_time_2;           // Cell balancing time for cell 2 in minutes
     uint16_t cell_bal_time_3;           // Cell balancing time for cell 3 in minutes
@@ -219,78 +233,59 @@ typedef struct
     uint16_t cell_bal_time_8;           // Cell balancing time for cell 8 in minutes
     uint16_t cell_bal_time_9;           // Cell balancing time for cell 9 in minutes byte 80
     uint16_t cell_bal_time_10;          // Cell balancing time for cell 10 in minutes                     
-    uint16_t  cycle_count;               // Number of charge-discharge cycles byte 89
-    uint16_t adc_pack_v;                // measured pack voltage in millivolts byte 90 - 91
+
     uint16_t avg_time_to_empty_m;       // Average Time to Empty in minutes
     uint16_t avg_time_to_full_m;        // Average Time to Full in minutes    
-    uint16_t state_time_l_m;            // Time passed since last state change (DISCHARGE, CHARGE, REST)  
-    uint16_t state_time_h_m;            // Time passed since last state change (DISCHARGE, CHARGE, REST)        byte 99
-    uint8_t  error;                     //bit 0 - BQ L no response      byte 100
-                                        //bit 1 - BQ H no response
-                                        //bit 2 - reserved
-                                        //bit 3 - reserved
-                                        //bit 4 - reserved
-                                        //bit 5 - reserved
-                                        //bit 6 - reserved
-                                        //bit 7 - reserved
-    int16_t  Qmax_passed_BQ_l;              // Qmax value from BQ L in mAh byte 102                                        
-    int16_t  Qmax_passed_BQ_h;              // Qmax value from BQ H in mAh byte 104  
+    uint16_t state_time_1_m;            // Time passed since last state change (DISCHARGE, CHARGE, REST)  
+    uint16_t state_time_2_m;            // Time passed since last state change (DISCHARGE, CHARGE, REST)        byte 99
+    uint16_t state_time_3_m;
+
+    uint16_t temperature_cell_1;    // Temperature of cell 1 in tenths of degrees Celsius
+    uint16_t temperature_cell_2;    
+    uint16_t temperature_cell_3;    //byte 40
+    uint16_t temperature_cell_4; 
+    uint16_t temperature_cell_5;    
+    uint16_t temperature_cell_6;    
+    uint16_t temperature_cell_7;    
+    uint16_t temperature_cell_8;             //byte 50    
+    uint16_t temperature_cell_9;             //byte 50    
+    uint16_t temperature_1_int;       
+    uint16_t temperature_2_int;       
+    uint16_t temperature_3_int;       
+    uint16_t temperature_bq_1;    // BQ 1 temperature in 0.1 degree Celsius
+    uint16_t temperature_bq_2;    // BQ 2 temperature in 0.1 degree Celsius
+    uint16_t temperature_bq_3;    // BQ 3 temperature in 0.1 degree Celsius     
+
+
+    int16_t  Qmax_passed_BQ_1;              // Qmax value from BQ 1 in mAh byte 102                                        
+    int16_t  Qmax_passed_BQ_2;              // Qmax value from BQ 2 in mAh byte 104  
+    int16_t  Qmax_passed_BQ_3;
 
 //--------------------------------DATA FOR JETSON-------------------------------------------    
     BATT_DATA_PAYLOAD payload;                                    
     uint16_t size_payload;
 //-----------------------------------------------------------------------------------
-    uint16_t temperature_cell_l;    //lowest cell temperature in 0.1 degree Celsius
-    uint16_t temperature_cell_h;    //highest cell temperature in 0.1 degree Celsius  
-    uint16_t design_voltage;      
-    int16_t cell_current_1;          // Cell Current 1 in milliamps
-    int16_t cell_current_2;          // Cell Current 2 in milliamps
-    int16_t cell_current_3;          // Cell Current 3 in milliamps
-    int16_t cell_current_4;          // Cell Current 4 in milliamps
-	int16_t cell_current_5;          // Cell Current 5 in milliamps
-	int16_t cell_current_6;          // Cell Current 6 in milliamps
-	int16_t cell_current_7;          // Cell Current 7 in milliamps
-	int16_t cell_current_8;          // Cell Current 8 in milliamps
-	int16_t cell_current_9;          // Cell Current 9 in milliamps
-	int16_t cell_current_10;         // Cell Current 10 in milliamps
 
-    int16_t cell_power_1;          // Cell Power 1 in milliwatts
-    int16_t cell_power_2;          // Cell Power 2 in milliwatts
-    int16_t cell_power_3;          // Cell Power 3 in milliwatts
-    int16_t cell_power_4;          // Cell Power 4 in milliwatts
-	int16_t cell_power_5;          // Cell Power 5 in milliwatts
-	int16_t cell_power_6;          // Cell Power 6 in milliwatts
-	int16_t cell_power_7;          // Cell Power 7 in milliwatts
-	int16_t cell_power_8;          // Cell Power 8 in milliwatts
-	int16_t cell_power_9;          // Cell Power 9 in milliwatts
-	int16_t cell_power_10;         // Cell Power 10 in milliwatts
-
-
-    uint16_t cell_dod_1;               // Cell depth of discharge for cell 1 in percentage
-    uint16_t cell_dod_2;               // Cell depth of discharge for cell 2 in percentage
-    uint16_t cell_dod_3;               // Cell depth of discharge for cell 3 in percentage
-    uint16_t cell_dod_4;               // Cell depth of discharge for cell 4 in percentage
-    uint16_t cell_dod_5;               // Cell depth of discharge for cell 5 in percentage
-    uint16_t cell_dod_6;               // Cell depth of discharge for cell 6 in percentage
-    uint16_t cell_dod_7;               // Cell depth of discharge for cell 7 in percentage
-    uint16_t cell_dod_8;               // Cell depth of discharge for cell 8 in percentage
-    uint16_t cell_dod_9;               // Cell depth of discharge for cell 9 in percentage
-    uint16_t cell_dod_10;              // Cell depth of discharge for cell 10 in percentage
-
-
-    uint32_t CHG_fet_en   : 1;
-    uint32_t CHG_fet_stat : 1;
+    uint32_t CHG_FET_1_STAT : 1;
+    uint32_t DSG_FET_1_STAT : 1;    
+    uint32_t CHG_FET_2_STAT : 1;
+    uint32_t DSG_FET_2_STAT : 1;
+    uint32_t CHG_FET_3_STAT : 1;
+    uint32_t DSG_FET_3_STAT : 1;    
     uint32_t init     : 1;
     uint32_t tc       : 1; 
-    uint32_t cell_ball_h : 1;
-    uint32_t cell_ball_l : 1;
+    uint32_t cell_ball_1 : 1;
+    uint32_t cell_ball_2 : 1;
+    uint32_t cell_ball_3 : 1;
     uint32_t batt_max_temp : 1;
+    uint32_t BPS_Passive : 1; // At least one pack has bypass enabled (FET_BPS_EN).
    
     uint16_t specification_info;       // Specification Information
     uint16_t manufacturer_date;        // Manufacturer Date
-    uint16_t serial_number;            // Serial Number
-    uint32_t cnt_no_response;
-        
+    uint16_t serial_number;            // Serial Number        
+    uint16_t adc_vrefint_raw; // Raw internal reference ADC count
+    uint16_t adc_pack_raw;    // Raw battery-divider ADC count
+    uint16_t adc_vref_mv;     // Measured VREF+ in mV
 }UVX_BATT_DATA;
 
  typedef enum
@@ -311,14 +306,21 @@ typedef struct
 typedef enum 
 {
     BATT_MODE_INIT = 0x00,
-    BATT_MODE_READ_ONCE_BQ_L,
-	BATT_MODE_READ_ONCE_BQ_H,
-    BATT_MODE_INIT_BALANCE_L,
-    BATT_MODE_INIT_BALANCE_H,    
-    BATT_MODE_OFF_BALANCE_L,    
-    BATT_MODE_OFF_BALANCE_H,     
-    BATT_MODE_READ_BQ_L,
-	BATT_MODE_READ_BQ_H,	
+    BATT_MODE_READ_ONCE_BQ,
+    BATT_MODE_INIT_BYPASS,
+    BATT_MODE_INIT_BALANCE_1,
+    BATT_MODE_INIT_BALANCE_2,    
+    BATT_MODE_INIT_BALANCE_3,
+    BATT_MODE_INIT_BALANCE_DONE,
+    BATT_MODE_OFF_BALANCE_1,    
+    BATT_MODE_OFF_BALANCE_2,     
+    BATT_MODE_OFF_BALANCE_3,
+    BATT_MODE_READ_BQ,
+    BATT_MODE_CHECK_STATUS_FET_EN,
+    BATT_MODE_CHECK_STATUS_BYPASS,
+    BATT_MODE_CHECK_STATUS_FET_DSG,
+    BATT_MODE_CHECK_STATUS_FET_CHG,
+    BATT_MODE_CHECK_STATUS_FET_BPS,
     BATT_MODE_CHECK_STATUS,
 	BATT_MODE_READ_CHECK_PACK_V,	
 	BATT_MODE_READ_CHECK_PACK_V_STABLE,	
@@ -331,12 +333,16 @@ typedef struct
   UVX_BATT_MODE state_previous; // Previous state of the M2JMB communication
   UVX_BATT_MODE state_current;  // Current state of the M2JMB communication
   UVX_BATT_MODE state_next; // Next state of the M2JMB communication
+  UVX_BATT_MODE state_when_fail; // Next state of the M2JMB communication
 } UVX_BATT_STATE_MACHINE;
 
 extern UVX_BATT_STATE_MACHINE batt_state;
 extern SRAM1 UVX_BATT_DATA batt_data;
 
 UVX_BATT_STATE uvx_batt_parse_data(void);
+/* Flags each BQ above the lowest pack by more than BATT_BPS_DISCHARGE_DIFF_MV.
+ * Minimum-voltage BQs are flagged for charge regardless of the difference. */
+UVX_BATT_STATE uvx_batt_find_highest_average_pack_voltage(void);
 UVX_BATT_STATE uvx_batt_read_data(uint16_t reg_index);
 UVX_BATT_STATE uvx_batt_read_pack_v(void);
 UVX_BATT_STATE uvx_batt_detect_cells(void);

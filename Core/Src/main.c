@@ -22,6 +22,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "uvx_app_battery.h"
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
@@ -137,7 +138,6 @@ uint8_t u2_rx_buffer[100];
 uint8_t *p_u2_rx;
 uint32_t u2_cnt_rx = 0;
 uint32_t u1_cnt_rx = 0;
-uint16_t batt_reg_cnt = 0;
 uint16_t for_test = 0;
 
 float 	g_Battery_Voltage[3];
@@ -222,7 +222,6 @@ void Process_Button_EXTI_Request(void);
 void UVX_APP_Shutdown_JMB(void);
 void UVX_APP_Comm_m2m(void);
 void UVX_APP_Comm_m2jmb(void);
-void UVX_APP_Batt(void);
 void UVX_APP_LED_Strip (void);
 void UVX_APP_HALL_LAND(void);
 /* USER CODE END PFP */
@@ -255,7 +254,8 @@ uint16_t adc_value;
 
 int main(void)
 {
- 	HAL_Init();
+
+	HAL_Init();
 	SystemClock_Config();
 
 	/* Initialize all configured peripherals */
@@ -276,12 +276,12 @@ int main(void)
 	uvx_gpio_set_pin(GPIO_OUTPUT_RED_LED, GPIO_PIN_SET);	
 	uvx_gpio_set_pin(GPIO_OUTPUT_GREEN_LED, GPIO_PIN_SET);	
 	uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_SET);
-	uvx_app_pwr_led_init();
+	uvx_app_pwr_led(0);
 	uvx_gpio_set_pin(GPIO_OUTPUT_BQH_I2C_EN, GPIO_PIN_SET); // bqh turn off
 	uvx_gpio_set_pin(GPIO_OUTPUT_BQH_I2C_EN, GPIO_PIN_RESET);	
 	UVX_APP_PWR_FET(0); // power off
 	uvx_app_led_strip_enable(GPIO_PIN_SET);
-	uvx_gpio_set_pin(GPIO_OUTPUT_JETSON_EN, GPIO_PIN_RESET);
+	uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_RESET);
 
 	pclk1_freq = HAL_RCC_GetPCLK1Freq();
 
@@ -314,7 +314,7 @@ void UVX_APP(void)
 				timer_app_drone.Enable = true; 
 				drone_state.state_current = DRONE_CHECK_BUTTON_TIMEOUT;
 				drone_state.state_next = DRONE_CHECK_BUTTON_PRESS_TWICE;
-				uvx_app_pwr_led(GPIO_PIN_RESET);
+				uvx_app_pwr_led(1);
 				led_strip_state.state_next = LED_STRIP_MODE_BTN_PRESS;
 				btn_percent = 0;		
 			}
@@ -327,6 +327,13 @@ void UVX_APP(void)
 				if((batt_data.init) && (!batt_data.adc_pack_v_stable_high))
 				{
 					drone_state.state_current = DRONE_SLEEP;
+				}
+				else
+				{
+					if(batt_state.state_current == BATT_MODE_STOP)
+					{
+						batt_state.state_current = BATT_MODE_READ_BQ;
+					}
 				}
 
 				#ifdef APP_NO_BATTERY_MODE	
@@ -348,7 +355,7 @@ void UVX_APP(void)
 		case DRONE_CHECK_BUTTON_PRESS_TWICE:
 			if(timer_app_drone.Timeout == 0) // If timeout occurs
 			{
-				uvx_app_pwr_led(GPIO_PIN_RESET);
+				uvx_app_pwr_led(1);
 				led_strip_state.state_next = LED_STRIP_MODE_BTN_PRESS;
 				btn_percent = 0;					
 				if(drone_status.btn_state)
@@ -366,7 +373,7 @@ void UVX_APP(void)
 						}
 						else
 						{
-							batt_state.state_current = BATT_MODE_READ_BQ_L;
+							batt_state.state_current = BATT_MODE_READ_BQ;
 						}
 						comm_m2jmb.Heartbeat = 0;
 						memset(buff_rx_m2jmb, 0, sizeof(buff_rx_m2jmb));
@@ -399,7 +406,7 @@ void UVX_APP(void)
 		case DRONE_CHECK_BUTTON_TIMEOUT:
 			if(timer_app_drone.Timeout == 0) 
 			{
-				uvx_app_pwr_led(GPIO_PIN_SET);
+				uvx_app_pwr_led(0);				
 				led_strip_state.state_next = LED_STRIP_MODE_OFF;
 				if(uvx_gpio_read_pin(GPIO_INPUT_EXTI8_DRONE_START))
 				{
@@ -457,6 +464,27 @@ void UVX_APP(void)
 		break;
 
 		case DRONE_SLEEP:
+#ifndef APP_NO_BATTERY_MODE
+			{
+				uint32_t i;
+				bool bypass_pending = false;
+
+				for(i = 0; i < BQ_DEVICES; i++)
+				{
+					bq_data[i].FET_BPS_EN = false;
+					bq_data[i].FET_BPS_STAT_NEW = false;
+					if(bq_data[i].FET_BPS_STAT || comm_bq[i].RX_Pending)
+					{
+						bypass_pending = true;
+					}
+				}
+				// Keep running UVX_APP_Batt until bypass shutdown completes.
+				if(bypass_pending)
+				{
+					break;
+				}
+			}
+#endif
 			if(timer_app_drone.Timeout == 0) // If timeout occurs
 			{
 				#ifdef APP_NO_BATTERY_MODE
@@ -466,10 +494,10 @@ void UVX_APP(void)
 
 				if((!batt_data.adc_pack_v_stable_high) &&
 				   (batt_data.adc_pack_v_stable_low) &&
+				   (batt_data.init) &&
 				   (comm_m2jmb_state.state_current == M2JMB_MODE_IDLE) &&
-				   (!comm_bq_h.Force_balance || !comm_bq_l.Force_balance)) 
+				   (!comm_bq_3.Force_balance || !comm_bq_2.Force_balance || !comm_bq_1.Force_balance))
 				{
-					uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_SET);
 					batt_state.state_current = BATT_MODE_STOP;
 					enter_LPSleep();
 					if(g_Exit_Sleep_Request)
@@ -525,7 +553,7 @@ void Process_Button_EXTI_Request(void)
 
 		if(batt_state.state_current == BATT_MODE_STOP)
 		{
-			batt_state.state_current = BATT_MODE_READ_BQ_L;
+			batt_state.state_current = BATT_MODE_READ_BQ;
 		}
 	}
 }
@@ -543,11 +571,11 @@ void UVX_APP_HALL_LAND(void)
 				uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_RESET);
 				if(batt_data.init)
 				{
-					batt_state.state_current = BATT_MODE_READ_BQ_L;
+					batt_state.state_current = BATT_MODE_READ_BQ;
 				}				
 			}
 
-			if((batt_data.temperature_cell_l <= MAX_CELL_TEMPERATURE) && (batt_data.temperature_cell_h <= MAX_CELL_TEMPERATURE))
+			if((batt_data.temperature_bq_1 <= MAX_CELL_TEMPERATURE) && (batt_data.temperature_bq_2 <= MAX_CELL_TEMPERATURE) && (batt_data.temperature_bq_3 <= MAX_CELL_TEMPERATURE))
 			{
 				if(batt_data.payload.relative_state_of_charge >= SOC_START_LOW_POWER)
 				{
@@ -743,311 +771,6 @@ void UVX_APP_LED_Strip (void)
 	}
 }
 
-void         UVX_APP_Batt(void)
-{
-	switch(batt_state.state_current)
-	{
-		case BATT_MODE_INIT:
-			uvx_comm_bq_change_list(&comm_bq_l, bq_l_register_list_read_once);
-			uvx_comm_bq_change_list(&comm_bq_h, bq_h_register_list_read_once);
-			batt_reg_cnt = 0;
-			batt_state.state_current = BATT_MODE_READ_ONCE_BQ_L;
-		break;
-
-		case BATT_MODE_READ_ONCE_BQ_L:
-			if(uvx_comm_bq_read_list(&comm_bq_l, batt_reg_cnt) == UVX_BQ_REG_END)
-			{
-				batt_reg_cnt = 0;
-				batt_state.state_current = BATT_MODE_READ_ONCE_BQ_H;
-				uvx_batt_parse_data();
-			}
-			else
-			{
-				batt_state.state_current = BATT_MODE_WAIT_RESPONSE;
-				batt_state.state_next = BATT_MODE_READ_ONCE_BQ_L;
-				HAL_Delay(1);
-			}
-		break;
-
-		case BATT_MODE_READ_ONCE_BQ_H:
-			if(uvx_comm_bq_read_list(&comm_bq_h, batt_reg_cnt) == UVX_BQ_REG_END)
-			{
-				batt_reg_cnt = 0;
-				batt_data.design_capacity = (bq_data_h.design_capacity + bq_data_l.design_capacity)/2;
-				batt_data.design_voltage = (bq_data_h.design_voltage + bq_data_l.design_voltage);
-				uvx_comm_bq_change_list(&comm_bq_l, bq_l_register_list_read);
-				uvx_comm_bq_change_list(&comm_bq_h, bq_h_register_list_read);
-				batt_state.state_current = BATT_MODE_INIT_BALANCE_L;
-				uvx_batt_parse_data();				
-			}
-			else
-			{
-				batt_state.state_current = BATT_MODE_WAIT_RESPONSE;
-				batt_state.state_next = BATT_MODE_READ_ONCE_BQ_H;
-				HAL_Delay(1);
-			}
-		break;		
-
-		case BATT_MODE_INIT_BALANCE_L:
-			uvx_comm_bq_force_balance(&comm_bq_l, 0);
-			batt_state.state_current = BATT_MODE_WAIT_RESPONSE;
-			batt_state.state_next = BATT_MODE_INIT_BALANCE_H;
-		break;
-
-		case BATT_MODE_INIT_BALANCE_H:
-			uvx_comm_bq_force_balance(&comm_bq_h, 0);
-			batt_state.state_current = BATT_MODE_WAIT_RESPONSE;
-			batt_state.state_next = BATT_MODE_READ_BQ_L;			
-			batt_reg_cnt = 0;
-		break;		
-
-		case BATT_MODE_READ_BQ_L:
-			if(uvx_comm_bq_read_list(&comm_bq_l, batt_reg_cnt) == UVX_BQ_REG_END)
-			{
-				batt_reg_cnt = 0;
-				batt_state.state_current = BATT_MODE_READ_BQ_H;
-				uvx_batt_parse_data();
-
-				if(drone_state.state_current == DRONE_CHECK_BUTTON_PRESS_ONCE)
-				{
-					uvx_app_pwr_led(GPIO_PIN_SET);
-				}
-				uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_SET);
-			}
-			else
-			{
-				batt_state.state_current = BATT_MODE_WAIT_RESPONSE;
-				batt_state.state_next = BATT_MODE_READ_BQ_L;
-				batt_state.state_previous = BATT_MODE_WAIT_RESPONSE;
-				HAL_Delay(1);
-			}
-		break;
-
-		case BATT_MODE_READ_BQ_H:
-			if(uvx_comm_bq_read_list(&comm_bq_h, batt_reg_cnt) == UVX_BQ_REG_END)
-			{
-				batt_reg_cnt = 0;
-				batt_state.state_current = BATT_MODE_CHECK_STATUS;
-				uvx_batt_parse_data();
-			}
-			else
-			{
-				batt_state.state_current = BATT_MODE_WAIT_RESPONSE;
-				batt_state.state_next = BATT_MODE_READ_BQ_H;
-				batt_state.state_previous = BATT_MODE_WAIT_RESPONSE;
-				HAL_Delay(1);
-			}
-		break;	
-
-		case BATT_MODE_CHECK_STATUS:
-			if(batt_data.CHG_fet_en)
-			{
-				uvx_comm_bq_write_mba_register(&comm_bq_h, BQ_MA_FET_CONTROL, NULL, 0);
-			}
-			else
-			{
-				if(batt_data.tc)
-				{
-					uvx_comm_bq_charge_fet(&comm_bq_h, 0);
-				//UVX_APP_PWR_FET(0); // PWR off
-				}
-				else
-				{
-					if((batt_data.adc_pack_v_stable_high) && (drone_status.pwr_fet))
-					{
-						uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_RESET);
-						if(drone_state.state_current == DRONE_CHECK_BUTTON_PRESS_ONCE)
-						{
-							uvx_app_pwr_led(GPIO_PIN_RESET);
-						}
-
-						uvx_comm_bq_charge_fet(&comm_bq_h, 1);
-					}
-					else
-					{
-						uvx_comm_bq_charge_fet(&comm_bq_h, 0);
-					}		
-				}
-
-				if(!batt_data.cell_ball_h && !batt_data.cell_ball_l)
-				{
-					if((batt_data.voltage_diff_pack > BATT_CELL_VOLTAGE_DIFF) && (batt_data.CHG_fet_stat))
-					{
-						if((bq_data_h.voltage_per_cell < bq_data_l.voltage_per_cell) && (!comm_bq_h.Force_balance))
-						{
-							uvx_comm_bq_force_balance(&comm_bq_l, 1);
-							batt_state.state_next = BATT_MODE_READ_CHECK_PACK_V;
-						}
-						else if ((bq_data_h.voltage_per_cell > bq_data_l.voltage_per_cell) && (!comm_bq_l.Force_balance))
-						{
-							uvx_comm_bq_force_balance(&comm_bq_h, 1);
-							batt_state.state_next = BATT_MODE_READ_CHECK_PACK_V;
-						}
-					}
-					else
-					{
-						if(comm_bq_h.Force_balance)
-						{
-							batt_state.state_next = BATT_MODE_OFF_BALANCE_H;
-						}
-						else if(comm_bq_l.Force_balance)
-						{
-							batt_state.state_next = BATT_MODE_OFF_BALANCE_L;
-						}
-						else if((comm_bq_h.Force_balance) && (comm_bq_l.Force_balance))
-						{
-							batt_state.state_next = BATT_MODE_INIT_BALANCE_L;
-						}
-						else
-						{
-							batt_state.state_next = BATT_MODE_READ_CHECK_PACK_V;
-						}					
-					}	
-				}
-				else
-				{
-					if(comm_bq_h.Force_balance)
-					{
-						batt_state.state_next = BATT_MODE_OFF_BALANCE_H;
-					}
-					else if(comm_bq_l.Force_balance)
-					{
-						batt_state.state_next = BATT_MODE_OFF_BALANCE_L;
-					}
-					else
-					{
-						batt_state.state_next = BATT_MODE_READ_CHECK_PACK_V;
-					}		
-				}
-			}
-		
-			batt_state.state_current = BATT_MODE_WAIT_RESPONSE;			
-		break;
-
-		case BATT_MODE_OFF_BALANCE_L:
-			uvx_comm_bq_force_balance(&comm_bq_l, 0);
-			batt_state.state_current = BATT_MODE_WAIT_RESPONSE;
-			batt_state.state_next = BATT_MODE_READ_CHECK_PACK_V;
-		break;
-
-		case BATT_MODE_OFF_BALANCE_H:
-			uvx_comm_bq_force_balance(&comm_bq_h, 0);
-			batt_state.state_current = BATT_MODE_WAIT_RESPONSE;
-			batt_state.state_next = BATT_MODE_READ_CHECK_PACK_V;			
-			batt_reg_cnt = 0;
-		break;				
-		
-		case BATT_MODE_READ_CHECK_PACK_V:
-			batt_data.init = true;
-			batt_state.state_current = BATT_MODE_READ_BQ_L;
-			if((led_strip_state.state_current < LED_STRIP_MODE_BATTERY_LEVEL))
-			{
-				led_strip_state.state_next = LED_STRIP_MODE_BATTERY_LEVEL;				
-			}
-
-			if(enable) //manual learn new battery
-			{
-				uvx_batt_learn();	
-			}			
-
-			HAL_Delay(1);
-		break;
-
-		case BATT_MODE_WAIT_RESPONSE:
-			if((i2c_bq.hal_i2c.RX_Ready) || (batt_data.cnt_no_response > BQ_MAX_NO_RESPONSE))
-			{
-				switch(batt_state.state_next)
-				{
-					case BATT_MODE_READ_CHECK_PACK_V:
-						if(batt_data.cnt_no_response > BQ_MAX_NO_RESPONSE)
-						{
-							batt_data.cnt_no_response = 0;
-							batt_state.state_current = batt_state.state_next;
-							batt_reg_cnt = 0;
-							HAL_Delay(1);
-						}
-						else
-						{
-							batt_state.state_current = batt_state.state_previous;
-							batt_data.cnt_no_response++;
-						}
-					break;
-
-					case BATT_MODE_INIT_BALANCE_H:
-					case BATT_MODE_OFF_BALANCE_L:
-					case BATT_MODE_READ_ONCE_BQ_L:
-					case BATT_MODE_READ_BQ_L:
-						if(batt_data.cnt_no_response > BQ_MAX_NO_RESPONSE)
-						{
-							bq_data_l.No_response = true;
-							batt_reg_cnt = 0;
-							comm_bq_l.RX_Ready = 1; // Force ready to avoid blocking
-							comm_bq_l.p_hal_i2c->RX_Ready = 1; // Force ready to avoid blocking
-						}						
-						else
-						{
-							bq_data_l.No_response = false;
-						}
-
-						batt_data.cnt_no_response = 0;						
-						batt_state.state_current = batt_state.state_next;
-						comm_bq_l.RX_Ready = 1;
-						
-						// if(bq_l_register_list_read[batt_reg_cnt].reg_addr == CBSTATUS)
-						// {
-						// 	for_test = 0;
-						// }
-
-						batt_reg_cnt++;							
-						HAL_Delay(1);						
-					break;
-					
-					case BATT_MODE_OFF_BALANCE_H:
-					case BATT_MODE_READ_ONCE_BQ_H:
-					case BATT_MODE_READ_BQ_H:
-							if(batt_data.cnt_no_response > BQ_MAX_NO_RESPONSE)
-							{
-								bq_data_h.No_response = true;
-								batt_reg_cnt = 0;
-								comm_bq_h.RX_Ready = 1; // Force ready to avoid blocking
-								comm_bq_h.p_hal_i2c->RX_Ready = 1; // Force ready to avoid blocking
-							}						
-							else
-							{
-								bq_data_h.No_response = false;
-							}				
-
-							batt_data.cnt_no_response = 0;
-							batt_state.state_current = batt_state.state_next;
-							comm_bq_h.RX_Ready = 1;
-							batt_reg_cnt++;
-							HAL_Delay(1);
-					break;
-				}			
-			}
-			else
-			{
-				batt_state.state_current = batt_state.state_previous;
-				batt_data.cnt_no_response++;
-				bq_data_l.No_response = false;
-			}	
-		break;
-
-		case BATT_MODE_STOP:
-			//batt_data.init = false;
-			if((batt_data.tc) && (batt_data.adc_pack_v_stable_high))
-			{
-				batt_state.state_current = BATT_MODE_READ_BQ_L;
-			}
-			HAL_Delay(10);
-		break;		
-	}
-
-	uvx_batt_read_pack_v();
-
-
-}
-
 void UVX_APP_PWR_FET(uint8_t state)
 {
 #ifdef APP_NO_BATTERY_MODE	
@@ -1056,21 +779,31 @@ void UVX_APP_PWR_FET(uint8_t state)
 
 	if(state)
 	{
-		uvx_gpio_set_pin(GPIO_OUTPUT_PM_INH_CHG, GPIO_PIN_RESET);
-		drone_status.pwr_fet = true;		
+		if(!batt_data.BPS_Passive)
+		{
+			uvx_gpio_set_pin(GPIO_OUTPUT_PM_INH_CHG, GPIO_PIN_RESET);
+			drone_status.pwr_fet = true;	
+			drone_status.time_since_pwr_fet_on = HAL_GetTick(); // Record the time when power FET is turned on
+		}
+		else
+		{
+			uvx_gpio_set_pin(GPIO_OUTPUT_PM_INH_CHG, GPIO_PIN_SET);
+			drone_status.pwr_fet = false;
+			drone_status.time_since_pwr_fet_on = 0; // Reset the time since power FET is turned on
+		}
 	}
 	else
 	{
 		uvx_gpio_set_pin(GPIO_OUTPUT_PM_INH_CHG, GPIO_PIN_SET);
 		drone_status.pwr_fet = false;
+		drone_status.time_since_pwr_fet_on = 0; // Reset the time since power FET is turned on
 	}
 
 }
 
 void uvx_app_pwr_led(uint8_t state)
 {
-	uvx_gpio_set_pin(GPIO_OUTPUT_PWR_LED,
-		state ? GPIO_PIN_RESET : GPIO_PIN_SET);
+	uvx_gpio_set_pin(GPIO_OUTPUT_PWR_LED, state ? GPIO_PIN_SET : GPIO_PIN_RESET);
 }
 
 void uvx_app_pwr_led_init(void)
@@ -1099,11 +832,11 @@ void UVX_APP_Shutdown_JMB(void)
 	while(uvx_gpio_read_pin(GPIO_INPUT_EXTI1_JETSON)) // Wait until the JMB is powered off
 	{
 		uvx_gpio_set_pin(GPIO_OUTPUT_RED_LED, GPIO_PIN_SET); // Turn off red LED to indicate waiting
-		uvx_app_pwr_led(GPIO_PIN_SET);
+		uvx_app_pwr_led(0);
 		uvx_led_strip_effect_solid_color(&ws2812_strip, 0, 0, 0);
 		HAL_Delay(210);
 		uvx_gpio_set_pin(GPIO_OUTPUT_RED_LED, GPIO_PIN_RESET); // Turn on red LED to indicate waiting
-		uvx_app_pwr_led(GPIO_PIN_RESET);
+		uvx_app_pwr_led(1);
 		uvx_led_strip_effect_solid_color(&ws2812_strip, 120, 255, 255);
 		HAL_Delay(90);
 
@@ -1161,7 +894,7 @@ void UVX_APP_Comm_m2jmb(void)
 				timer_app_comm_jmb.Enable = true; 
 				HAL_UART_Receive_IT(&uart_2.hal_uart.huart, &uart_2.byte_rx, 1); // Start receiving data
 				uvx_gpio_set_pin(GPIO_OUTPUT_RED_LED, GPIO_PIN_RESET);
-				uvx_app_pwr_led(GPIO_PIN_RESET);
+				uvx_app_pwr_led(1);
 				led_strip_state.state_next = LED_STRIP_MODE_WAITING;
 			}
 		break;
@@ -1187,19 +920,44 @@ void UVX_APP_Comm_m2jmb(void)
 		break;
 
 		case M2JMB_MODE_SEND_FC_ON_ACK:
-			if(uvx_comm_m2jmb_send(CMD_PWR_ON_FC_ACK, NULL, NULL) == UVX_M2JMB_OK)
+			if(!drone_status.prepare_fc)
 			{
-				drone_state.state_current = DRONE_JETSON_POWERED_ON;
-				drone_status.pwr_fc = true;
-				comm_m2jmb_state.state_current = M2JMB_MODE_WAIT_RESPONSE; // Wait for response
-				uvx_gpio_set_pin(GPIO_OUTPUT_GREEN_LED, GPIO_PIN_RESET);		
-				uvx_gpio_set_pin(GPIO_OUTPUT_DRONE_START_FET_EN, GPIO_PIN_SET);				
-				uvx_gpio_set_pin(GPIO_OUTPUT_ESC_EN, GPIO_PIN_SET);				
-				uvx_gpio_set_pin(GPIO_OUTPUT_5V_EN, GPIO_PIN_SET);		
-				uvx_gpio_set_pin(GPIO_OUTPUT_CUBE_EN, GPIO_PIN_SET);		
+				if(uvx_comm_m2jmb_send(CMD_PWR_ON_FC_ACK, NULL, NULL) == UVX_M2JMB_OK)
+				{					
+					drone_state.state_current = DRONE_JETSON_POWERED_ON;
+					drone_status.pwr_fc = true;									
+					comm_m2jmb_state.state_current = M2JMB_MODE_WAIT_RESPONSE; // Wait for response				
+					uvx_gpio_set_pin(GPIO_OUTPUT_DRONE_START_FET_EN, GPIO_PIN_SET);				
+					uvx_gpio_set_pin(GPIO_OUTPUT_ESC_EN, GPIO_PIN_SET);				
+					uvx_gpio_set_pin(GPIO_OUTPUT_5V_EN, GPIO_PIN_SET);		
+					uvx_gpio_set_pin(GPIO_OUTPUT_CUBE_EN, GPIO_PIN_SET);
+					led_strip_state.state_next = LED_STRIP_MODE_COMM_FC;
+				}
 			}
-						
-			led_strip_state.state_next = LED_STRIP_MODE_COMM_FC;
+			else
+			{
+				if(drone_status.time_start_prepare_fc < HAL_GetTick())
+				{
+					drone_status.time_since_prepare_fc = (HAL_GetTick() - drone_status.time_start_prepare_fc);
+					if(drone_status.time_since_prepare_fc > APP_TIMEOUT_PREPARE_FC)
+					{
+						if(uvx_comm_m2jmb_send(CMD_PWR_OFF_FC_ACK, NULL, NULL) == UVX_M2JMB_OK)
+						{
+							//drone_state.state_current = DRONE_JETSON_POWERED_OFF;
+							drone_status.pwr_fc = false;
+							drone_status.esc_comm = false;
+							uvx_gpio_set_pin(GPIO_OUTPUT_ESC_EN, GPIO_PIN_RESET);					
+							uvx_gpio_set_pin(GPIO_OUTPUT_5V_EN, GPIO_PIN_RESET);	
+							uvx_gpio_set_pin(GPIO_OUTPUT_CUBE_EN, GPIO_PIN_RESET); // power off FC										
+						}		
+					}
+				}
+
+				led_strip_state.state_next = LED_STRIP_MODE_WAITING;
+			}
+
+			uvx_gpio_set_pin(GPIO_OUTPUT_GREEN_LED, GPIO_PIN_RESET);	
+				
 		break;
 
 		case M2JMB_MODE_SEND_FC_OFF_ACK:
@@ -1209,7 +967,7 @@ void UVX_APP_Comm_m2jmb(void)
 				drone_status.pwr_fc = false;
 				drone_status.esc_comm = false;
 				comm_m2jmb_state.state_current = M2JMB_MODE_WAIT_RESPONSE; // Wait for response
-				uvx_gpio_set_pin(GPIO_OUTPUT_GREEN_LED, GPIO_PIN_SET);				
+				uvx_gpio_set_pin(GPIO_OUTPUT_GREEN_LED, GPIO_PIN_SET);					
 				uvx_gpio_set_pin(GPIO_OUTPUT_ESC_EN, GPIO_PIN_RESET);					
 				uvx_gpio_set_pin(GPIO_OUTPUT_5V_EN, GPIO_PIN_RESET);	
 				uvx_gpio_set_pin(GPIO_OUTPUT_CUBE_EN, GPIO_PIN_RESET); // power off FC
@@ -1282,9 +1040,11 @@ void UVX_APP_Comm_m2jmb(void)
 				}
 				else if(buff_rx_m2jmb[M2JMB_BYTE_CMD] == CMD_PWR_ON_FC)
 				{							
+					drone_status.prepare_fc = true; // Set flag to prepare for FC power on
 					comm_m2jmb_state.state_current = M2JMB_MODE_SEND_FC_ON_ACK; // Set next state to send ACK
 					batt_data.adc_pack_v_stable_high = 0;
 					UVX_APP_PWR_FET(0); // power off					
+					drone_status.time_start_prepare_fc = HAL_GetTick();
 				}
 				else if(buff_rx_m2jmb[M2JMB_BYTE_CMD] == CMD_PWR_OFF_FC)
 				{					
@@ -1543,6 +1303,7 @@ void UVX_APP_Comm_m2m(void)
 	}
 
 	timer_app_batt_pwr_high = UVX_SETUP_timer_app_batt_pwr_high; // Initialize the JMB communication timer
+	timer_app_batt_pwr_high.Timeout = APP_TIMEOUT_PACK_V_STABLE_HIGH;
 	if(uvx_timer_add(&timer_app_batt_pwr_high) != UVX_TIMER_OK) // Add the JMB communication timer
 	{
 		Error_Handler();
@@ -1585,10 +1346,13 @@ void UVX_APP_Comm_m2m(void)
 	uvx_comm_m2m_init(&uart_1); // Initialize the M2M communication
 
 	i2c_bq = UVX_APP_SETUP_I2C_BQ; // Initialize the I2C HAL structure for BQ communication	
-	uvx_comm_bq_init(&comm_bq_l, &i2c_bq, BQ_L_I2C_ADDRESS, bq_l_register_list_read); // Initialize the BQ communication
+	uvx_comm_bq_init(&comm_bq_1, &i2c_bq, BQ_1_I2C_ADDRESS, bq_1_register_list_read); // Initialize the BQ communication
+	uvx_comm_bq_init(&comm_bq_2, &i2c_bq, BQ_2_I2C_ADDRESS, bq_2_register_list_read); // Initialize the BQ communication
+	uvx_comm_bq_init(&comm_bq_3, &i2c_bq, BQ_3_I2C_ADDRESS, bq_3_register_list_read); // Initialize the BQ communication
 
-	comm_bq_h.addr_i2c = BQ_H_I2C_ADDRESS; // Set the I2C address for BQ
-	uvx_comm_bq_init(&comm_bq_h, &i2c_bq, BQ_H_I2C_ADDRESS, bq_h_register_list_read); // Initialize the BQ communication
+	bq_data_1.p_comm_bq = &comm_bq_1; // Set the BQ communication structure for BQ1
+	bq_data_2.p_comm_bq = &comm_bq_2; // Set the BQ communication structure for BQ2
+	bq_data_3.p_comm_bq = &comm_bq_3; // Set the BQ communication structure for BQ3
 
 	uart_2 = UVX_APP_SETUP_UART_2; // Initialize the UART HAL structure for M2JMB communication
 	uvx_comm_m2jmb_init(&uart_2); // Initialize the M2JMB communication
@@ -1662,6 +1426,10 @@ static void MX_ADC1_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN ADC1_Init 2 */
+  if (HAL_ADCEx_Calibration_Start(&hadc1, ADC_SINGLE_ENDED) != HAL_OK)
+  {
+    Error_Handler();
+  }
 
   /* USER CODE END ADC1_Init 2 */
 
@@ -1982,14 +1750,14 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 	UNUSED(htim);
 	if(drone_state.state_current == DRONE_SLEEP)
 	{
-		uvx_app_pwr_led(GPIO_PIN_RESET);
+		uvx_app_pwr_led(1);
 	}
 
 	uvx_timer_callback(htim);
 
 	if(drone_state.state_current == DRONE_SLEEP)
 	{
-		uvx_app_pwr_led(GPIO_PIN_SET);
+		uvx_app_pwr_led(0);
 	}
 
 	/* NOTE: This function should not be modified, when the callback is needed,
@@ -2182,7 +1950,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 	{
 		if(drone_state.state_current == DRONE_SLEEP)
 		{
-			timer_app_batt_pwr_high.Timeout = 0;
+			//timer_app_batt_pwr_high.Timeout = 0;
 			g_Exit_Sleep_Request = 1;
 		}		
 	}
@@ -2542,9 +2310,35 @@ void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 	}
 }
 
+void HAL_I2C_MemRxCpltCallback(I2C_HandleTypeDef *hi2c)
+{
+	if(hi2c->Instance == i2c_bq.hal_i2c.hi2c.Instance)
+	{
+		/* HAL has copied the complete memory response to the register-list
+		 * destination (bq_data_1/2/3). Only now may the state machine advance. */
+		i2c_bq.hal_i2c.I2C_RX_Ready = 1;
+	}
+}
+
+void HAL_I2C_ErrorCallback(I2C_HandleTypeDef *hi2c)
+{
+	if(hi2c->Instance == i2c_bq.hal_i2c.hi2c.Instance)
+	{
+		/* Do not report a failed transfer as RX complete. WAIT_RESPONSE will
+		 * time out the active BQ and continue with the next one. */
+		i2c_bq.hal_i2c.I2C_RX_Ready = 0;
+		i2c_bq.hal_i2c.I2C_TX_Ready = 1;
+	}
+}
+
 void I2C1_EV_IRQHandler(void)
 {
 	uint32_t i2c_state = 0;
+	/* Preserve STOP detection before HAL acknowledges the hardware flag. */
+	if((i2c_bq.hal_i2c.hi2c.Instance->ISR & I2C_ISR_STOPF) != 0U)
+	{
+		i2c_bq.hal_i2c.STOP_Detected = 1U;
+	}
 	HAL_I2C_EV_IRQHandler(&i2c_bq.hal_i2c.hi2c);
 
 	if( ( i2c_bq.hal_i2c.hi2c.Instance->ISR & I2C_ISR_TXE ) && 
@@ -2558,34 +2352,29 @@ void I2C1_EV_IRQHandler(void)
 		
 		if(!( i2c_bq.hal_i2c.hi2c.Instance->ISR & I2C_ISR_BUSY ))
 		{
-			// if(comm_bq_l.RX_Ready == 0)
+			// if(comm_bq_1.RX_Ready == 0)
 			// {
-			// 	comm_bq_l.RX_Ready = 1;
+			// 	comm_bq_1.RX_Ready = 1;
 			// }
 
-			// if(comm_bq_h.RX_Ready == 0)
+			// if(comm_bq_2.RX_Ready == 0)
 			// {
-			// 	comm_bq_h.RX_Ready = 1;
+			// 	comm_bq_2.RX_Ready = 1;
 			// }
 
-			if(i2c_bq.hal_i2c.RX_Ready == 0)
+			if(i2c_bq.hal_i2c.I2C_TX_Ready == 0)
 			{
-				i2c_bq.hal_i2c.RX_Ready = 1;
+				i2c_bq.hal_i2c.I2C_TX_Ready = 1;
 			}
 
-			if(i2c_bq.hal_i2c.TX_Ready == 0)
-			{
-				i2c_bq.hal_i2c.TX_Ready = 1;
-			}
-
-			// if(comm_bq_l.TX_Ready == 0)
+			// if(comm_bq_1.I2C_TX_Ready == 0)
 			// {
-			// 	comm_bq_l.TX_Ready = 1;
+			// 	comm_bq_1.I2C_TX_Ready = 1;
 			// }	
 
-			// if(comm_bq_h.TX_Ready == 0)
+			// if(comm_bq_2.I2C_TX_Ready == 0)
 			// {
-			// 	comm_bq_h.TX_Ready = 1;
+			// 	comm_bq_2.I2C_TX_Ready = 1;
 			// }			
 		}
 
@@ -2593,35 +2382,35 @@ void I2C1_EV_IRQHandler(void)
 	else if( ( i2c_bq.hal_i2c.hi2c.Instance->ISR & I2C_ISR_TXE ) && 
 	  		 (!( i2c_bq.hal_i2c.hi2c.Instance->ISR & I2C_ISR_STOPF )) )
 	{
-		// if(comm_bq_l.TX_Ready == 0)
+		// if(comm_bq_1.TX_Ready == 0)
 		// {
-		// 	comm_bq_l.TX_Ready = 1;
+		// 	comm_bq_1.TX_Ready = 1;
 		// }	
 
-		// if(comm_bq_h.TX_Ready == 0)
+		// if(comm_bq_2.TX_Ready == 0)
 		// {
-		// 	comm_bq_h.TX_Ready = 1;
+		// 	comm_bq_2.TX_Ready = 1;
 		// }		
 
-		if(i2c_bq.hal_i2c.TX_Ready == 0)
+		if(i2c_bq.hal_i2c.I2C_TX_Ready == 0)
 		{
-			i2c_bq.hal_i2c.TX_Ready = 1;
+			i2c_bq.hal_i2c.I2C_TX_Ready = 1;
 		}
 	}
 	else
 	{
-		// if(comm_bq_l.TX_Ready == 0)
+		// if(comm_bq_1.TX_Ready == 0)
 		// {
-		// 	comm_bq_l.TX_Ready = 0;
+		// 	comm_bq_1.TX_Ready = 0;
 		// }	
 
-		// if(comm_bq_h.TX_Ready == 0)
+		// if(comm_bq_2.TX_Ready == 0)
 		// {
-		// 	comm_bq_h.TX_Ready = 1;
+		// 	comm_bq_2.TX_Ready = 1;
 		// }
-		if(i2c_bq.hal_i2c.TX_Ready == 0)
+		if(i2c_bq.hal_i2c.I2C_TX_Ready == 0)
 		{
-			i2c_bq.hal_i2c.TX_Ready = 1;
+			i2c_bq.hal_i2c.I2C_TX_Ready = 1;
 		}
 
 	}
@@ -2645,15 +2434,20 @@ void I2C1_EV_IRQHandler(void)
 			i2c_bq.hal_i2c.hi2c.Instance->CR1 &= ~I2C_CR1_PE;
 			i2c_bq.cnt_error_busy = 0;			
 			
-			if(comm_bq_l.RX_Ready == 0)
+			if(comm_bq_1.BQ_RX_Ready == 0)
 			{
-				comm_bq_l.RX_Ready = 1;
+				comm_bq_1.BQ_RX_Ready = 1;
 			}
 
-			if(comm_bq_h.RX_Ready == 0)
+			if(comm_bq_2.BQ_RX_Ready == 0)
 			{
-				comm_bq_h.RX_Ready = 1;
-			}			
+				comm_bq_2.BQ_RX_Ready = 1;
+			}
+
+			if(comm_bq_3.BQ_RX_Ready == 0)
+			{
+				comm_bq_3.BQ_RX_Ready = 1;
+			}
 
 			i2c_bq.hal_i2c.hi2c.Instance->CR1 = i2c_state;
 		}
@@ -2667,7 +2461,17 @@ void I2C1_EV_IRQHandler(void)
 
 void I2C1_ER_IRQHandler(void)
 {
-	HAL_I2C_ER_IRQHandler(&i2c_bq.hal_i2c.hi2c);	
+    I2C_HandleTypeDef *hi2c = &i2c_bq.hal_i2c.hi2c;
+
+    if ((hi2c->Mode == HAL_I2C_MODE_MASTER ||
+         hi2c->Mode == HAL_I2C_MODE_MEM) &&
+        (__HAL_I2C_GET_FLAG(hi2c, I2C_FLAG_BERR) != RESET))
+    {
+        __HAL_I2C_CLEAR_FLAG(hi2c, I2C_FLAG_BERR);
+    }
+
+    /* Still handle other errors, such as arbitration loss or overrun. */
+    HAL_I2C_ER_IRQHandler(hi2c);
 }
 
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
