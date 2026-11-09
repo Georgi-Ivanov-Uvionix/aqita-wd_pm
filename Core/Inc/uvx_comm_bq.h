@@ -72,6 +72,17 @@
 #define BQ_GPIO_PIN21_MASK  (0x40) // RL1
 #define BQ_GPIO_PIN22_MASK  (0x80) // RL2
 
+// GPIO_READ (0x48) masks for physical BQ40Z80 pins; shared by BQ L and BQ H.
+// Valid when the pin is configured as GPIO. GPIO_WRITE uses two bits per pin.
+#define BQ_GPIO_PIN12_MASK  (0x01) // RC2
+#define BQ_GPIO_PIN13_MASK  (0x02) // RC3
+#define BQ_GPIO_PIN17_MASK  (0x04) // RH0
+#define BQ_GPIO_PIN16_MASK  (0x08) // RH1
+#define BQ_GPIO_PIN15_MASK  (0x10) // RH2
+#define BQ_GPIO_PIN20_MASK  (0x20) // RL0
+#define BQ_GPIO_PIN21_MASK  (0x40) // RL1
+#define BQ_GPIO_PIN22_MASK  (0x80) // RL2
+
 #define SRAM1 __attribute__((section(".sram1")))
 
 typedef enum

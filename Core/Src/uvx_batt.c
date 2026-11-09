@@ -354,6 +354,7 @@ UVX_BATT_STATE uvx_batt_parse_data(void)
 	batt_data.cell_bal_time_8 =  bq_data_3.cell_bal_time_2;
 	batt_data.cell_bal_time_9 =  bq_data_3.cell_bal_time_3;
 	batt_data.cell_bal_time_10 = 0U;
+	comm_bq_l.Force_balance = !bq_data_l.gpio_pin_15;
 
 	batt_data.payload.cell_bal_time_1 =  uvx_comm_bq_swap_u16_value(batt_data.cell_bal_time_1);
 	batt_data.payload.cell_bal_time_2 =  uvx_comm_bq_swap_u16_value(batt_data.cell_bal_time_2);
@@ -369,14 +370,12 @@ UVX_BATT_STATE uvx_batt_parse_data(void)
 	bq_data_1.manufacturing_status.reg.data = uvx_comm_bq_swap_u16_pointer((uint16_t*)&bq_data_1.manufacturing_status.raw[1]);
 	bq_data_1.operation_status.reg.data = uvx_comm_bq_swap_u32_pointer((uint32_t *)&bq_data_1.operation_status.raw[1]);
 	bq_data_1.gauging_status.reg.data = uvx_comm_bq_swap_u32_pointer((uint32_t *)&bq_data_1.gauging_status.raw[1]);
-
 	bq_data_2.manufacturing_status.reg.data = uvx_comm_bq_swap_u16_pointer((uint16_t*)&bq_data_2.manufacturing_status.raw[1]);
 	bq_data_2.operation_status.reg.data = uvx_comm_bq_swap_u32_pointer((uint32_t *)&bq_data_2.operation_status.raw[1]);	
 	bq_data_2.gauging_status.reg.data = uvx_comm_bq_swap_u32_pointer((uint32_t *)&bq_data_2.gauging_status.raw[1]);
 	bq_data_3.manufacturing_status.reg.data = uvx_comm_bq_swap_u16_pointer((uint16_t*)&bq_data_3.manufacturing_status.raw[1]);
 	bq_data_3.operation_status.reg.data = uvx_comm_bq_swap_u32_pointer((uint32_t *)&bq_data_3.operation_status.raw[1]);
 	bq_data_3.gauging_status.reg.data = uvx_comm_bq_swap_u32_pointer((uint32_t *)&bq_data_3.gauging_status.raw[1]);
-
 	bq_data_1.gpio_pin_12 = (bq_data_1.gpio_status & BQ_GPIO_PIN12_MASK) >> 0;
 	bq_data_1.gpio_pin_13 = (bq_data_1.gpio_status & BQ_GPIO_PIN13_MASK) >> 1;
 	bq_data_1.gpio_pin_17 = (bq_data_1.gpio_status & BQ_GPIO_PIN17_MASK) >> 2;
@@ -385,6 +384,7 @@ UVX_BATT_STATE uvx_batt_parse_data(void)
 	bq_data_1.gpio_pin_20 = (bq_data_1.gpio_status & BQ_GPIO_PIN20_MASK) >> 5;
 	bq_data_1.gpio_pin_21 = (bq_data_1.gpio_status & BQ_GPIO_PIN21_MASK) >> 6;
 	bq_data_1.gpio_pin_22 = (bq_data_1.gpio_status & BQ_GPIO_PIN22_MASK) >> 7;
+	comm_bq_h.Force_balance = !bq_data_h.gpio_pin_15;
 
 	bq_data_2.gpio_pin_12 = (bq_data_2.gpio_status & BQ_GPIO_PIN12_MASK) >> 0;
 	bq_data_2.gpio_pin_13 = (bq_data_2.gpio_status & BQ_GPIO_PIN13_MASK) >> 1;
@@ -625,6 +625,8 @@ UVX_BATT_STATE uvx_batt_parse_data(void)
 										((batt_data.adc_pack_v_stable_low)  				<< BATT_SUPPLY_STATUS_STABLE_L_BIT) |
 										((batt_data.adc_pack_v_stable_high) 				<< BATT_SUPPLY_STATUS_STABLE_H_BIT);
 
+	
+
 	return UVX_BATT_OK;
 }
 
@@ -633,8 +635,12 @@ UVX_BATT_STATE uvx_batt_search_cell_diff(void)
 	uint16_t *p_cell = (uint16_t *)&batt_data.cell_voltage_1;
 	uint16_t min_cell = 0xFFFFU;
 	uint16_t max_cell = 0U;
+	uint16_t min_bq[2] = {0xFFFFU, 0xFFFFU};
+	uint16_t max_bq[2] = {0U, 0U};
+	uint16_t delta_bq[2] = {0U, 0U};
 	uint16_t cell_voltage = 0U;
 	uint8_t i;
+	uint8_t bq;
 	uint8_t valid_cells = 0;
 
 	for(i = 0; i < BATT_CELLS_MAX; i++)
@@ -644,6 +650,16 @@ UVX_BATT_STATE uvx_batt_search_cell_diff(void)
 		if(cell_voltage > BATT_CELL_DETECT_THRESHOLD_MV)
 		{
 			valid_cells++;
+			// Cells 1-5 belong to BQ L; cells 6-10 belong to BQ H.
+			bq = (i < (BATT_CELLS_MAX / 2U)) ? 0U : 1U;
+			if(cell_voltage < min_bq[bq])
+			{
+				min_bq[bq] = cell_voltage;
+			}
+			if(cell_voltage > max_bq[bq])
+			{
+				max_bq[bq] = cell_voltage;
+			}
 
 			if(cell_voltage < min_cell)
 			{
@@ -667,6 +683,13 @@ UVX_BATT_STATE uvx_batt_search_cell_diff(void)
 
 	batt_data.voltage_min_cell = (int16_t)min_cell;
 	batt_data.voltage_max_cell = (int16_t)max_cell;
+	{
+		if(max_bq[bq] > 0U)
+		{
+			delta_bq[bq] = max_bq[bq] - min_bq[bq];
+		}
+	}
+	batt_data.voltage_delta_cell = (int16_t)((delta_bq[0] > delta_bq[1]) ? delta_bq[0] : delta_bq[1]);
 	batt_data.payload.adc_pack_v = uvx_comm_bq_swap_u16_value(batt_data.adc_pack_v);
 	
 
@@ -749,7 +772,7 @@ UVX_BATT_STATE uvx_batt_read_pack_v(void)
 				else if(drone_status.pwr_fc == 1)
 				{
 					UVX_APP_PWR_FET(0); // power off dock
-					uvx_gpio_set_pin(GPIO_OUT_LED_STRIP_ENABLE, GPIO_PIN_RESET);
+					uvx_app_led_strip_enable(GPIO_PIN_RESET);
 				}
 			}
 			else

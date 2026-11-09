@@ -422,20 +422,19 @@ UVX_COMM_BQ_STATE uvx_comm_bq_force_balance(UVX_COMM_BQ* p_comm_bq, uint8_t enab
 	{
 		data[0] = 0x00;
 		data[1] = 0x10;
-		p_comm_bq->Force_balance = true;
+		//p_comm_bq->Force_balance = true;
 	}
 	else
 	{
 		data[0] = 0xFF;
 		data[1] = 0xFF;
-		p_comm_bq->Force_balance = false;
+		//p_comm_bq->Force_balance = false;
 	}
 
 	if(p_comm_bq->Force_balance_old != p_comm_bq->Force_balance)
 	{
 		p_comm_bq->Force_balance_old = p_comm_bq->Force_balance;
 		return uvx_comm_bq_write_register(p_comm_bq, GPIO_WRITE, data, 2);
-
 	}
 	else
 	{
