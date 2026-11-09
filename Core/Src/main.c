@@ -776,10 +776,6 @@ void UVX_APP_PWR_FET(uint8_t state)
 #ifdef APP_NO_BATTERY_MODE	
 	state = 1; // Force power on if no battery mode is enabled
 #endif
-						else if((comm_bq_h.Force_balance) && (comm_bq_l.Force_balance))
-						{
-							batt_state.state_next = BATT_MODE_INIT_BALANCE_L;
-						}
 
 	if(state)
 	{
@@ -808,23 +804,6 @@ void UVX_APP_PWR_FET(uint8_t state)
 void uvx_app_pwr_led(uint8_t state)
 {
 	uvx_gpio_set_pin(GPIO_OUTPUT_PWR_LED, state ? GPIO_PIN_SET : GPIO_PIN_RESET);
-}
-
-void uvx_app_pwr_led_init(void)
-{
-	uvx_app_pwr_led(GPIO_PIN_SET);
-}
-
-void uvx_app_led_strip_enable(uint8_t state)
-{
-	uvx_gpio_set_pin(GPIO_OUT_LED_STRIP_ENABLE, state ? GPIO_PIN_SET : GPIO_PIN_RESET);
-
-}
-
-void uvx_app_pwr_led(uint8_t state)
-{
-	uvx_gpio_set_pin(GPIO_OUTPUT_PWR_LED,
-		state ? GPIO_PIN_RESET : GPIO_PIN_SET);
 }
 
 void uvx_app_pwr_led_init(void)

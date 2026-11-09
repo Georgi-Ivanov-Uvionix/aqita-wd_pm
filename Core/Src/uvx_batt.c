@@ -354,7 +354,6 @@ UVX_BATT_STATE uvx_batt_parse_data(void)
 	batt_data.cell_bal_time_8 =  bq_data_3.cell_bal_time_2;
 	batt_data.cell_bal_time_9 =  bq_data_3.cell_bal_time_3;
 	batt_data.cell_bal_time_10 = 0U;
-	comm_bq_l.Force_balance = !bq_data_l.gpio_pin_15;
 
 	batt_data.payload.cell_bal_time_1 =  uvx_comm_bq_swap_u16_value(batt_data.cell_bal_time_1);
 	batt_data.payload.cell_bal_time_2 =  uvx_comm_bq_swap_u16_value(batt_data.cell_bal_time_2);
@@ -384,7 +383,6 @@ UVX_BATT_STATE uvx_batt_parse_data(void)
 	bq_data_1.gpio_pin_20 = (bq_data_1.gpio_status & BQ_GPIO_PIN20_MASK) >> 5;
 	bq_data_1.gpio_pin_21 = (bq_data_1.gpio_status & BQ_GPIO_PIN21_MASK) >> 6;
 	bq_data_1.gpio_pin_22 = (bq_data_1.gpio_status & BQ_GPIO_PIN22_MASK) >> 7;
-	comm_bq_h.Force_balance = !bq_data_h.gpio_pin_15;
 
 	bq_data_2.gpio_pin_12 = (bq_data_2.gpio_status & BQ_GPIO_PIN12_MASK) >> 0;
 	bq_data_2.gpio_pin_13 = (bq_data_2.gpio_status & BQ_GPIO_PIN13_MASK) >> 1;
