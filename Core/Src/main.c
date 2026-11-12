@@ -222,6 +222,7 @@ void Process_Button_EXTI_Request(void);
 void UVX_APP_Shutdown_JMB(void);
 void UVX_APP_Comm_m2m(void);
 void UVX_APP_Comm_m2jmb(void);
+void UVX_APP_Dock_Charger(void);
 void UVX_APP_LED_Strip (void);
 void UVX_APP_HALL_LAND(void);
 /* USER CODE END PFP */
@@ -612,6 +613,46 @@ void UVX_APP_HALL_LAND(void)
 	uvx_gpio_set_pin(GPIO_OUTPUT_DOCK_LOW_CP, GPIO_PIN_RESET);
 	uvx_gpio_set_pin(GPIO_OUTPUT_DOCK_HIGH_CP, GPIO_PIN_SET);
 #endif	
+}
+
+/**
+ * @brief Set dock charger current and voltage after landing is detected.
+ *
+ * Test calibration:
+ *   - Current: 0 mA at code 0, 20000 mA at code 127.
+ *   - Voltage: 5670 mV at code 0, 40490 mV at code 127.
+ * Voltage ramps up from the TPL0401 power-up code by one calibrated code
+ * every 500 ms and charging is
+ * permitted only at battery voltage + 1 V, within +/-200 mV ADC feedback.
+ */
+void UVX_APP_Dock_Charger(void)
+{
+    static const UVX_DOCK_CHARGER_CONFIG config =
+    {
+        .current_min_ma = DOCK_CHARGER_CURRENT_MIN_MA,
+        .current_max_ma = DOCK_CHARGER_CURRENT_MAX_MA,
+        .current_code_at_min = DOCK_CHARGER_WIPER_MIN,
+        .current_code_at_max = DOCK_CHARGER_WIPER_MAX,
+        .voltage_min_mv = DOCK_CHARGER_VOLTAGE_MIN_MV,
+        .voltage_max_mv = DOCK_CHARGER_VOLTAGE_MAX_MV,
+        .voltage_code_at_min = DOCK_CHARGER_WIPER_MIN,
+        .voltage_code_at_max = DOCK_CHARGER_WIPER_MAX,
+    };
+
+	if(batt_data.init)
+	{
+		dock_charger_status.voltage_mv = batt_data.adc_pack_v;
+		dock_charger_status.current_ma = batt_data.current;
+
+		if(dock_charger_status.initialized == 0U)
+		{
+			uvx_dock_charger_init(&i2c_bq, &config);
+
+			return;
+		}
+
+		uvx_dock_charger_process();
+	}
 }
 
 void UVX_APP_LED_Strip (void)
