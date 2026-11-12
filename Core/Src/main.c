@@ -23,6 +23,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "uvx_app_battery.h"
+#include "uvx_dock_charger.h"
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
