@@ -21,6 +21,8 @@
 #define UVX_DOCK_CHARGER_BATTERY_OFFSET_MV          1000U
 #define UVX_DOCK_CHARGER_CURRENT_INTERVAL_MS        2000U
 #define UVX_DOCK_CHARGER_CURRENT_TOLERANCE_MA       100
+#define UVX_DOCK_CHARGER_CURRENT_RESPONSE_MA        50
+#define UVX_DOCK_CHARGER_CURRENT_STALL_STEPS        2U
 
 /* TPL0401x-10 wiper register: TI datasheet SLIS144B, section 9.6.2. */
 static UVX_I2C_STATE uvx_tpl0401x_10_init(UVX_I2C *i2c)
@@ -67,6 +69,8 @@ static void uvx_dock_charger_change_state(UVX_DOCK_CHARGER_STATE state_next)
         dock_charger_status.voltage_detected = 0U;
         dock_charger_status.voltage_ready = 0U;
         dock_charger_status.current_ready = 0U;
+        dock_charger_status.current_stall_count = 0U;
+        dock_charger_status.current_step_pending = 0U;
         dock_charger_status.regulation_state = UVX_DOCK_CHARGER_REGULATION_MATCH_VOLTAGE;
         UVX_APP_PWR_FET(0U);
     }
@@ -201,6 +205,8 @@ UVX_DOCK_CHARGER_RESULT uvx_dock_charger_init(UVX_I2C *i2c, const UVX_DOCK_CHARG
     dock_charger_status.voltage_ready = 0U;
     dock_charger_status.current_ready = 0U;
     dock_charger_status.current_ramp_tick = HAL_GetTick();
+    dock_charger_status.current_stall_count = 0U;
+    dock_charger_status.current_step_pending = 0U;
     dock_charger_status.voltage_ramp_tick = HAL_GetTick();
     dock_charger_status.regulation_state = UVX_DOCK_CHARGER_REGULATION_MATCH_VOLTAGE;
     uvx_dock_charger_change_state(UVX_DOCK_CHARGER_STATE_READ_VOLTAGE);
@@ -331,6 +337,23 @@ static UVX_DOCK_CHARGER_RESULT uvx_dock_charger_regulate_current(void)
        UVX_DOCK_CHARGER_CURRENT_INTERVAL_MS)
     {
         dock_charger_status.current_ramp_tick = now;
+        /* Evaluate the response only after the previous write has settled. */
+        if(dock_charger_status.current_step_pending)
+        {
+            if((int32_t)dock_charger_status.current_ma - dock_charger_status.current_before_step_ma <
+               UVX_DOCK_CHARGER_CURRENT_RESPONSE_MA)
+            {
+                if(dock_charger_status.current_stall_count < UVX_DOCK_CHARGER_CURRENT_STALL_STEPS)
+                {
+                    dock_charger_status.current_stall_count++;
+                }
+            }
+            else
+            {
+                dock_charger_status.current_stall_count = 0U;
+            }
+            dock_charger_status.current_step_pending = 0U;
+        }
         /* Reduce voltage first if feedback exceeds the allowed supply voltage. */
         if(dock_charger_status.voltage_mv > voltage_limit_mv &&
            dock_charger_status.voltage_code > dock_charger_status.config.voltage_code_at_min)
@@ -340,16 +363,19 @@ static UVX_DOCK_CHARGER_RESULT uvx_dock_charger_regulate_current(void)
             return UVX_DOCK_CHARGER_BUSY;
         }
         if(error_ma > UVX_DOCK_CHARGER_CURRENT_TOLERANCE_MA &&
-           dock_charger_status.voltage_mv + UVX_DOCK_CHARGER_VOLTAGE_TOLERANCE_MV >=
-               dock_charger_status.target_voltage_mv)
+           (dock_charger_status.voltage_mv + UVX_DOCK_CHARGER_VOLTAGE_TOLERANCE_MV >=
+                dock_charger_status.target_voltage_mv ||
+            dock_charger_status.current_stall_count >= UVX_DOCK_CHARGER_CURRENT_STALL_STEPS ||
+            dock_charger_status.current_code >= dock_charger_status.config.current_code_at_max))
         {
             /* At the voltage target, increasing the current limit cannot help.
              * Reserve a full calibrated step below the voltage ceiling. */
             if(dock_charger_status.voltage_code < dock_charger_status.config.voltage_code_at_max &&
-               dock_charger_status.voltage_mv + voltage_step_mv <= voltage_limit_mv &&
-               dock_charger_status.target_voltage_mv + voltage_step_mv <= voltage_limit_mv)
+               dock_charger_status.voltage_mv + voltage_step_mv <= voltage_limit_mv)
             {
-                dock_charger_status.target_voltage_mv += voltage_step_mv;
+                /* Anchor to feedback: nominal wiper steps must not accumulate target error. */
+                dock_charger_status.target_voltage_mv = dock_charger_status.voltage_mv + voltage_step_mv;
+                dock_charger_status.current_stall_count = 0U;
                 dock_charger_status.voltage_code++;
                 uvx_dock_charger_change_state(UVX_DOCK_CHARGER_STATE_WRITE_VOLTAGE);
                 return UVX_DOCK_CHARGER_BUSY;
@@ -360,6 +386,8 @@ static UVX_DOCK_CHARGER_RESULT uvx_dock_charger_regulate_current(void)
         if(error_ma > UVX_DOCK_CHARGER_CURRENT_TOLERANCE_MA &&
            dock_charger_status.current_code < dock_charger_status.config.current_code_at_max)
         {
+            dock_charger_status.current_before_step_ma = dock_charger_status.current_ma;
+            dock_charger_status.current_step_pending = 1U;
             dock_charger_status.current_code++;
             uvx_dock_charger_change_state(UVX_DOCK_CHARGER_STATE_WRITE_CURRENT);
             return UVX_DOCK_CHARGER_BUSY;
@@ -368,6 +396,8 @@ static UVX_DOCK_CHARGER_RESULT uvx_dock_charger_regulate_current(void)
            dock_charger_status.current_code > 0U)
         {
             /* Code 4 is a starting point; allow reduction below it on overshoot. */
+            dock_charger_status.current_stall_count = 0U;
+            dock_charger_status.current_step_pending = 0U;
             dock_charger_status.current_code--;
             uvx_dock_charger_change_state(UVX_DOCK_CHARGER_STATE_WRITE_CURRENT);
             return UVX_DOCK_CHARGER_BUSY;
@@ -396,6 +426,8 @@ static UVX_DOCK_CHARGER_RESULT uvx_dock_charger_regulate_voltage(void)
     {
         /* Keep the input disconnected until minimum current is written and verified. */
         UVX_APP_PWR_FET(0U);
+        dock_charger_status.current_stall_count = 0U;
+        dock_charger_status.current_step_pending = 0U;
         dock_charger_status.current_code = dock_charger_status.config.current_code_at_min;
         uvx_dock_charger_change_state(UVX_DOCK_CHARGER_STATE_WRITE_CURRENT);
         return UVX_DOCK_CHARGER_BUSY;

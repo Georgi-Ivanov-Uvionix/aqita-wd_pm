@@ -5,7 +5,7 @@
 #include "uvx_i2c.h"
 
 #define DOCK_CHARGER_CURRENT_MIN_MA              500U
-#define DOCK_CHARGER_CURRENT_TARGET_MA          5000U
+#define DOCK_CHARGER_CURRENT_TARGET_MA          10000U
 #define DOCK_CHARGER_CURRENT_MAX_MA             15500U
 #define DOCK_CHARGER_VOLTAGE_MIN_MV              5670U
 #define DOCK_CHARGER_VOLTAGE_MAX_MV             40490U
@@ -79,6 +79,9 @@ typedef struct
     uint8_t voltage_readback_code;
     uint32_t voltage_ramp_tick;
     uint32_t current_ramp_tick;
+    int32_t current_before_step_ma;
+    uint8_t current_stall_count; /* Consecutive PC increases with little response */
+    uint8_t current_step_pending;
     UVX_DOCK_CHARGER_REGULATION_STATE regulation_state;
 
     uint8_t initialized : 1;

@@ -1,5 +1,6 @@
 #include "uvx_app_battery.h"
 #include "main.h"
+#include "uvx_dock_charger.h"
 
 extern UVX_I2C i2c_bq;
 static UVX_BQ_DATA *p_app_bq_data;
@@ -753,13 +754,16 @@ static void batt_rotate_fet_bps(void)
 		return;
 	}
 
-	// Stop bypass whenever the minimum detected cell voltage is too low.
-	if(batt_data.voltage_min_cell < BATT_BPS_MIN_CELL_VOLTAGE_MV)
+	// A detected dock must never select or retain a bypass pack.
+	// The normal FET state machine applies these OFF requests to the hardware.
+	if(dock_charger_status.voltage_detected ||
+	   batt_data.voltage_min_cell < BATT_BPS_MIN_CELL_VOLTAGE_MV)
 	{
 		for(i = 0; i < BQ_DEVICES; i++)
 		{
 			bq_data[i].FET_BPS_EN = false;
 			bq_data[i].FET_BPS_STAT_NEW = false;
+			bps_discharge_selected[i] = false;
 		}
 		bps_active_pack = BQ_DEVICES;
 		bps_next_pack = 0;
