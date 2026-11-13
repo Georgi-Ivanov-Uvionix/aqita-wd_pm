@@ -289,6 +289,8 @@ int main(void)
 
 	timer_app_batt_pwr_low.Timeout = APP_TIMEOUT_PACK_V_STABLE_LOW; // Reset timeout for power off
 	timer_app_batt_pwr_low.Enable = true;
+
+	unit_test.hall_land_2 = 1;
 	
 	while (1)
 	{ 					
@@ -528,6 +530,7 @@ void UVX_APP(void)
 
 	UVX_APP_LED_Strip();
 	UVX_APP_HALL_LAND();
+	UVX_APP_Dock_Charger();
 }
 
 void Process_Sleep_Exit_Request(void)
@@ -609,6 +612,15 @@ void UVX_APP_HALL_LAND(void)
 		uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_SET);
 		uvx_gpio_set_pin(GPIO_OUTPUT_DOCK_LOW_CP, GPIO_PIN_RESET);
 		uvx_gpio_set_pin(GPIO_OUTPUT_DOCK_HIGH_CP, GPIO_PIN_RESET);
+
+		if(unit_test.hall_land_2) // If unit test is enabled, set hall_land_2 to true
+		{
+			drone_status.hall_land_2 = true;
+		}
+		else
+		{
+			drone_status.hall_land_2 = false;
+		}				
 	}
 #else
 	uvx_gpio_set_pin(GPIO_OUTPUT_DOCK_LOW_CP, GPIO_PIN_RESET);

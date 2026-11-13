@@ -290,7 +290,7 @@ static UVX_DOCK_CHARGER_RESULT uvx_dock_charger_regulate_voltage_and_current(voi
     uint32_t current_max_ma = dock_charger_status.config.current_max_ma;
 
 
-    UVX_APP_PWR_FET(1U);
+    //UVX_APP_PWR_FET(1U);
 
     switch(dock_charger_status.regulation_state)
     {
@@ -427,7 +427,7 @@ UVX_DOCK_CHARGER_RESULT uvx_dock_charger_process(void)
     else
     {
         /* Keep the charger connected during both voltage matching and current control. */
-        UVX_APP_PWR_FET(1U);
+       // UVX_APP_PWR_FET(1U);
 
         switch(dock_charger_state.state_current)
         {

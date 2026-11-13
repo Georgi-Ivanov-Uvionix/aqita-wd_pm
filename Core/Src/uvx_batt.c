@@ -755,7 +755,7 @@ UVX_BATT_STATE uvx_batt_read_pack_v(void)
 					(drone_status.pwr_fc == 0) &&
 				    (!batt_data.tc) && (!batt_data.BPS_Passive))				   
 				{					
-					UVX_APP_PWR_FET(1); // Dock power / normal charging
+					//UVX_APP_PWR_FET(1); // Dock power / normal charging
 					batt_data.adc_pack_v_stable_low = 0;
 					uvx_gpio_set_pin(GPIO_OUT_LED_STRIP_ENABLE, GPIO_PIN_SET);
 					if(!batt_data.init)
