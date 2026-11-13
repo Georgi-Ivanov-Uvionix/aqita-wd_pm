@@ -23,6 +23,8 @@
 #define UVX_DOCK_CHARGER_CURRENT_TOLERANCE_MA       100
 #define UVX_DOCK_CHARGER_CURRENT_RESPONSE_MA        50
 #define UVX_DOCK_CHARGER_CURRENT_STALL_STEPS        2U
+#define UVX_DOCK_CHARGER_TEMP_REDUCE_DECIC          490
+#define UVX_DOCK_CHARGER_TEMP_RESUME_DECIC          480
 
 /* TPL0401x-10 wiper register: TI datasheet SLIS144B, section 9.6.2. */
 static UVX_I2C_STATE uvx_tpl0401x_10_init(UVX_I2C *i2c)
@@ -212,6 +214,7 @@ UVX_DOCK_CHARGER_RESULT uvx_dock_charger_init(UVX_I2C *i2c, const UVX_DOCK_CHARG
     uvx_dock_charger_change_state(UVX_DOCK_CHARGER_STATE_READ_VOLTAGE);
     UVX_APP_PWR_FET(0U);
     dock_charger_status.initialized = true;
+    dock_charger_status.temperature_limited = 0U;
 
     return UVX_DOCK_CHARGER_OK;
 }
@@ -330,7 +333,23 @@ static UVX_DOCK_CHARGER_RESULT uvx_dock_charger_regulate_current(void)
         return UVX_DOCK_CHARGER_BUSY;
     }
 
+    /* Temperature fields contain tenths of Celsius, stored in uint16_t.
+     * Interpret negative converted temperatures as signed values. */
+    if((int16_t)batt_data.temperature_bq_1 > UVX_DOCK_CHARGER_TEMP_REDUCE_DECIC ||
+       (int16_t)batt_data.temperature_bq_2 > UVX_DOCK_CHARGER_TEMP_REDUCE_DECIC ||
+       (int16_t)batt_data.temperature_bq_3 > UVX_DOCK_CHARGER_TEMP_REDUCE_DECIC)
+    {
+        dock_charger_status.temperature_limited = 1U;
+    }
+    else if((int16_t)batt_data.temperature_bq_1 <= UVX_DOCK_CHARGER_TEMP_RESUME_DECIC &&
+            (int16_t)batt_data.temperature_bq_2 <= UVX_DOCK_CHARGER_TEMP_RESUME_DECIC &&
+            (int16_t)batt_data.temperature_bq_3 <= UVX_DOCK_CHARGER_TEMP_RESUME_DECIC)
+    {
+        dock_charger_status.temperature_limited = 0U;
+    }
+
     dock_charger_status.current_ready =
+        !dock_charger_status.temperature_limited &&
         (error_ma >= -UVX_DOCK_CHARGER_CURRENT_TOLERANCE_MA) &&
         (error_ma <= UVX_DOCK_CHARGER_CURRENT_TOLERANCE_MA);
     if((uint32_t)(now - dock_charger_status.current_ramp_tick) >=
@@ -360,6 +379,21 @@ static UVX_DOCK_CHARGER_RESULT uvx_dock_charger_regulate_current(void)
         {
             dock_charger_status.voltage_code--;
             uvx_dock_charger_change_state(UVX_DOCK_CHARGER_STATE_WRITE_VOLTAGE);
+            return UVX_DOCK_CHARGER_BUSY;
+        }
+        if(dock_charger_status.temperature_limited)
+        {
+            /* Thermal reduction takes priority over chasing the current target. */
+            dock_charger_status.current_stall_count = 0U;
+            dock_charger_status.current_step_pending = 0U;
+            if(dock_charger_status.current_code > 0U)
+            {
+                dock_charger_status.current_code--;
+                uvx_dock_charger_change_state(UVX_DOCK_CHARGER_STATE_WRITE_CURRENT);
+                return UVX_DOCK_CHARGER_BUSY;
+            }
+            /* At code zero, keep polling the dock without increasing either wiper. */
+            uvx_dock_charger_change_state(UVX_DOCK_CHARGER_STATE_READ_VOLTAGE);
             return UVX_DOCK_CHARGER_BUSY;
         }
         if(error_ma > UVX_DOCK_CHARGER_CURRENT_TOLERANCE_MA &&

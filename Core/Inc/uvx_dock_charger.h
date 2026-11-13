@@ -89,6 +89,7 @@ typedef struct
     uint8_t voltage_detected : 1; /* Successful voltage-potentiometer read */
     uint8_t voltage_ready : 1; /* ADC within 200 mV of capped battery + 1000 mV */
     uint8_t current_ready : 1; /* Measured current within target tolerance */
+    uint8_t temperature_limited : 1; /* Any BQ >32 C; clears when all <=31 C */
 } UVX_DOCK_CHARGER_STATUS;
 
 UVX_DOCK_CHARGER_RESULT uvx_dock_charger_init(UVX_I2C *i2c, const UVX_DOCK_CHARGER_CONFIG *config);

@@ -756,8 +756,8 @@ static void batt_rotate_fet_bps(void)
 
 	// A detected dock must never select or retain a bypass pack.
 	// The normal FET state machine applies these OFF requests to the hardware.
-	if(dock_charger_status.voltage_detected ||
-	   batt_data.voltage_min_cell < BATT_BPS_MIN_CELL_VOLTAGE_MV)
+	if((dock_charger_status.voltage_detected && drone_status.pwr_fet) ||
+	   (batt_data.voltage_min_cell < BATT_BPS_MIN_CELL_VOLTAGE_MV))
 	{
 		for(i = 0; i < BQ_DEVICES; i++)
 		{
