@@ -5,6 +5,7 @@
 #include "uvx_i2c.h"
 
 #define DOCK_CHARGER_CURRENT_MIN_MA              500U
+#define DOCK_CHARGER_CURRENT_TARGET_MA          5000U
 #define DOCK_CHARGER_CURRENT_MAX_MA             15500U
 #define DOCK_CHARGER_VOLTAGE_MIN_MV              5670U
 #define DOCK_CHARGER_VOLTAGE_MAX_MV             40490U
@@ -83,7 +84,7 @@ typedef struct
     uint8_t initialized : 1;
     uint8_t owns_i2c_lock : 1;
     uint8_t voltage_detected : 1; /* Successful voltage-potentiometer read */
-    uint8_t voltage_ready : 1; /* ADC within 200 mV of capped battery + 500 mV */
+    uint8_t voltage_ready : 1; /* ADC within 200 mV of capped battery + 1000 mV */
     uint8_t current_ready : 1; /* Measured current within target tolerance */
 } UVX_DOCK_CHARGER_STATUS;
 

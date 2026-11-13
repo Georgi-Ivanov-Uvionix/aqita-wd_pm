@@ -18,7 +18,7 @@
 #define UVX_DOCK_CHARGER_WIPER_MAX                  0x7FU
 #define UVX_DOCK_CHARGER_VOLTAGE_TOLERANCE_MV       200U
 #define UVX_DOCK_CHARGER_RAMP_INTERVAL_MS           500U
-#define UVX_DOCK_CHARGER_BATTERY_OFFSET_MV          500U
+#define UVX_DOCK_CHARGER_BATTERY_OFFSET_MV          1000U
 #define UVX_DOCK_CHARGER_CURRENT_INTERVAL_MS        2000U
 #define UVX_DOCK_CHARGER_CURRENT_TOLERANCE_MA       100
 
@@ -343,7 +343,7 @@ static UVX_DOCK_CHARGER_RESULT uvx_dock_charger_regulate_current(void)
     return dock_charger_status.current_ready ? UVX_DOCK_CHARGER_OK : UVX_DOCK_CHARGER_BUSY;
 }
 
-/* Track battery + 500 mV, subject to the existing supply-voltage limits. */
+/* Track battery + 1000 mV, subject to the existing supply-voltage limits. */
 static UVX_DOCK_CHARGER_RESULT uvx_dock_charger_regulate_voltage(void)
 {
     uint32_t now = HAL_GetTick();

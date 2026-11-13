@@ -637,7 +637,7 @@ void UVX_APP_HALL_LAND(void)
 }
 
 /**
- * @brief Detect the voltage potentiometer and track battery voltage + 500 mV.
+ * @brief Detect the voltage potentiometer and track battery voltage + 1000 mV.
  * Adjust one wiper step per 500 ms, with +/-200 mV ADC tolerance.
  * Configured and battery supply-voltage limits still apply.
  */
@@ -662,7 +662,10 @@ void UVX_APP_Dock_Charger(void)
 
 		if(dock_charger_status.initialized == 0U)
 		{
-			uvx_dock_charger_init(&i2c_bq, &config);
+			if(uvx_dock_charger_init(&i2c_bq, &config) == UVX_DOCK_CHARGER_OK)
+			{
+				uvx_dock_charger_set_current(DOCK_CHARGER_CURRENT_TARGET_MA);
+			}
 
 			return;
 		}
