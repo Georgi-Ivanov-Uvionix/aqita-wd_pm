@@ -81,7 +81,8 @@ typedef struct
 
     uint8_t initialized : 1;
     uint8_t owns_i2c_lock : 1;
-    uint8_t voltage_ready : 1; /* ADC verified at battery voltage within tolerance */
+    uint8_t voltage_detected : 1; /* Successful voltage-potentiometer read */
+    uint8_t voltage_ready : 1; /* ADC within 200 mV of capped battery + 500 mV */
     uint8_t current_ready : 1;
 } UVX_DOCK_CHARGER_STATUS;
 

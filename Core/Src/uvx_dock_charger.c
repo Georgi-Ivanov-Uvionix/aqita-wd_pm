@@ -13,14 +13,11 @@
 #include "main.h"
 #include "uvx_dock_charger.h"
 
-#define UVX_DOCK_CHARGER_CURRENT_I2C_ADDRESS        0x2EU
 #define UVX_DOCK_CHARGER_VOLTAGE_I2C_ADDRESS        0x3EU
 #define UVX_DOCK_CHARGER_WIPER_MAX                  0x7FU
 #define UVX_DOCK_CHARGER_VOLTAGE_TOLERANCE_MV       200U
-#define UVX_DOCK_CHARGER_VOLTAGE_MATCH_TOLERANCE_MV 500U
-#define UVX_DOCK_CHARGER_CURRENT_TOLERANCE_MA       200U
-#define UVX_DOCK_CHARGER_CURRENT_VOLTAGE_STEP_MV    50U
 #define UVX_DOCK_CHARGER_RAMP_INTERVAL_MS           500U
+#define UVX_DOCK_CHARGER_BATTERY_OFFSET_MV          500U
 
 /* TPL0401x-10 wiper register: TI datasheet SLIS144B, section 9.6.2. */
 static UVX_I2C_STATE uvx_tpl0401x_10_init(UVX_I2C *i2c)
@@ -62,6 +59,11 @@ UVX_DOCK_CHARGER_STATUS dock_charger_status;
 
 static void uvx_dock_charger_change_state(UVX_DOCK_CHARGER_STATE state_next)
 {
+    if(state_next == UVX_DOCK_CHARGER_STATE_ERROR)
+    {
+        dock_charger_status.voltage_detected = 0U;
+        dock_charger_status.voltage_ready = 0U;
+    }
     dock_charger_state.state_next = state_next;
     dock_charger_state.state_current = dock_charger_state.state_next;
 }
@@ -142,14 +144,12 @@ static UVX_DOCK_CHARGER_RESULT uvx_dock_charger_value_to_code(
  * @brief Initialize the dock charger control module.
  * @param i2c I2C bus shared by the two TPL0401x-10 devices.
  * @param config Physical-value to wiper-code calibration.
- * @param current_ma Initial requested charging current in milliamperes.
- * @param voltage_mv Initial requested charging voltage in millivolts.
  * @retval Charger module status.
  */
 
 static uint32_t uvx_dock_charger_battery_target_mv(void)
 {
-    uint32_t battery_target_mv = (uint32_t)batt_data.batt_voltage;
+    uint32_t battery_target_mv = (uint32_t)batt_data.batt_voltage + UVX_DOCK_CHARGER_BATTERY_OFFSET_MV;
 
     if(battery_target_mv > dock_charger_status.config.voltage_max_mv)
     {
@@ -168,7 +168,10 @@ UVX_DOCK_CHARGER_RESULT uvx_dock_charger_init(UVX_I2C *i2c, const UVX_DOCK_CHARG
 {
     UVX_I2C_STATE i2c_state;
 
-    if((i2c == NULL) || (config == NULL))
+    if((i2c == NULL) || (config == NULL) ||
+       (config->voltage_min_mv >= config->voltage_max_mv) ||
+       (config->voltage_code_at_min >= config->voltage_code_at_max) ||
+       (config->voltage_code_at_max > UVX_DOCK_CHARGER_WIPER_MAX))
     {
         return UVX_DOCK_CHARGER_ERROR_PARAMETER;
     }
@@ -186,12 +189,13 @@ UVX_DOCK_CHARGER_RESULT uvx_dock_charger_init(UVX_I2C *i2c, const UVX_DOCK_CHARG
     dock_charger_status.current_code = DOCK_CHARGER_WIPER_MIN;
     dock_charger_status.voltage_code = DOCK_CHARGER_WIPER_MIN;
     dock_charger_status.owns_i2c_lock = 0U;
+    dock_charger_status.voltage_detected = 0U;
     dock_charger_status.voltage_ready = 0U;
     dock_charger_status.current_ready = 0U;
     dock_charger_status.current_ramp_tick = HAL_GetTick();
     dock_charger_status.voltage_ramp_tick = HAL_GetTick();
     dock_charger_status.regulation_state = UVX_DOCK_CHARGER_REGULATION_MATCH_VOLTAGE;
-    uvx_dock_charger_change_state(UVX_DOCK_CHARGER_STATE_WRITE_CURRENT);
+    uvx_dock_charger_change_state(UVX_DOCK_CHARGER_STATE_READ_VOLTAGE);
     dock_charger_status.initialized = true;
 
     return UVX_DOCK_CHARGER_OK;
@@ -280,116 +284,39 @@ UVX_DOCK_CHARGER_RESULT uvx_dock_charger_set_voltage(uint32_t voltage_mv)
     return UVX_DOCK_CHARGER_OK;
 }
 
-static UVX_DOCK_CHARGER_RESULT uvx_dock_charger_regulate_voltage_and_current(void)
+/* Track battery + 500 mV, subject to the existing supply-voltage limits. */
+static UVX_DOCK_CHARGER_RESULT uvx_dock_charger_regulate_voltage(void)
 {
     uint32_t now = HAL_GetTick();
-    uint32_t measured_voltage_mv = (uint32_t)batt_data.adc_pack_v;
-    uint32_t measured_current_ma = (dock_charger_status.current_ma > 0) ?
-                                   (uint32_t)dock_charger_status.current_ma : 0U;
-    uint32_t voltage_max_mv = dock_charger_status.config.voltage_max_mv;
-    uint32_t current_max_ma = dock_charger_status.config.current_max_ma;
+    uint32_t measured = dock_charger_status.voltage_mv;
+    uint32_t target = uvx_dock_charger_battery_target_mv();
 
-
-    //UVX_APP_PWR_FET(1U);
-
-    switch(dock_charger_status.regulation_state)
+    dock_charger_status.target_voltage_mv = target;
+    dock_charger_status.voltage_ready = (measured + UVX_DOCK_CHARGER_VOLTAGE_TOLERANCE_MV >= target) && (measured <= target + UVX_DOCK_CHARGER_VOLTAGE_TOLERANCE_MV);
+    if((uint32_t)(now - dock_charger_status.voltage_ramp_tick) < UVX_DOCK_CHARGER_RAMP_INTERVAL_MS)
     {
-        case UVX_DOCK_CHARGER_REGULATION_MATCH_VOLTAGE:
-            if((measured_voltage_mv + UVX_DOCK_CHARGER_VOLTAGE_TOLERANCE_MV >= dock_charger_status.target_voltage_mv) &&
-               (measured_voltage_mv <= dock_charger_status.target_voltage_mv + UVX_DOCK_CHARGER_VOLTAGE_TOLERANCE_MV))
-            {
-                dock_charger_status.voltage_ready = 1U;
-                dock_charger_status.regulation_state = UVX_DOCK_CHARGER_REGULATION_CONTROL_CURRENT;
-                dock_charger_status.current_ramp_tick = now;
-                return UVX_DOCK_CHARGER_BUSY;
-            }
-
-            if((uint32_t)(now - dock_charger_status.voltage_ramp_tick) < UVX_DOCK_CHARGER_RAMP_INTERVAL_MS)
-            {
-                return UVX_DOCK_CHARGER_BUSY;
-            }
-
-            if((measured_voltage_mv < dock_charger_status.target_voltage_mv) && (dock_charger_status.voltage_code < UVX_DOCK_CHARGER_WIPER_MAX))
-            {
-                dock_charger_status.voltage_code++;
-            }
-            else if((measured_voltage_mv > dock_charger_status.target_voltage_mv) && (dock_charger_status.voltage_code > DOCK_CHARGER_WIPER_MIN))
-            {
-                dock_charger_status.voltage_code--;
-            }
-
-            dock_charger_status.voltage_ramp_tick = now;
-            uvx_dock_charger_change_state(UVX_DOCK_CHARGER_STATE_WRITE_CURRENT);
-            return UVX_DOCK_CHARGER_BUSY;
-
-        case UVX_DOCK_CHARGER_REGULATION_CONTROL_CURRENT:
-            if((batt_data.pwr_max_voltage != 0U) && (batt_data.pwr_max_voltage < voltage_max_mv))
-            {
-                voltage_max_mv = batt_data.pwr_max_voltage;
-            }
-
-            if((uint32_t)(now - dock_charger_status.current_ramp_tick) <  UVX_DOCK_CHARGER_RAMP_INTERVAL_MS)
-            {
-                return (dock_charger_status.current_ready != 0U) ? UVX_DOCK_CHARGER_OK : UVX_DOCK_CHARGER_BUSY;
-            }
-
-            if(measured_current_ma <= dock_charger_status.target_current_ma + UVX_DOCK_CHARGER_CURRENT_TOLERANCE_MA)
-            {
-                if( (dock_charger_status.target_voltage_mv <= voltage_max_mv) &&  
-                    (measured_voltage_mv <= dock_charger_status.target_voltage_mv + UVX_DOCK_CHARGER_VOLTAGE_MATCH_TOLERANCE_MV) )
-                {
-                    if(dock_charger_status.voltage_code < UVX_DOCK_CHARGER_WIPER_MAX)
-                    {
-                        dock_charger_status.voltage_code++;
-                    }                    
-                    else
-                    {
-                        if((dock_charger_status.target_current_ma < current_max_ma) && (dock_charger_status.current_code < UVX_DOCK_CHARGER_WIPER_MAX))
-                        {
-                            dock_charger_status.current_code++;
-                        }
-                    }
-                }
-                else
-                {
-                    if((dock_charger_status.target_current_ma < current_max_ma) && (dock_charger_status.current_code < UVX_DOCK_CHARGER_WIPER_MAX))
-                    {
-                        dock_charger_status.current_code++;
-                    }
-
-                }
-
-                dock_charger_status.current_ready = 0U;
-            }
-            else if(measured_current_ma <= dock_charger_status.target_current_ma + UVX_DOCK_CHARGER_CURRENT_TOLERANCE_MA)
-            {
-                dock_charger_status.current_ready = 1U;
-            }
-            else
-            {
-                /* Keep monitoring an above-target current without raising voltage. */
-                dock_charger_status.current_ready = 0U;
-            }
-
-            uvx_dock_charger_change_state(UVX_DOCK_CHARGER_STATE_WRITE_CURRENT);
-            dock_charger_status.current_ramp_tick = now;
-            return (dock_charger_status.current_ready != 0U) ?
-                   UVX_DOCK_CHARGER_OK : UVX_DOCK_CHARGER_BUSY;
-
-        default:
-            dock_charger_status.regulation_state = UVX_DOCK_CHARGER_REGULATION_MATCH_VOLTAGE;
-            return UVX_DOCK_CHARGER_BUSY;
+        return dock_charger_status.voltage_ready ? UVX_DOCK_CHARGER_OK : UVX_DOCK_CHARGER_BUSY;
     }
+    dock_charger_status.voltage_ramp_tick = now;
+    if(!dock_charger_status.voltage_ready && measured < target && dock_charger_status.voltage_code < dock_charger_status.config.voltage_code_at_max)
+    {
+        dock_charger_status.voltage_code++;
+        uvx_dock_charger_change_state(UVX_DOCK_CHARGER_STATE_WRITE_VOLTAGE);
+    }
+    else if(!dock_charger_status.voltage_ready && measured > target && dock_charger_status.voltage_code > dock_charger_status.config.voltage_code_at_min)
+    {
+        dock_charger_status.voltage_code--;
+        uvx_dock_charger_change_state(UVX_DOCK_CHARGER_STATE_WRITE_VOLTAGE);
+    }
+    else
+    {
+        /* Keep polling presence even while holding the target or a code limit. */
+        uvx_dock_charger_change_state(UVX_DOCK_CHARGER_STATE_READ_VOLTAGE);
+    }
+    return dock_charger_status.voltage_ready ? UVX_DOCK_CHARGER_OK : UVX_DOCK_CHARGER_BUSY;
 }
 
-/**
- * @brief Apply charger settings after the landing Hall sensor is active.
- * @retval OK when both settings are applied, BUSY while I2C is in progress,
- *         or an error status.
- *
- * Call this function repeatedly from the application loop.  The two writes
- * are sequenced because uvx_i2c uses interrupt-driven transfers on one bus.
- */
+/* Read the voltage potentiometer first; successful completion detects the dock. */
 UVX_DOCK_CHARGER_RESULT uvx_dock_charger_process(void)
 {
     UVX_I2C_STATE i2c_state;
@@ -399,9 +326,10 @@ UVX_DOCK_CHARGER_RESULT uvx_dock_charger_process(void)
         return UVX_DOCK_CHARGER_NOT_INITIALIZED;
     }
 
-    if(drone_status.hall_land_2 == false)
+    if(batt_data.batt_voltage == 0U)
     {
         dock_charger_status.target_voltage_mv = uvx_dock_charger_battery_target_mv();
+        dock_charger_status.voltage_detected = 0U;
         dock_charger_status.voltage_ready = 0U;
         dock_charger_status.current_ready = 0U;
         dock_charger_status.voltage_code = DOCK_CHARGER_WIPER_MIN;
@@ -421,98 +349,14 @@ UVX_DOCK_CHARGER_RESULT uvx_dock_charger_process(void)
             uvx_dock_charger_unlock_i2c();
         }
 
-        dock_charger_state.state_current = UVX_DOCK_CHARGER_STATE_WRITE_CURRENT;
+        dock_charger_state.state_current = UVX_DOCK_CHARGER_STATE_READ_VOLTAGE;
         return UVX_DOCK_CHARGER_BUSY;
     }
     else
     {
-        /* Keep the charger connected during both voltage matching and current control. */
-       // UVX_APP_PWR_FET(1U);
 
         switch(dock_charger_state.state_current)
         {
-            case UVX_DOCK_CHARGER_STATE_WRITE_CURRENT:
-                if(uvx_dock_charger_lock_i2c() != UVX_I2C_OK)
-                {
-                    break;
-                }
-
-                i2c_state = uvx_tpl0401x_10_write(dock_charger_status.i2c, UVX_DOCK_CHARGER_CURRENT_I2C_ADDRESS, dock_charger_status.current_code);
-
-                if(i2c_state == UVX_I2C_OK)
-                {
-                    uvx_dock_charger_change_state(UVX_DOCK_CHARGER_STATE_WAIT_CURRENT);
-                }
-                else if(i2c_state != UVX_I2C_BUSY)
-                {
-                    uvx_dock_charger_unlock_i2c();
-                    uvx_dock_charger_change_state(UVX_DOCK_CHARGER_STATE_ERROR);
-                    return UVX_DOCK_CHARGER_ERROR_I2C;
-                }
-                else
-                {
-                    uvx_dock_charger_unlock_i2c();
-                }
-                break;
-
-            case UVX_DOCK_CHARGER_STATE_WAIT_CURRENT:
-                if(uvx_dock_charger_transfer_state(&dock_charger_status.i2c->hal_i2c) == UVX_I2C_OK)
-                {
-                    uvx_dock_charger_unlock_i2c();
-                    uvx_dock_charger_change_state(UVX_DOCK_CHARGER_STATE_READ_CURRENT);
-                }
-                else if(uvx_dock_charger_transfer_state(&dock_charger_status.i2c->hal_i2c) == UVX_I2C_ERROR)
-                {
-                    uvx_dock_charger_unlock_i2c();
-                    uvx_dock_charger_change_state(UVX_DOCK_CHARGER_STATE_ERROR);
-                    return UVX_DOCK_CHARGER_ERROR_I2C;
-                }
-                break;
-
-            case UVX_DOCK_CHARGER_STATE_READ_CURRENT:
-                if(uvx_dock_charger_lock_i2c() != UVX_I2C_OK)
-                {
-                    break;
-                }
-
-                i2c_state = uvx_tpl0401x_10_read(dock_charger_status.i2c, UVX_DOCK_CHARGER_CURRENT_I2C_ADDRESS, &dock_charger_status.current_readback_code);
-
-                if(i2c_state == UVX_I2C_OK)
-                {
-                    uvx_dock_charger_change_state(UVX_DOCK_CHARGER_STATE_WAIT_CURRENT_READ);
-                }
-                else
-                {
-                    uvx_dock_charger_unlock_i2c();
-                    if(i2c_state != UVX_I2C_BUSY)
-                    {
-                        uvx_dock_charger_change_state(UVX_DOCK_CHARGER_STATE_ERROR);
-                        return UVX_DOCK_CHARGER_ERROR_I2C;
-                    }
-                }
-                break;
-
-            case UVX_DOCK_CHARGER_STATE_WAIT_CURRENT_READ:
-                if(uvx_dock_charger_transfer_state(&dock_charger_status.i2c->hal_i2c) == UVX_I2C_OK)
-                {
-                    uvx_dock_charger_unlock_i2c();
-
-                    if((dock_charger_status.current_readback_code & 0x7FU) != dock_charger_status.current_code)
-                    {
-                        uvx_dock_charger_change_state(UVX_DOCK_CHARGER_STATE_ERROR);
-                        return UVX_DOCK_CHARGER_ERROR;
-                    }
-
-                    uvx_dock_charger_change_state(UVX_DOCK_CHARGER_STATE_WRITE_VOLTAGE);
-                }
-                else if(uvx_dock_charger_transfer_state(&dock_charger_status.i2c->hal_i2c) == UVX_I2C_ERROR)
-                {
-                    uvx_dock_charger_unlock_i2c();
-                    uvx_dock_charger_change_state(UVX_DOCK_CHARGER_STATE_ERROR);
-                    return UVX_DOCK_CHARGER_ERROR_I2C;
-                }
-                break;
-
             case UVX_DOCK_CHARGER_STATE_WRITE_VOLTAGE:
                 if(uvx_dock_charger_lock_i2c() != UVX_I2C_OK)
                 {
@@ -538,14 +382,12 @@ UVX_DOCK_CHARGER_RESULT uvx_dock_charger_process(void)
                 break;
 
             case UVX_DOCK_CHARGER_STATE_WAIT_VOLTAGE:
-                if(uvx_dock_charger_transfer_state(
-                    &dock_charger_status.i2c->hal_i2c) == UVX_I2C_OK)
+                if(uvx_dock_charger_transfer_state(&dock_charger_status.i2c->hal_i2c) == UVX_I2C_OK)
                 {
                     uvx_dock_charger_unlock_i2c();
                     uvx_dock_charger_change_state(UVX_DOCK_CHARGER_STATE_READ_VOLTAGE);
                 }
-                else if(uvx_dock_charger_transfer_state(
-                            &dock_charger_status.i2c->hal_i2c) == UVX_I2C_ERROR)
+                else if(uvx_dock_charger_transfer_state(&dock_charger_status.i2c->hal_i2c) == UVX_I2C_ERROR)
                 {
                     uvx_dock_charger_unlock_i2c();
                     uvx_dock_charger_change_state(UVX_DOCK_CHARGER_STATE_ERROR);
@@ -581,6 +423,16 @@ UVX_DOCK_CHARGER_RESULT uvx_dock_charger_process(void)
                 {
                     uvx_dock_charger_unlock_i2c();
 
+                    if(!dock_charger_status.voltage_detected)
+                    {
+                        /* Resume from the actual code after startup/reconnection. */
+                        dock_charger_status.voltage_code = dock_charger_status.voltage_readback_code & 0x7FU;
+                        dock_charger_status.voltage_detected = 1U;
+                        dock_charger_status.voltage_ramp_tick = HAL_GetTick();
+                        uvx_dock_charger_change_state(UVX_DOCK_CHARGER_STATE_ACTIVE);
+                        return UVX_DOCK_CHARGER_BUSY;
+                    }
+
                     if((dock_charger_status.voltage_readback_code & 0x7FU) != dock_charger_status.voltage_code)
                     {
                         uvx_dock_charger_change_state(UVX_DOCK_CHARGER_STATE_ERROR);
@@ -601,10 +453,16 @@ UVX_DOCK_CHARGER_RESULT uvx_dock_charger_process(void)
                 break;
 
             case UVX_DOCK_CHARGER_STATE_ACTIVE:
-                return uvx_dock_charger_regulate_voltage_and_current();
+                return uvx_dock_charger_regulate_voltage();
 
             case UVX_DOCK_CHARGER_STATE_ERROR:
-                dock_charger_state.state_current = UVX_DOCK_CHARGER_STATE_WRITE_CURRENT;
+                dock_charger_status.voltage_detected = 0U;
+                dock_charger_status.voltage_ready = 0U;
+                if((uint32_t)(HAL_GetTick() - dock_charger_status.voltage_ramp_tick) >= UVX_DOCK_CHARGER_RAMP_INTERVAL_MS)
+                {
+                    dock_charger_status.voltage_ramp_tick = HAL_GetTick();
+                    uvx_dock_charger_change_state(UVX_DOCK_CHARGER_STATE_READ_VOLTAGE);
+                }
                 return UVX_DOCK_CHARGER_ERROR;
 
             default:

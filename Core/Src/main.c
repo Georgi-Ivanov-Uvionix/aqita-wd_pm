@@ -468,6 +468,14 @@ void UVX_APP(void)
 		break;
 
 		case DRONE_SLEEP:
+			/* Keep ADC feedback and dock regulation running while the pot responds. */
+			if(dock_charger_status.voltage_detected)
+			{
+				timer_app_drone.Timeout = APP_TIMEOUT_BEFORE_SLEEP;
+				timer_app_drone.Enable = true;
+				drone_state.state_current = DRONE_IDLE;
+				break;
+			}
 #ifndef APP_NO_BATTERY_MODE
 			{
 				uint32_t i;
@@ -629,14 +637,9 @@ void UVX_APP_HALL_LAND(void)
 }
 
 /**
- * @brief Set dock charger current and voltage after landing is detected.
- *
- * Test calibration:
- *   - Current: 0 mA at code 0, 20000 mA at code 127.
- *   - Voltage: 5670 mV at code 0, 40490 mV at code 127.
- * Voltage ramps up from the TPL0401 power-up code by one calibrated code
- * every 500 ms and charging is
- * permitted only at battery voltage + 1 V, within +/-200 mV ADC feedback.
+ * @brief Detect the voltage potentiometer and track battery voltage + 500 mV.
+ * Adjust one wiper step per 500 ms, with +/-200 mV ADC tolerance.
+ * Configured and battery supply-voltage limits still apply.
  */
 void UVX_APP_Dock_Charger(void)
 {
@@ -2120,6 +2123,12 @@ void Set_Timers_After_Sleep(void)
 
 void enter_LPSleep( void )
 {
+	/* Guard every caller before disabling ADC, clocks, or the system tick. */
+	if(dock_charger_status.voltage_detected)
+	{
+		return;
+	}
+
 	if (!g_Sleep)//G? pin config before enter sleep
 	{
 		uvx_app_led_strip_enable(GPIO_PIN_RESET);
