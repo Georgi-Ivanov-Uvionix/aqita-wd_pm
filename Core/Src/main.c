@@ -647,7 +647,7 @@ void UVX_APP_Dock_Charger(void)
     {
         .current_min_ma = DOCK_CHARGER_CURRENT_MIN_MA,
         .current_max_ma = DOCK_CHARGER_CURRENT_MAX_MA,
-        .current_code_at_min = DOCK_CHARGER_WIPER_MIN,
+        .current_code_at_min = DOCK_CHARGER_CURRENT_START_CODE,
         .current_code_at_max = DOCK_CHARGER_WIPER_MAX,
         .voltage_min_mv = DOCK_CHARGER_VOLTAGE_MIN_MV,
         .voltage_max_mv = DOCK_CHARGER_VOLTAGE_MAX_MV,

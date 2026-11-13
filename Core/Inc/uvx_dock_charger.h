@@ -8,6 +8,7 @@
 #define DOCK_CHARGER_CURRENT_MAX_MA             15500U
 #define DOCK_CHARGER_VOLTAGE_MIN_MV              5670U
 #define DOCK_CHARGER_VOLTAGE_MAX_MV             40490U
+#define DOCK_CHARGER_CURRENT_START_CODE             4U /* Trial setting, not calibrated */
 #define DOCK_CHARGER_WIPER_MIN                     32U
 #define DOCK_CHARGER_WIPER_MAX                     127U
 
@@ -83,7 +84,7 @@ typedef struct
     uint8_t owns_i2c_lock : 1;
     uint8_t voltage_detected : 1; /* Successful voltage-potentiometer read */
     uint8_t voltage_ready : 1; /* ADC within 200 mV of capped battery + 500 mV */
-    uint8_t current_ready : 1;
+    uint8_t current_ready : 1; /* Measured current within target tolerance */
 } UVX_DOCK_CHARGER_STATUS;
 
 UVX_DOCK_CHARGER_RESULT uvx_dock_charger_init(UVX_I2C *i2c, const UVX_DOCK_CHARGER_CONFIG *config);
