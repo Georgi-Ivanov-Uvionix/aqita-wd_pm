@@ -297,8 +297,22 @@ UVX_DOCK_CHARGER_RESULT uvx_dock_charger_set_voltage(uint32_t voltage_mv)
 static UVX_DOCK_CHARGER_RESULT uvx_dock_charger_regulate_current(void)
 {
     uint32_t now = HAL_GetTick();
+    uint32_t voltage_limit_mv = dock_charger_status.config.voltage_max_mv;
+    uint32_t voltage_step_mv =
+        (dock_charger_status.config.voltage_max_mv - dock_charger_status.config.voltage_min_mv +
+         dock_charger_status.config.voltage_code_at_max - dock_charger_status.config.voltage_code_at_min - 1U) /
+        (dock_charger_status.config.voltage_code_at_max - dock_charger_status.config.voltage_code_at_min);
     int32_t error_ma = (int32_t)dock_charger_status.target_current_ma -
                        (int32_t)dock_charger_status.current_ma;
+
+    if(batt_data.pwr_max_voltage != 0U && batt_data.pwr_max_voltage < voltage_limit_mv)
+    {
+        voltage_limit_mv = batt_data.pwr_max_voltage;
+    }
+    if(dock_charger_status.target_voltage_mv > voltage_limit_mv)
+    {
+        dock_charger_status.target_voltage_mv = voltage_limit_mv;
+    }
 
     if(!drone_status.pwr_fet || batt_data.tc || batt_data.BPS_Passive ||
        drone_status.pwr_fc || comm_bq_1.No_response ||
@@ -317,6 +331,32 @@ static UVX_DOCK_CHARGER_RESULT uvx_dock_charger_regulate_current(void)
        UVX_DOCK_CHARGER_CURRENT_INTERVAL_MS)
     {
         dock_charger_status.current_ramp_tick = now;
+        /* Reduce voltage first if feedback exceeds the allowed supply voltage. */
+        if(dock_charger_status.voltage_mv > voltage_limit_mv &&
+           dock_charger_status.voltage_code > dock_charger_status.config.voltage_code_at_min)
+        {
+            dock_charger_status.voltage_code--;
+            uvx_dock_charger_change_state(UVX_DOCK_CHARGER_STATE_WRITE_VOLTAGE);
+            return UVX_DOCK_CHARGER_BUSY;
+        }
+        if(error_ma > UVX_DOCK_CHARGER_CURRENT_TOLERANCE_MA &&
+           dock_charger_status.voltage_mv + UVX_DOCK_CHARGER_VOLTAGE_TOLERANCE_MV >=
+               dock_charger_status.target_voltage_mv)
+        {
+            /* At the voltage target, increasing the current limit cannot help.
+             * Reserve a full calibrated step below the voltage ceiling. */
+            if(dock_charger_status.voltage_code < dock_charger_status.config.voltage_code_at_max &&
+               dock_charger_status.voltage_mv + voltage_step_mv <= voltage_limit_mv &&
+               dock_charger_status.target_voltage_mv + voltage_step_mv <= voltage_limit_mv)
+            {
+                dock_charger_status.target_voltage_mv += voltage_step_mv;
+                dock_charger_status.voltage_code++;
+                uvx_dock_charger_change_state(UVX_DOCK_CHARGER_STATE_WRITE_VOLTAGE);
+                return UVX_DOCK_CHARGER_BUSY;
+            }
+            /* At the voltage ceiling, accept reduced current instead of winding up PC. */
+        }
+        else
         if(error_ma > UVX_DOCK_CHARGER_CURRENT_TOLERANCE_MA &&
            dock_charger_status.current_code < dock_charger_status.config.current_code_at_max)
         {
@@ -334,7 +374,7 @@ static UVX_DOCK_CHARGER_RESULT uvx_dock_charger_regulate_current(void)
         }
     }
 
-    /* Hold the voltage code during current limiting; keep checking dock presence. */
+    /* Keep checking dock presence between current/voltage adjustments. */
     if((uint32_t)(now - dock_charger_status.voltage_ramp_tick) >= UVX_DOCK_CHARGER_RAMP_INTERVAL_MS)
     {
         dock_charger_status.voltage_ramp_tick = now;
