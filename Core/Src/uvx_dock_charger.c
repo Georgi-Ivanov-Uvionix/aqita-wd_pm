@@ -18,6 +18,8 @@
 #define UVX_DOCK_LED_MASK                           0x78U /* P3..P6: R,G,B,W */
 #define UVX_DOCK_LED_RED                            0x08U
 #define UVX_DOCK_LED_GREEN                          0x10U
+#define UVX_DOCK_LED_BLUE                           0x20U
+#define UVX_DOCK_LED_FLASH_HALF_PERIOD_MS           500U
 #define UVX_DOCK_SUPPLY_ON                          0x01U /* P0 ON/OFF */
 #define UVX_DOCK_SUPPLY_DC_OK                       0x02U /* P1, active low */
 #define UVX_DOCK_SUPPLY_STARTUP_MS                  1000U
@@ -86,10 +88,14 @@ static uint8_t dock_gpio_output;
 static uint8_t dock_led_pending, dock_led_data;
 static uint16_t dock_led_hue, dock_led_red_acc, dock_led_green_acc;
 static uint32_t dock_led_tick, dock_led_color_tick;
+static uint8_t dock_voltage_adjusting;
+static uint8_t dock_led_mode;
+static uint32_t dock_led_mode_tick;
 static void uvx_dock_charger_change_state(UVX_DOCK_CHARGER_STATE state_next)
 {
     if(state_next == UVX_DOCK_CHARGER_STATE_ERROR)
     {
+        dock_voltage_adjusting = 0U;
         dock_charger_status.supply_enabled = 0U;
         dock_charger_status.supply_ready = 0U;
         dock_charger_status.led_ready = 0U;
@@ -289,6 +295,7 @@ static void uvx_dock_led_color_process(void)
     uint32_t cell_mv = 0U;
     uint16_t target = 0U;
     uint8_t leds = 0U;
+    uint8_t mode = 0U; /* Solid red, flashing red, flashing blue, charging blend */
     UVX_I2C_STATE state;
 
     if(!dock_charger_status.led_ready || dock_supply_io.pending ||
@@ -301,11 +308,34 @@ static void uvx_dock_led_color_process(void)
         cell_mv = (uint32_t)batt_data.batt_voltage / batt_data.cells_count;
     }
     dock_charger_status.led_cell_mv = cell_mv;
+    if(dock_charger_status.voltage_detected && dock_supply_requested)
+    {
+        mode = dock_voltage_adjusting ? 2U : 1U;
+    }
     if(drone_status.pwr_fet && dock_supply_requested &&
        dock_charger_status.regulation_state == UVX_DOCK_CHARGER_REGULATION_CONTROL_CURRENT)
     {
+        mode = 3U;
         if(cell_mv >= 4200U) target = 510U;
         else if(cell_mv > 2500U) target = (uint16_t)((cell_mv - 2500U) * 510U / 1700U);
+    }
+    if(mode != dock_led_mode)
+    {
+        dock_led_mode = mode;
+        dock_led_mode_tick = now; /* Each flashing phase starts lit. */
+    }
+    if(mode != 3U)
+    {
+        dock_led_hue = dock_led_red_acc = dock_led_green_acc = 0U;
+        dock_led_color_tick = now;
+        if(mode == 0U || ((uint32_t)(now - dock_led_mode_tick) /
+                          UVX_DOCK_LED_FLASH_HALF_PERIOD_MS) % 2U == 0U)
+        {
+            leds = (mode == 2U) ? UVX_DOCK_LED_BLUE : UVX_DOCK_LED_RED;
+        }
+        dock_charger_status.led_red = (leds & UVX_DOCK_LED_RED) ? 255U : 0U;
+        dock_charger_status.led_green = 0U;
+        goto write_output;
     }
     if((uint32_t)(now - dock_led_color_tick) >= 100U)
     {
@@ -323,6 +353,7 @@ static void uvx_dock_led_color_process(void)
     dock_led_green_acc += dock_charger_status.led_green;
     if(dock_led_red_acc >= 255U) { dock_led_red_acc -= 255U; leds |= UVX_DOCK_LED_RED; }
     if(dock_led_green_acc >= 255U) { dock_led_green_acc -= 255U; leds |= UVX_DOCK_LED_GREEN; }
+write_output:
     dock_led_data = (dock_gpio_output & (uint8_t)~UVX_DOCK_LED_MASK) | leds;
     if(dock_led_data == dock_gpio_output || uvx_dock_charger_lock_i2c() != UVX_I2C_OK) return;
     state = uvx_i2c_send_mem(&dock_charger_status.i2c->hal_i2c, UVX_DOCK_GPIO_I2C_ADDRESS,
@@ -450,6 +481,9 @@ UVX_DOCK_CHARGER_RESULT uvx_dock_charger_init(UVX_I2C *i2c, const UVX_DOCK_CHARG
     dock_charger_status.supply_enable_tick = 0U;
     dock_charger_status.led_ready = 0U;
     dock_led_pending = 0U;
+    dock_voltage_adjusting = 0U;
+    dock_led_mode = 0U;
+    dock_led_mode_tick = HAL_GetTick();
     dock_led_hue = dock_led_red_acc = dock_led_green_acc = 0U;
     dock_led_tick = dock_led_color_tick = HAL_GetTick();
     dock_charger_status.led_cell_mv = 0U;
@@ -760,8 +794,23 @@ UVX_DOCK_CHARGER_RESULT uvx_dock_charger_process(void)
         else dock_charger_status.led_ready = 0U;
     }
 
+    /* Initialize red even before battery data or voltage-pot detection is ready.
+     * Never interleave the setup RMW with another dock transaction. */
+    if(!dock_charger_status.owns_i2c_lock &&
+       !dock_supply_io.pending && dock_supply_io.step == 0U)
+    {
+        if(uvx_dock_led_setup_process() == UVX_I2C_BUSY)
+            return UVX_DOCK_CHARGER_BUSY;
+    }
+    else if(dock_led_io.pending || dock_led_io.step != 0U)
+    {
+        if(uvx_dock_led_setup_process() == UVX_I2C_BUSY)
+            return UVX_DOCK_CHARGER_BUSY;
+    }
+
     if(batt_data.batt_voltage == 0U)
     {
+        dock_voltage_adjusting = 0U;
         dock_charger_status.target_voltage_mv = uvx_dock_charger_battery_target_mv();
         dock_charger_status.voltage_detected = 0U;
         dock_charger_status.voltage_ready = 0U;
@@ -789,10 +838,10 @@ UVX_DOCK_CHARGER_RESULT uvx_dock_charger_process(void)
         dock_led_io.pending = 0U;
         dock_supply_io.step = 0U;
         dock_supply_io.pending = 0U;
-        dock_charger_status.led_ready = 0U;
         dock_charger_status.supply_enabled = 0U;
         dock_charger_status.supply_ready = 0U;
         dock_charger_state.state_current = UVX_DOCK_CHARGER_STATE_READ_VOLTAGE;
+        uvx_dock_led_color_process();
         return UVX_DOCK_CHARGER_BUSY;
     }
     else
@@ -1032,6 +1081,7 @@ UVX_DOCK_CHARGER_RESULT uvx_dock_charger_process(void)
                     dock_charger_status.voltage_ready = 0U;
                     dock_charger_status.current_ready = 0U;
                     dock_charger_status.regulation_state = UVX_DOCK_CHARGER_REGULATION_MATCH_VOLTAGE;
+                    dock_voltage_adjusting = 0U;
                     uvx_dock_led_color_process();
                     return UVX_DOCK_CHARGER_BUSY;
                 }
@@ -1039,7 +1089,11 @@ UVX_DOCK_CHARGER_RESULT uvx_dock_charger_process(void)
                 {
                     result = uvx_dock_charger_regulate_current();
                 }
-                else result = uvx_dock_charger_regulate_voltage();
+                else
+                {
+                    dock_voltage_adjusting = 1U;
+                    result = uvx_dock_charger_regulate_voltage();
+                }
                 if(dock_charger_state.state_current == UVX_DOCK_CHARGER_STATE_ACTIVE)
                 {
                     uvx_dock_led_color_process();
@@ -1049,6 +1103,7 @@ UVX_DOCK_CHARGER_RESULT uvx_dock_charger_process(void)
             case UVX_DOCK_CHARGER_STATE_ERROR:
                 dock_charger_status.voltage_detected = 0U;
                 dock_charger_status.voltage_ready = 0U;
+                uvx_dock_led_color_process();
                 if((uint32_t)(HAL_GetTick() - dock_charger_status.voltage_ramp_tick) >= UVX_DOCK_CHARGER_RAMP_INTERVAL_MS)
                 {
                     dock_charger_status.voltage_ramp_tick = HAL_GetTick();

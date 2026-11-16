@@ -85,7 +85,7 @@ typedef struct
     uint8_t current_step_pending;
     uint32_t led_cell_mv; /* Average cell voltage used for the charging color */
     uint8_t led_red;      /* Requested brightness, 0..255 */
-    uint8_t led_green;    /* Blue and white remain off */
+    uint8_t led_green;    /* Blue indicates voltage adjustment; white stays off */
     UVX_DOCK_CHARGER_REGULATION_STATE regulation_state;
 
     uint8_t initialized : 1;
