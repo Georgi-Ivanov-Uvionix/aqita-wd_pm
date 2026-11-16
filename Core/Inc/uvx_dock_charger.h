@@ -83,6 +83,9 @@ typedef struct
     int32_t current_before_step_ma;
     uint8_t current_stall_count; /* Consecutive PC increases with little response */
     uint8_t current_step_pending;
+    uint32_t led_cell_mv; /* Average cell voltage used for the charging color */
+    uint8_t led_red;      /* Requested brightness, 0..255 */
+    uint8_t led_green;    /* Blue and white remain off */
     UVX_DOCK_CHARGER_REGULATION_STATE regulation_state;
 
     uint8_t initialized : 1;
@@ -91,7 +94,7 @@ typedef struct
     uint8_t voltage_ready : 1; /* ADC within 200 mV of capped battery + 1000 mV */
     uint8_t current_ready : 1; /* Measured current within target tolerance */
     uint8_t temperature_limited : 1; /* Any BQ >32 C; clears when all <=31 C */
-    uint8_t led_red_ready : 1; /* TCA6408A output and direction readback verified */
+    uint8_t led_ready : 1; /* TCA6408A output and direction readback verified */
     uint8_t supply_enabled : 1; /* P0 ON/OFF output verified high */
     uint8_t supply_ready : 1; /* P1 DC_OK reports low (supply OK) */
 } UVX_DOCK_CHARGER_STATUS;
