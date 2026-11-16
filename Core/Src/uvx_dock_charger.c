@@ -17,6 +17,9 @@
 #define UVX_DOCK_GPIO_I2C_ADDRESS                   0x21U
 #define UVX_DOCK_LED_MASK                           0x78U /* P3..P6: R,G,B,W */
 #define UVX_DOCK_LED_RED                            0x08U
+#define UVX_DOCK_SUPPLY_ON                          0x01U /* P0 ON/OFF */
+#define UVX_DOCK_SUPPLY_DC_OK                       0x02U /* P1, active low */
+#define UVX_DOCK_SUPPLY_STARTUP_MS                  1000U
 #define UVX_DOCK_CHARGER_VOLTAGE_I2C_ADDRESS        0x3EU
 #define UVX_DOCK_CHARGER_WIPER_MAX                  0x7FU
 #define UVX_DOCK_CHARGER_VOLTAGE_TOLERANCE_MV       200U
@@ -66,18 +69,28 @@ static UVX_I2C_STATE uvx_dock_charger_transfer_state(UVX_I2C_HAL *i2c)
 }
 UVX_DOCK_CHARGER_STATE_MACHINE dock_charger_state;
 UVX_DOCK_CHARGER_STATUS dock_charger_status;
-static uint8_t dock_led_step;
-static uint8_t dock_led_pending;
-static uint8_t dock_led_data;
-static uint32_t dock_led_retry_tick;
+typedef struct
+{
+    uint8_t step;
+    uint8_t pending;
+    uint8_t data;
+    uint32_t retry_tick;
+} UVX_DOCK_GPIO_TRANSACTION;
 
+static UVX_DOCK_GPIO_TRANSACTION dock_led_io;
+static UVX_DOCK_GPIO_TRANSACTION dock_supply_io;
+static uint8_t dock_supply_requested = 1U;
 static void uvx_dock_charger_change_state(UVX_DOCK_CHARGER_STATE state_next)
 {
     if(state_next == UVX_DOCK_CHARGER_STATE_ERROR)
     {
+        dock_charger_status.supply_enabled = 0U;
+        dock_charger_status.supply_ready = 0U;
         dock_charger_status.led_red_ready = 0U;
-        dock_led_step = 0U;
-        dock_led_pending = 0U;
+        dock_led_io.step = 0U;
+        dock_led_io.pending = 0U;
+        dock_supply_io.step = 0U;
+        dock_supply_io.pending = 0U;
         dock_charger_status.voltage_detected = 0U;
         dock_charger_status.voltage_ready = 0U;
         dock_charger_status.current_ready = 0U;
@@ -113,21 +126,22 @@ static void uvx_dock_charger_unlock_i2c(void)
     }
 }
 
-/* TCA6408A registers 1 (output) and 3 (direction), per TI SCPS192E.
- * Read-modify-write only the LED bits; preload levels before enabling outputs.
- * Called only from ACTIVE, so charger transfers cannot interleave this sequence. */
-static UVX_I2C_STATE uvx_dock_led_red_process(void)
+/* Shared non-blocking read/modify/write engine. Each caller owns its state.
+ * The application serializes supply and LED transactions to preserve register bits. */
+static UVX_I2C_STATE uvx_dock_gpio_update(UVX_DOCK_GPIO_TRANSACTION *io,
+                                        uint8_t mask, uint8_t value, uint8_t supply)
 {
-    static const uint8_t registers[6] = {1U, 1U, 3U, 3U, 1U, 3U};
+    static const uint8_t registers[7] = {1U, 1U, 3U, 3U, 1U, 3U, 0U};
     UVX_I2C_STATE state;
+    uint8_t input_mask = supply ? UVX_DOCK_SUPPLY_DC_OK : 0U;
     UVX_I2C_HAL *i2c = &dock_charger_status.i2c->hal_i2c;
 
-    if(!dock_led_pending && dock_led_step == 0U &&
-       (uint32_t)(HAL_GetTick() - dock_led_retry_tick) < 1000U)
+    if(!io->pending && io->step == 0U &&
+       (uint32_t)(HAL_GetTick() - io->retry_tick) < 1000U)
     {
         return UVX_I2C_OK;
     }
-    if(dock_led_pending)
+    if(io->pending)
     {
         state = uvx_dock_charger_transfer_state(i2c);
         if(state == UVX_I2C_BUSY)
@@ -135,52 +149,67 @@ static UVX_I2C_STATE uvx_dock_led_red_process(void)
             return UVX_I2C_BUSY;
         }
         uvx_dock_charger_unlock_i2c();
-        dock_led_pending = 0U;
+        io->pending = 0U;
         if(state != UVX_I2C_OK)
         {
             goto failed;
         }
-        if(dock_led_step == 0U)
+        if(io->step == 0U)
         {
-            dock_led_data = (dock_led_data & (uint8_t)~UVX_DOCK_LED_MASK) | UVX_DOCK_LED_RED;
+            io->data = (io->data & (uint8_t)~mask) | value;
         }
-        else if(dock_led_step == 2U)
+        else if(io->step == 2U)
         {
-            dock_led_data &= (uint8_t)~UVX_DOCK_LED_MASK;
+            io->data = (io->data & (uint8_t)~mask) | input_mask;
         }
-        else if((dock_led_step == 4U && (dock_led_data & UVX_DOCK_LED_MASK) != UVX_DOCK_LED_RED) ||
-                (dock_led_step == 5U && (dock_led_data & UVX_DOCK_LED_MASK) != 0U))
+        else if((io->step == 4U && (io->data & mask) != value) ||
+                (io->step == 5U && (io->data & (mask | input_mask)) != input_mask))
         {
             goto failed;
         }
-        dock_led_step++;
-        if(dock_led_step == 6U)
+        if(supply && io->step == 5U)
         {
-            dock_charger_status.led_red_ready = 1U;
-            dock_led_step = 0U;
-            dock_led_retry_tick = HAL_GetTick();
+            if(value && !dock_charger_status.supply_enabled)
+            {
+                dock_charger_status.supply_enable_tick = HAL_GetTick();
+            }
+            dock_charger_status.supply_enabled = value != 0U;
+        }
+        if(supply && io->step == 6U)
+        {
+            dock_charger_status.supply_ready = value &&
+                ((io->data & UVX_DOCK_SUPPLY_DC_OK) == 0U);
+        }
+        io->step++;
+        if(io->step == (supply ? 7U : 6U))
+        {
+            if(!supply)
+            {
+                dock_charger_status.led_red_ready = 1U;
+            }
+            io->step = 0U;
+            io->retry_tick = HAL_GetTick();
             return UVX_I2C_OK;
         }
         return UVX_I2C_BUSY;
     }
-
     if(uvx_dock_charger_lock_i2c() != UVX_I2C_OK)
     {
         return UVX_I2C_BUSY;
     }
-    if(dock_led_step == 1U || dock_led_step == 3U)
+    if(io->step == 1U || io->step == 3U)
     {
-        state = uvx_i2c_send_mem(i2c, UVX_DOCK_GPIO_I2C_ADDRESS, registers[dock_led_step],
-                                 I2C_MEMADD_SIZE_8BIT, &dock_led_data, 1U);
+        state = uvx_i2c_send_mem(i2c, UVX_DOCK_GPIO_I2C_ADDRESS, registers[io->step],
+                                I2C_MEMADD_SIZE_8BIT, &io->data, 1U);
     }
     else
     {
-        state = uvx_i2c_read_mem(i2c, UVX_DOCK_GPIO_I2C_ADDRESS, registers[dock_led_step],
-                                 I2C_MEMADD_SIZE_8BIT, &dock_led_data, 1U);
+        state = uvx_i2c_read_mem(i2c, UVX_DOCK_GPIO_I2C_ADDRESS, registers[io->step],
+                                I2C_MEMADD_SIZE_8BIT, &io->data, 1U);
     }
     if(state == UVX_I2C_OK)
     {
-        dock_led_pending = 1U;
+        io->pending = 1U;
         return UVX_I2C_BUSY;
     }
     uvx_dock_charger_unlock_i2c();
@@ -189,14 +218,50 @@ static UVX_I2C_STATE uvx_dock_led_red_process(void)
         return UVX_I2C_BUSY;
     }
 failed:
-    /* An absent LED expander must not stop charger regulation. Retry in 1 s. */
-    dock_charger_status.led_red_ready = 0U;
-    dock_led_step = 0U;
-    dock_led_pending = 0U;
-    dock_led_retry_tick = HAL_GetTick();
-    return UVX_I2C_OK;
+    if(supply)
+    {
+        dock_charger_status.supply_enabled = 0U;
+        dock_charger_status.supply_ready = 0U;
+    }
+    else
+    {
+        dock_charger_status.led_red_ready = 0U;
+    }
+    io->step = 0U;
+    io->pending = 0U;
+    io->retry_tick = HAL_GetTick();
+    return UVX_I2C_ERROR;
 }
 
+/* Request ON/OFF; the application loop performs and verifies the I2C writes. */
+void uvx_dock_supply_set_enabled(uint8_t enabled)
+{
+    dock_supply_requested = enabled != 0U;
+    if(!enabled)
+    {
+        UVX_APP_PWR_FET(0U);
+        dock_charger_status.supply_ready = 0U;
+    }
+}
+
+static UVX_I2C_STATE uvx_dock_supply_process(void)
+{
+    static uint8_t applied_request = 1U;
+    /* Finish an in-flight command before changing its data/verification value. */
+    if(!dock_supply_io.pending && dock_supply_io.step == 0U &&
+       applied_request != dock_supply_requested)
+    {
+        applied_request = dock_supply_requested;
+        dock_supply_io.retry_tick = HAL_GetTick() - 1000U;
+    }
+    return uvx_dock_gpio_update(&dock_supply_io, UVX_DOCK_SUPPLY_ON,
+                               applied_request ? UVX_DOCK_SUPPLY_ON : 0U, 1U);
+}
+
+static UVX_I2C_STATE uvx_dock_led_red_process(void)
+{
+    return uvx_dock_gpio_update(&dock_led_io, UVX_DOCK_LED_MASK, UVX_DOCK_LED_RED, 0U);
+}
 /**
  * @brief Convert an engineering-unit value to a calibrated wiper code.
  */
@@ -308,10 +373,17 @@ UVX_DOCK_CHARGER_RESULT uvx_dock_charger_init(UVX_I2C *i2c, const UVX_DOCK_CHARG
     uvx_dock_charger_change_state(UVX_DOCK_CHARGER_STATE_READ_VOLTAGE);
     UVX_APP_PWR_FET(0U);
     dock_charger_status.initialized = true;
+    dock_charger_status.supply_enabled = 0U;
+    dock_charger_status.supply_ready = 0U;
+    dock_charger_status.supply_enable_tick = 0U;
     dock_charger_status.led_red_ready = 0U;
-    dock_led_step = 0U;
-    dock_led_pending = 0U;
-    dock_led_retry_tick = HAL_GetTick() - 1000U;
+    dock_led_io.step = 0U;
+    dock_led_io.pending = 0U;
+    dock_supply_io.step = 0U;
+    dock_supply_io.pending = 0U;
+    dock_led_io.retry_tick = HAL_GetTick() - 1000U;
+    dock_supply_io.retry_tick = HAL_GetTick() - 1000U;
+    uvx_dock_supply_set_enabled(1U);
     dock_charger_status.temperature_limited = 0U;
 
     return UVX_DOCK_CHARGER_OK;
@@ -623,9 +695,13 @@ UVX_DOCK_CHARGER_RESULT uvx_dock_charger_process(void)
             uvx_dock_charger_unlock_i2c();
         }
 
-        dock_led_step = 0U;
-        dock_led_pending = 0U;
+        dock_led_io.step = 0U;
+        dock_led_io.pending = 0U;
+        dock_supply_io.step = 0U;
+        dock_supply_io.pending = 0U;
         dock_charger_status.led_red_ready = 0U;
+        dock_charger_status.supply_enabled = 0U;
+        dock_charger_status.supply_ready = 0U;
         dock_charger_state.state_current = UVX_DOCK_CHARGER_STATE_READ_VOLTAGE;
         return UVX_DOCK_CHARGER_BUSY;
     }
@@ -722,7 +798,7 @@ UVX_DOCK_CHARGER_RESULT uvx_dock_charger_process(void)
                          dock_charger_status.target_voltage_mv) &&
                         (dock_charger_status.voltage_mv <= dock_charger_status.target_voltage_mv +
                          UVX_DOCK_CHARGER_VOLTAGE_TOLERANCE_MV);
-                    if(dock_charger_status.voltage_detected && dock_charger_status.voltage_ready &&
+                    if(dock_supply_requested && dock_charger_status.voltage_detected && dock_charger_status.voltage_ready &&
                        !batt_data.tc && !batt_data.BPS_Passive && !drone_status.pwr_fc &&
                        !comm_bq_1.No_response && !comm_bq_2.No_response && !comm_bq_3.No_response)
                     {
@@ -842,8 +918,30 @@ UVX_DOCK_CHARGER_RESULT uvx_dock_charger_process(void)
                 break;
 
             case UVX_DOCK_CHARGER_STATE_ACTIVE:
+                /* Complete an LED sequence before starting a supply register update. */
+                if(dock_led_io.pending || dock_led_io.step != 0U)
+                {
+                    if(uvx_dock_led_red_process() == UVX_I2C_BUSY)
+                    {
+                        return UVX_DOCK_CHARGER_BUSY;
+                    }
+                }
+                i2c_state = uvx_dock_supply_process();
+                if(i2c_state == UVX_I2C_BUSY)
+                {
+                    return UVX_DOCK_CHARGER_BUSY;
+                }
                 if(uvx_dock_led_red_process() == UVX_I2C_BUSY)
                 {
+                    return UVX_DOCK_CHARGER_BUSY;
+                }
+                if(!dock_supply_requested || !dock_charger_status.supply_enabled || !dock_charger_status.supply_ready ||
+                   (uint32_t)(HAL_GetTick() - dock_charger_status.supply_enable_tick) < UVX_DOCK_SUPPLY_STARTUP_MS)
+                {
+                    UVX_APP_PWR_FET(0U);
+                    dock_charger_status.voltage_ready = 0U;
+                    dock_charger_status.current_ready = 0U;
+                    dock_charger_status.regulation_state = UVX_DOCK_CHARGER_REGULATION_MATCH_VOLTAGE;
                     return UVX_DOCK_CHARGER_BUSY;
                 }
                 if(dock_charger_status.regulation_state == UVX_DOCK_CHARGER_REGULATION_CONTROL_CURRENT)

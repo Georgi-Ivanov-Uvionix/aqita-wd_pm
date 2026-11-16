@@ -79,6 +79,7 @@ typedef struct
     uint8_t voltage_readback_code;
     uint32_t voltage_ramp_tick;
     uint32_t current_ramp_tick;
+    uint32_t supply_enable_tick;
     int32_t current_before_step_ma;
     uint8_t current_stall_count; /* Consecutive PC increases with little response */
     uint8_t current_step_pending;
@@ -91,6 +92,8 @@ typedef struct
     uint8_t current_ready : 1; /* Measured current within target tolerance */
     uint8_t temperature_limited : 1; /* Any BQ >32 C; clears when all <=31 C */
     uint8_t led_red_ready : 1; /* TCA6408A output and direction readback verified */
+    uint8_t supply_enabled : 1; /* P0 ON/OFF output verified high */
+    uint8_t supply_ready : 1; /* P1 DC_OK reports low (supply OK) */
 } UVX_DOCK_CHARGER_STATUS;
 
 UVX_DOCK_CHARGER_RESULT uvx_dock_charger_init(UVX_I2C *i2c, const UVX_DOCK_CHARGER_CONFIG *config);
@@ -100,5 +103,7 @@ extern UVX_DOCK_CHARGER_STATUS dock_charger_status;
 UVX_DOCK_CHARGER_RESULT uvx_dock_charger_set_current(uint32_t current_ma);
 UVX_DOCK_CHARGER_RESULT uvx_dock_charger_set_voltage(uint32_t voltage_mv);
 UVX_DOCK_CHARGER_RESULT uvx_dock_charger_process(void);
+/* Non-blocking request; keep calling uvx_dock_charger_process() to apply it. */
+void uvx_dock_supply_set_enabled(uint8_t enabled);
 
 #endif /* __UVX_DOCK_CHARGER_H */
