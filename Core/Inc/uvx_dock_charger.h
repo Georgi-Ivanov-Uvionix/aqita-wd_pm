@@ -65,6 +65,19 @@ typedef enum
 /**
  * @brief Dock charger runtime status, calibration and pending I2C values.
  */
+typedef enum
+{
+    UVX_DOCK_FC_IDLE = 0,
+    UVX_DOCK_FC_DRAIN,
+    UVX_DOCK_FC_CURRENT_WRITE,
+    UVX_DOCK_FC_CURRENT_READ,
+    UVX_DOCK_FC_VOLTAGE_WRITE,
+    UVX_DOCK_FC_VOLTAGE_READ,
+    UVX_DOCK_FC_SUPPLY_OFF,
+    UVX_DOCK_FC_DONE,
+    UVX_DOCK_FC_ERROR
+} UVX_DOCK_FC_STATE;
+
 typedef struct
 {
     UVX_I2C *i2c;
@@ -91,6 +104,7 @@ typedef struct
     uint8_t led_red;      /* Requested brightness, 0..255 */
     uint8_t led_green;    /* Blue indicates voltage adjustment; white stays off */
     UVX_DOCK_CHARGER_REGULATION_STATE regulation_state;
+    UVX_DOCK_FC_STATE fc_shutdown_state;
 
     uint8_t initialized : 1;
     uint8_t owns_i2c_lock : 1;
@@ -112,5 +126,9 @@ UVX_DOCK_CHARGER_RESULT uvx_dock_charger_set_voltage(uint32_t voltage_mv);
 UVX_DOCK_CHARGER_RESULT uvx_dock_charger_process(void);
 /* Non-blocking request; keep calling uvx_dock_charger_process() to apply it. */
 void uvx_dock_supply_set_enabled(uint8_t enabled);
+/* Ordered, verified minimum-current/minimum-voltage/supply-OFF sequence. */
+void uvx_dock_charger_begin_fc(void);
+uint8_t uvx_dock_charger_fc_ready(void);
+void uvx_dock_charger_end_fc(void);
 
 #endif /* __UVX_DOCK_CHARGER_H */

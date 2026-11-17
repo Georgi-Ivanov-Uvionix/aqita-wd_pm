@@ -394,7 +394,21 @@ static UVX_DOCK_CHARGER_RESULT uvx_dock_fc_process(void)
             UVX_DOCK_FC_CURRENT_WRITE : UVX_DOCK_FC_DONE;
         return UVX_DOCK_CHARGER_BUSY;
     }
-    if(stage == UVX_DOCK_FC_DONE) return UVX_DOCK_CHARGER_OK;
+    if(stage == UVX_DOCK_FC_DONE)
+    {
+        /* Indication is best effort: supply OFF was already verified, so an
+         * LED failure must not delay the FC acknowledgement. Preserve P0. */
+        if(dock_fc_required && !dock_charger_status.led_ready)
+        {
+            if(uvx_dock_gpio_update(&dock_led_io, UVX_DOCK_LED_MASK, UVX_DOCK_LED_RED, 0U) == UVX_I2C_OK &&
+               dock_charger_status.led_ready)
+            {
+                dock_charger_status.led_red = 255U;
+                dock_charger_status.led_green = 0U;
+            }
+        }
+        return UVX_DOCK_CHARGER_OK;
+    }
     if(stage == UVX_DOCK_FC_ERROR) return UVX_DOCK_CHARGER_ERROR_I2C;
     if(stage == UVX_DOCK_FC_SUPPLY_OFF)
     {
@@ -403,6 +417,7 @@ static UVX_DOCK_CHARGER_RESULT uvx_dock_fc_process(void)
         if(result != UVX_I2C_OK) return uvx_dock_fc_fail();
         /* The GPIO engine read back both OFF and output direction. */
         dock_supply_requested = 0U;
+        dock_led_io.retry_tick = HAL_GetTick() - 1000U;
         dock_charger_status.fc_shutdown_state = UVX_DOCK_FC_DONE;
         return UVX_DOCK_CHARGER_OK;
     }
@@ -995,7 +1010,8 @@ UVX_DOCK_CHARGER_RESULT uvx_dock_charger_process(void)
         }
         dock_led_pending = 0U;
         uvx_dock_charger_change_state(UVX_DOCK_CHARGER_STATE_ERROR);
-        if(dock_charger_status.fc_shutdown_state != UVX_DOCK_FC_IDLE)
+        if(dock_charger_status.fc_shutdown_state != UVX_DOCK_FC_IDLE &&
+           dock_charger_status.fc_shutdown_state != UVX_DOCK_FC_DONE)
             return uvx_dock_fc_fail();
         return UVX_DOCK_CHARGER_ERROR_I2C;
     }
