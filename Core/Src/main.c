@@ -851,6 +851,12 @@ void UVX_APP_PWR_FET(uint8_t state)
 #ifdef APP_NO_BATTERY_MODE	
 	state = 1; // Force power on if no battery mode is enabled
 #endif
+	/* FC startup/flight must not reconnect the battery to dock charging while
+	 * the ordered supply shutdown is pending, failed, or holding OFF. */
+	if(dock_charger_status.fc_shutdown_state != UVX_DOCK_FC_IDLE)
+	{
+		state = 0;
+	}
 
 	if(state)
 	{
@@ -935,6 +941,7 @@ void UVX_APP_Shutdown_JMB(void)
 	drone_status.esc_comm = false;
 	drone_status.pwr_fc = false;
 	comm_m2jmb.Heartbeat = 0; 
+	uvx_dock_charger_end_fc();
 	timer_app_comm_jmb.Timeout = 0;
 	drone_state.state_current = DRONE_IDLE;
 	comm_m2jmb_state.state_current = M2JMB_MODE_IDLE; // Reset state machine
@@ -1017,7 +1024,7 @@ void UVX_APP_Comm_m2jmb(void)
 		break;
 
 		case M2JMB_MODE_SEND_FC_ON_ACK:
-			if(!drone_status.prepare_fc)
+			if(!drone_status.prepare_fc && uvx_dock_charger_fc_ready())
 			{
 				if(uvx_comm_m2jmb_send(CMD_PWR_ON_FC_ACK, NULL, NULL) == UVX_M2JMB_OK)
 				{					
@@ -1040,7 +1047,10 @@ void UVX_APP_Comm_m2jmb(void)
 					{
 						if(uvx_comm_m2jmb_send(CMD_PWR_OFF_FC_ACK, NULL, NULL) == UVX_M2JMB_OK)
 						{
-							//drone_state.state_current = DRONE_JETSON_POWERED_OFF;
+							drone_state.state_current = DRONE_JETSON_POWERED_OFF;
+							drone_state.state_previous = DRONE_JETSON_POWERED_OFF;
+							drone_status.prepare_fc = false;
+							comm_m2jmb_state.state_current = M2JMB_MODE_WAIT_RESPONSE;
 							drone_status.pwr_fc = false;
 							drone_status.esc_comm = false;
 							uvx_gpio_set_pin(GPIO_OUTPUT_ESC_EN, GPIO_PIN_RESET);					
@@ -1065,6 +1075,7 @@ void UVX_APP_Comm_m2jmb(void)
 				drone_status.pwr_fc = false;
 				drone_status.esc_comm = false;
 				comm_m2jmb_state.state_current = M2JMB_MODE_WAIT_RESPONSE; // Wait for response
+				uvx_dock_charger_end_fc();
 				uvx_gpio_set_pin(GPIO_OUTPUT_GREEN_LED, GPIO_PIN_SET);					
 				uvx_gpio_set_pin(GPIO_OUTPUT_ESC_EN, GPIO_PIN_RESET);					
 				uvx_gpio_set_pin(GPIO_OUTPUT_5V_EN, GPIO_PIN_RESET);	
@@ -1130,10 +1141,12 @@ void UVX_APP_Comm_m2jmb(void)
 				else if(buff_rx_m2jmb[M2JMB_BYTE_CMD] == CMD_PWR_ON_FC)
 				{							
 					drone_status.prepare_fc = true; // Set flag to prepare for FC power on
+					uvx_dock_charger_begin_fc();
 					comm_m2jmb_state.state_current = M2JMB_MODE_SEND_FC_ON_ACK; // Set next state to send ACK
 					batt_data.adc_pack_v_stable_high = 0;
 					UVX_APP_PWR_FET(0); // power off					
 					drone_status.time_start_prepare_fc = HAL_GetTick();
+					drone_status.time_since_prepare_fc = 0U;
 				}
 				else if(buff_rx_m2jmb[M2JMB_BYTE_CMD] == CMD_PWR_OFF_FC)
 				{					

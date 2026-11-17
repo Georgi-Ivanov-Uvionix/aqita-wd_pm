@@ -91,6 +91,12 @@ static uint32_t dock_led_tick, dock_led_color_tick;
 static uint8_t dock_voltage_adjusting;
 static uint8_t dock_led_mode;
 static uint32_t dock_led_mode_tick;
+static UVX_DOCK_GPIO_TRANSACTION dock_fc_supply_io;
+static uint8_t dock_fc_access;
+static uint8_t dock_fc_pending;
+static uint8_t dock_fc_required;
+static uint8_t dock_fc_resume;
+static uint8_t dock_fc_saved_supply;
 #define UVX_DOCK_I2C_TIMEOUT_MS 50U
 static void uvx_dock_charger_change_state(UVX_DOCK_CHARGER_STATE state_next)
 {
@@ -120,7 +126,7 @@ static UVX_I2C_STATE uvx_dock_charger_lock_i2c(void)
 {
     /* Complete existing dock transfers, but give the next bus slot to FC
      * preparation. Every dock start (including LED setup) comes through here. */
-    if(drone_status.prepare_fc &&
+    if(!dock_fc_access && drone_status.prepare_fc &&
        comm_m2jmb_state.state_current == M2JMB_MODE_SEND_FC_ON_ACK)
     {
         return UVX_I2C_BUSY;
@@ -317,6 +323,134 @@ void uvx_dock_supply_set_enabled(uint8_t enabled)
         UVX_APP_PWR_FET(0U);
         dock_charger_status.supply_ready = 0U;
     }
+}
+
+void uvx_dock_charger_begin_fc(void)
+{
+    if(dock_charger_status.fc_shutdown_state != UVX_DOCK_FC_IDLE)
+        return; /* A repeated request must not overwrite an in-flight buffer. */
+    dock_fc_saved_supply = dock_supply_requested;
+    dock_fc_required = dock_charger_status.voltage_detected || dock_charger_status.supply_enabled;
+    dock_fc_resume = 0U;
+    dock_charger_status.fc_shutdown_state = UVX_DOCK_FC_DRAIN;
+    if(!dock_charger_status.initialized && !dock_fc_required)
+        dock_charger_status.fc_shutdown_state = UVX_DOCK_FC_DONE;
+    UVX_APP_PWR_FET(0U);
+}
+
+uint8_t uvx_dock_charger_fc_ready(void)
+{
+    return dock_charger_status.fc_shutdown_state == UVX_DOCK_FC_DONE;
+}
+
+void uvx_dock_charger_end_fc(void)
+{
+    if(dock_charger_status.fc_shutdown_state != UVX_DOCK_FC_IDLE)
+        dock_fc_resume = 1U;
+}
+
+static UVX_DOCK_CHARGER_RESULT uvx_dock_fc_fail(void)
+{
+    dock_fc_pending = 0U;
+    dock_fc_supply_io.pending = 0U;
+    dock_charger_status.fc_shutdown_state = UVX_DOCK_FC_ERROR;
+    UVX_APP_PWR_FET(0U);
+    return UVX_DOCK_CHARGER_ERROR_I2C;
+}
+
+static UVX_DOCK_CHARGER_RESULT uvx_dock_fc_process(void)
+{
+    UVX_I2C_STATE result;
+    UVX_DOCK_FC_STATE stage = dock_charger_status.fc_shutdown_state;
+    uint8_t current;
+    uint8_t address;
+    uint8_t code;
+    uint8_t *readback;
+
+    /* Drain an old dock transaction before replacing its state or buffers. */
+    if(stage == UVX_DOCK_FC_DRAIN || dock_fc_resume)
+    {
+        if(dock_charger_status.owns_i2c_lock)
+        {
+            if(uvx_dock_charger_transfer_state(&dock_charger_status.i2c->hal_i2c) == UVX_I2C_BUSY)
+                return UVX_DOCK_CHARGER_BUSY;
+            uvx_dock_charger_unlock_i2c();
+        }
+        dock_led_pending = 0U;
+        dock_led_io = (UVX_DOCK_GPIO_TRANSACTION){0};
+        dock_supply_io = (UVX_DOCK_GPIO_TRANSACTION){0};
+        dock_fc_supply_io = (UVX_DOCK_GPIO_TRANSACTION){0};
+        dock_fc_pending = 0U;
+        dock_charger_status.led_ready = 0U;
+        if(dock_fc_resume)
+        {
+            dock_fc_resume = 0U;
+            dock_supply_requested = dock_fc_saved_supply;
+            dock_charger_status.fc_shutdown_state = UVX_DOCK_FC_IDLE;
+            uvx_dock_charger_change_state(UVX_DOCK_CHARGER_STATE_READ_VOLTAGE);
+            return UVX_DOCK_CHARGER_BUSY;
+        }
+        dock_charger_status.fc_shutdown_state = dock_fc_required ?
+            UVX_DOCK_FC_CURRENT_WRITE : UVX_DOCK_FC_DONE;
+        return UVX_DOCK_CHARGER_BUSY;
+    }
+    if(stage == UVX_DOCK_FC_DONE) return UVX_DOCK_CHARGER_OK;
+    if(stage == UVX_DOCK_FC_ERROR) return UVX_DOCK_CHARGER_ERROR_I2C;
+    if(stage == UVX_DOCK_FC_SUPPLY_OFF)
+    {
+        result = uvx_dock_gpio_update(&dock_fc_supply_io, UVX_DOCK_SUPPLY_ON, 0U, 1U);
+        if(result == UVX_I2C_BUSY) return UVX_DOCK_CHARGER_BUSY;
+        if(result != UVX_I2C_OK) return uvx_dock_fc_fail();
+        /* The GPIO engine read back both OFF and output direction. */
+        dock_supply_requested = 0U;
+        dock_charger_status.fc_shutdown_state = UVX_DOCK_FC_DONE;
+        return UVX_DOCK_CHARGER_OK;
+    }
+    current = stage == UVX_DOCK_FC_CURRENT_WRITE || stage == UVX_DOCK_FC_CURRENT_READ;
+    address = current ? UVX_DOCK_CHARGER_CURRENT_I2C_ADDRESS : UVX_DOCK_CHARGER_VOLTAGE_I2C_ADDRESS;
+    code = current ? dock_charger_status.config.current_code_at_min : dock_charger_status.config.voltage_code_at_min;
+    readback = current ? &dock_charger_status.current_readback_code : &dock_charger_status.voltage_readback_code;
+    if(dock_fc_pending)
+    {
+        result = uvx_dock_charger_transfer_state(&dock_charger_status.i2c->hal_i2c);
+        if(result == UVX_I2C_BUSY) return UVX_DOCK_CHARGER_BUSY;
+        uvx_dock_charger_unlock_i2c();
+        dock_fc_pending = 0U;
+        if(result != UVX_I2C_OK) return uvx_dock_fc_fail();
+        if(stage == UVX_DOCK_FC_CURRENT_WRITE)
+            dock_charger_status.fc_shutdown_state = UVX_DOCK_FC_CURRENT_READ;
+        else if(stage == UVX_DOCK_FC_VOLTAGE_WRITE)
+            dock_charger_status.fc_shutdown_state = UVX_DOCK_FC_VOLTAGE_READ;
+        else
+        {
+            if((*readback & 0x7FU) != code) return uvx_dock_fc_fail();
+            if(current)
+            {
+                dock_charger_status.current_code = code;
+                dock_charger_status.fc_shutdown_state = UVX_DOCK_FC_VOLTAGE_WRITE;
+            }
+            else
+            {
+                dock_charger_status.voltage_code = code;
+                dock_fc_supply_io.retry_tick = HAL_GetTick() - 1000U;
+                dock_charger_status.fc_shutdown_state = UVX_DOCK_FC_SUPPLY_OFF;
+            }
+        }
+        return UVX_DOCK_CHARGER_BUSY;
+    }
+    if(uvx_dock_charger_lock_i2c() != UVX_I2C_OK) return UVX_DOCK_CHARGER_BUSY;
+    if(stage == UVX_DOCK_FC_CURRENT_WRITE || stage == UVX_DOCK_FC_VOLTAGE_WRITE)
+        result = uvx_tpl0401x_10_write(dock_charger_status.i2c, address, code);
+    else
+        result = uvx_tpl0401x_10_read(dock_charger_status.i2c, address, readback);
+    if(result == UVX_I2C_OK)
+        dock_fc_pending = 1U;
+    else
+    {
+        uvx_dock_charger_unlock_i2c();
+        if(result != UVX_I2C_BUSY) return uvx_dock_fc_fail();
+    }
+    return UVX_DOCK_CHARGER_BUSY;
 }
 
 static UVX_I2C_STATE uvx_dock_supply_process(void)
@@ -861,7 +995,17 @@ UVX_DOCK_CHARGER_RESULT uvx_dock_charger_process(void)
         }
         dock_led_pending = 0U;
         uvx_dock_charger_change_state(UVX_DOCK_CHARGER_STATE_ERROR);
+        if(dock_charger_status.fc_shutdown_state != UVX_DOCK_FC_IDLE)
+            return uvx_dock_fc_fail();
         return UVX_DOCK_CHARGER_ERROR_I2C;
+    }
+
+    if(dock_charger_status.fc_shutdown_state != UVX_DOCK_FC_IDLE)
+    {
+        dock_fc_access = 1U;
+        result = uvx_dock_fc_process();
+        dock_fc_access = 0U;
+        return result;
     }
 
     /* Drain the persistent LED buffer before any other dock transaction. */
