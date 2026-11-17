@@ -294,6 +294,8 @@ int main(void)
 	
 	while (1)
 	{ 					
+		uvx_uart_service_tx(&uart_1.hal_uart);
+		uvx_uart_service_tx(&uart_2.hal_uart);
 		Process_Sleep_Exit_Request();
 		Process_Button_EXTI_Request();
 		UVX_APP();
@@ -347,7 +349,9 @@ void UVX_APP(void)
 				}				
 				#endif						
 				
-				if((drone_state.state_previous == DRONE_JETSON_POWER_ON) || (drone_state.state_previous == DRONE_JETSON_POWERED_ON))
+				if((drone_state.state_previous == DRONE_JETSON_POWER_ON) ||
+				   (drone_state.state_previous == DRONE_JETSON_POWERED_ON) ||
+				   (drone_state.state_previous == DRONE_JETSON_POWERED_OFF))
 				{
 					drone_state.state_current = drone_state.state_previous; // Return to previous state if button is released after power on
 				}
@@ -417,7 +421,9 @@ void UVX_APP(void)
 					timer_app_drone.Timeout = APP_TIMEOUT_BEFORE_SLEEP; // Reset timeout for power on
 					timer_app_drone.Enable = true; 				
 					drone_status.btn_cnt = 0;
-					if((drone_state.state_previous == DRONE_JETSON_POWER_ON) || (drone_state.state_previous == DRONE_JETSON_POWERED_ON))
+					if((drone_state.state_previous == DRONE_JETSON_POWER_ON) ||
+					   (drone_state.state_previous == DRONE_JETSON_POWERED_ON) ||
+					   (drone_state.state_previous == DRONE_JETSON_POWERED_OFF))
 					{
 						drone_state.state_current = drone_state.state_previous; // Return to previous state if button is released after power on
 					}
@@ -453,6 +459,7 @@ void UVX_APP(void)
 		break;
 
 		case DRONE_JETSON_POWERED_OFF:
+			drone_state.state_previous = DRONE_JETSON_POWERED_OFF;
 			UVX_APP_Comm_m2jmb();
 		break;
 
@@ -561,6 +568,14 @@ void Process_Button_EXTI_Request(void)
 		&& (drone_state.state_current != DRONE_CHECK_BUTTON_PRESS_TWICE)
 		&& (drone_state.state_current != DRONE_CHECK_BUTTON_TIMEOUT))
 		{
+			/* Remember the actual stable state, including docked/FC-off, before
+			 * the button sequence replaces it. Never resurrect the last flight. */
+			if(drone_state.state_current == DRONE_JETSON_POWER_ON ||
+			   drone_state.state_current == DRONE_JETSON_POWERED_ON ||
+			   drone_state.state_current == DRONE_JETSON_POWERED_OFF)
+			{
+				drone_state.state_previous = drone_state.state_current;
+			}
 			drone_state.state_current = DRONE_CHECK_BUTTON_PRESS_ONCE;
 		}
 
@@ -887,10 +902,16 @@ void UVX_APP_Shutdown_JMB(void)
 	timer_app_comm_jmb.Timeout = APP_TIMEOUT_JMB_MAX_TURN_OFF; // Reset timeout for power on
 	timer_app_comm_jmb.Enable = true; 
 
-	uvx_comm_m2jmb_send(CMD_TURN_OFF, NULL, 0); // Send shutdown command to JMB	
+	/* A current telemetry frame may own TX. Retry the shutdown request without
+	 * overwriting it; retain the existing bounded shutdown wait below. */
+	uint8_t shutdown_sent = (uvx_comm_m2jmb_send(CMD_TURN_OFF, NULL, 0) == UVX_M2JMB_OK);
 
 	while(uvx_gpio_read_pin(GPIO_INPUT_EXTI1_JETSON)) // Wait until the JMB is powered off
 	{
+		if(!shutdown_sent)
+		{
+			shutdown_sent = (uvx_comm_m2jmb_send(CMD_TURN_OFF, NULL, 0) == UVX_M2JMB_OK);
+		}
 		uvx_gpio_set_pin(GPIO_OUTPUT_RED_LED, GPIO_PIN_SET); // Turn off red LED to indicate waiting
 		uvx_app_pwr_led(0);
 		uvx_led_strip_effect_solid_color(&ws2812_strip, 0, 0, 0);
@@ -920,6 +941,22 @@ void UVX_APP_Shutdown_JMB(void)
 	uvx_gpio_set_pin(GPIO_OUTPUT_RED_LED, GPIO_PIN_SET); // Turn off red LED	
 	uvx_gpio_set_pin(GPIO_OUTPUT_GREEN_LED, GPIO_PIN_SET);
 	uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_SET);
+}
+
+/* Fixed telemetry layout: 82 controller bytes followed by the battery block.
+ * Never borrow RX frame lengths for TX assembly: USART1 can update them in an
+ * interrupt while a dock heartbeat is being assembled. The 74-field protocol
+ * has no trailing JMB-data field, so do not append an unrelated RX length. */
+static UVX_COMM_M2JMB_STATE UVX_APP_SendTelemetry(void)
+{
+	const uint16_t battery_size = sizeof(batt_data.payload);
+	const uint16_t payload_size = M2M_SENT_DATA_PACKET_SIZE + battery_size;
+	if(batt_data.size_payload != battery_size || payload_size > sizeof(esc_data_tx))
+	{
+		return UVX_M2JMB_ERROR;
+	}
+	memcpy(&esc_data_tx[M2M_SENT_DATA_PACKET_SIZE], &batt_data.payload, battery_size);
+	return uvx_comm_m2jmb_send(CMD_SEND_DATA_ESC, esc_data_tx, payload_size);
 }
 
 void UVX_APP_Comm_m2jmb(void)
@@ -1024,6 +1061,7 @@ void UVX_APP_Comm_m2jmb(void)
 			if(uvx_comm_m2jmb_send(CMD_PWR_OFF_FC_ACK, NULL, NULL) == UVX_M2JMB_OK)
 			{	
 				drone_state.state_current = DRONE_JETSON_POWERED_OFF;
+				drone_state.state_previous = DRONE_JETSON_POWERED_OFF;
 				drone_status.pwr_fc = false;
 				drone_status.esc_comm = false;
 				comm_m2jmb_state.state_current = M2JMB_MODE_WAIT_RESPONSE; // Wait for response
@@ -1064,20 +1102,11 @@ void UVX_APP_Comm_m2jmb(void)
 						// drone_status.esc_flying = ((esc_data_tx[M2M_BYTE_DATA_FLAGS] & M2M_DATA_FLAGS_FLYING) != 0U); // Update drone flying status from ESC data
 						// drone_status.esc_psys_arm = ((esc_data_tx[M2M_BYTE_DATA_FLAGS] & M2M_DATA_FLAGS_PSYS_ARM) != 0U); // Update powered system arm status from ESC data
 
-						comm_m2m.size_payload = M2M_SENT_DATA_PACKET_SIZE; // Set payload size for ESC data
 						memset(esc_data_tx, 0, M2M_SENT_DATA_PACKET_SIZE); // Clear ESC data buffer
-
-						if(batt_data.size_payload > 0)
-						{
-							memcpy(&esc_data_tx[comm_m2m.size_payload], &batt_data.payload.SOH, batt_data.size_payload); // Copy BATT data to ESC data buffer
-							comm_m2m.size_payload += batt_data.size_payload; // Update payload size to include BATT data							
-						}
 
 						if(comm_m2jmb.Heartbeat)
 						{
-							comm_m2jmb.size_payload = comm_m2m.size_payload + jmb_payload_size; // Set payload size for JMB data
-							//comm_m2jmb.size_payload = comm_m2m.size_payload; // Set payload size for JMB data
-							uvx_comm_m2jmb_send(CMD_SEND_DATA_ESC, esc_data_tx, comm_m2jmb.size_payload);
+							UVX_APP_SendTelemetry();
 							if(led_strip_state.state_current == LED_STRIP_MODE_COMM_FC)
 							{
 								led_strip_state.state_next = LED_STRIP_MODE_STOP;
@@ -1145,6 +1174,12 @@ void UVX_APP_Comm_m2jmb(void)
 
 void UVX_APP_Comm_m2m(void)
 {
+	/* FC-off telemetry comes only from heartbeat replies, even if a stale
+	 * application state were to call the poller while docked. */
+	if(!drone_status.pwr_fc)
+	{
+		return;
+	}
 	switch (comm_m2m_state.state_current)
 	{
 		case M2M_MODE_IDLE:
@@ -1161,7 +1196,10 @@ void UVX_APP_Comm_m2m(void)
 		case M2M_MODE_READ_DATA_ESC:
 			if(timer_app.Timeout == 0)
 			{				
-				uvx_comm_m2m_read(CMD_READ_DATA_ESC); // Read data from ESC
+				if(uvx_comm_m2m_read(CMD_READ_DATA_ESC) != UVX_M2M_OK)
+				{
+					break; // Retry without advancing the receive state on busy TX.
+				}
 				HAL_UART_Receive_IT(&uart_1.hal_uart.huart, &uart_1.byte_rx, 1);
 				
 				comm_m2m_state.state_previous = M2M_MODE_READ_DATA_ESC; // Set next state to read data from JMB
@@ -1175,7 +1213,10 @@ void UVX_APP_Comm_m2m(void)
 		case M2M_MODE_READ_DATA_JMB:
 			if(timer_app.Timeout == 0)
 			{
-				uvx_comm_m2m_read(CMD_READ_DATA_JMB); // Read data from JMB
+				if(uvx_comm_m2m_read(CMD_READ_DATA_JMB) != UVX_M2M_OK)
+				{
+					break;
+				}
 				HAL_UART_Receive_IT(&uart_1.hal_uart.huart, &uart_1.byte_rx, 1);
 				comm_m2m_state.state_previous = M2M_MODE_READ_DATA_JMB; // Set next state to read data from JMB
 				comm_m2m_state.state_current = M2M_MODE_WAIT_RESPONSE; // Wait for response
@@ -1195,10 +1236,20 @@ void UVX_APP_Comm_m2m(void)
 					comm_m2m.Error = 0; // Reset error flag
 					if(buff_rx_m2m[M2M_BYTE_CMD] == CMD_READ_DATA_ESC) // If the command is to read data from ESC
 					{						
+						/* RX is held until this frame is consumed. Only the defined
+						 * controller layout may supply flag offsets and telemetry. */
+						const uint16_t controller_size = comm_m2m.size_payload;
+						if(controller_size != M2M_SENT_DATA_PACKET_SIZE)
+						{
+							comm_m2m.Error = 1;
+							comm_m2m.RX_Ready = 0;
+							comm_m2m.buff_rx_cnt = 0;
+							break;
+						}
 						drone_status.esc_comm = true;
 
 						// Process ESC data here
-						memcpy(esc_data_tx, &buff_rx_m2m[M2M_BYTE_DATA], comm_m2m.size_payload); // Copy ESC data from RX buffer						
+						memcpy(esc_data_tx, &buff_rx_m2m[M2M_BYTE_DATA], controller_size);
 
 						drone_status.esc_init = ((esc_data_tx[M2M_BYTE_DATA_FLAGS] & M2M_DATA_FLAGS_INIT) != 0U); // Update drone init status from ESC data
 						drone_status.esc_arm = ((esc_data_tx[M2M_BYTE_DATA_FLAGS] & M2M_DATA_FLAGS_ARM_BIT) != 0U); // Update drone arm status from ESC data
@@ -1216,17 +1267,10 @@ void UVX_APP_Comm_m2m(void)
 							}
 						}
 
-						if(batt_data.size_payload > 0)
-						{
-							memcpy(&esc_data_tx[comm_m2m.size_payload], &batt_data.payload.SOH, batt_data.size_payload); // Copy BATT data to ESC data buffer
-							comm_m2m.size_payload += batt_data.size_payload; // Update payload size to include BATT data							
-						}
 
 						if(comm_m2jmb.Heartbeat)
 						{
-							comm_m2jmb.size_payload = comm_m2m.size_payload + jmb_payload_size; // Set payload size for JMB data
-							//comm_m2jmb.size_payload = comm_m2m.size_payload; // Set payload size for JMB data
-							uvx_comm_m2jmb_send(CMD_SEND_DATA_ESC, esc_data_tx, comm_m2jmb.size_payload);
+							UVX_APP_SendTelemetry();
 							uvx_gpio_toggle_pin(GPIO_OUTPUT_GREEN_LED);
 							uvx_gpio_toggle_pin(GPIO_OUTPUT_PWR_LED);
 							if(led_strip_state.state_current == LED_STRIP_MODE_COMM_FC)
@@ -2348,14 +2392,11 @@ void DMA1_Channel1_IRQHandler(void)
 void DMA1_Channel4_IRQHandler(void)
 {
     HAL_DMA_IRQHandler(uart_1.hal_uart.huart.hdmatx);
-	uart_1.hal_uart.tx_ready = 1;
 }
 
 void DMA1_Channel7_IRQHandler(void)
 {
 	HAL_DMA_IRQHandler(uart_2.hal_uart.huart.hdmatx);
-	//comm_m2jmb.p_hal_uart->tx_ready = 1;
-	uart_2.hal_uart.tx_ready = 1;
 }
 
 // HAL UART TX complete callback (optional)
@@ -2363,6 +2404,7 @@ void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 {
     if (huart->Instance == uart_1.hal_uart.huart.Instance)
 	{		
+		uart_1.hal_uart.tx_ready = 1; // UART TC, not DMA half/full transfer.
 		uart_1.TX_Ready = 1;
 		comm_m2m.TX_Ready = 1;
 		uart_1.p_buff_tx = uart_1.p_buff_tx_start;
@@ -2370,6 +2412,7 @@ void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 
 	if( huart->Instance == uart_2.hal_uart.huart.Instance)
 	{
+		uart_2.hal_uart.tx_ready = 1;
 		uart_2.TX_Ready = 1;
 		comm_m2jmb.TX_Ready = 1;		
 		uart_2.p_buff_tx = uart_2.p_buff_tx_start;

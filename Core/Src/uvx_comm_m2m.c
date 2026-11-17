@@ -9,6 +9,16 @@ uint8_t buff_rx_m2m[BUFF_SIZE_RX_M2M];
 UVX_COMM_M2M comm_m2m; // M2M communication structure
 UVX_COMM_M2M_STATE_MACHINE comm_m2m_state;
 
+static UVX_COMM_M2M_STATE m2m_submit(uint16_t size)
+{
+	UVX_UART_STATE result;
+	comm_m2m.TX_Ready = 0;
+	result = uvx_uart_send(comm_m2m.p_hal_uart, buff_tx_m2m, size);
+	if(result == UVX_UART_OK) return UVX_M2M_OK;
+	if(result == UVX_UART_BUSY) return UVX_M2M_BUSY;
+	return (result == UVX_UART_TIMEOUT) ? UVX_M2M_TIMEOUT : UVX_M2M_ERROR;
+}
+
 UVX_COMM_M2M_STATE uvx_comm_m2m_init(UVX_UART* uart) 
 {
 	comm_m2m.p_buff_tx_start = buff_tx_m2m; // Set the start pointer for the TX buffer
@@ -46,13 +56,7 @@ UVX_COMM_M2M_STATE uvx_comm_m2m_read(UVX_M2M_CMD_BYTE cmd_byte)
     buff_tx_m2m[4] = 0x00;                 // Payload size LSB (0 for read request)
     buff_tx_m2m[5] = uvx_crc_8(buff_tx_m2m, 5);   // CRC over the 5 bytes before it
 
-	//if(comm_m2m.TX_Ready == 1)
-	{		
-		uvx_uart_send(comm_m2m.p_hal_uart, buff_tx_m2m, 6);
-		comm_m2m.TX_Ready = 0; // Reset TX ready flag
-	}
-    
-	return UVX_M2M_OK; // Return success
+	return m2m_submit(6);
 }  
 
 UVX_COMM_M2M_STATE uvx_comm_m2m_write(uint8_t data) 
@@ -64,17 +68,15 @@ UVX_COMM_M2M_STATE uvx_comm_m2m_write(uint8_t data)
 	buff_tx_m2m[4] = 0x00;                 // Payload size LSB (0 for write request)
 	buff_tx_m2m[5] = uvx_crc_8(buff_tx_m2m, 5);   // CRC over the 5 bytes before it
 
-	if(comm_m2m.TX_Ready == 1)
-	{
-		comm_m2m.TX_Ready = 0; // Reset TX ready flag
-		uvx_uart_send(comm_m2m.p_hal_uart, buff_tx_m2m, 6);
-	}
-	
-	return UVX_M2M_OK; // Return success
+	return m2m_submit(6);
 }
 
 UVX_COMM_M2M_STATE uvx_comm_m2m_send(uint8_t cmd_echo, uint8_t* data, uint16_t size) 
 {    
+	if(size > sizeof(buff_tx_m2m) - 6U || (size != 0U && data == NULL))
+	{
+		return UVX_M2M_ERROR;
+	}
 	buff_tx_m2m[0] = UVX_START_BYTE;       // Start byte
 	buff_tx_m2m[1] = CTRL_SEND;        // Send command
 	buff_tx_m2m[2] = cmd_echo;
@@ -89,13 +91,7 @@ UVX_COMM_M2M_STATE uvx_comm_m2m_send(uint8_t cmd_echo, uint8_t* data, uint16_t s
 	//check crc of all data
 	buff_tx_m2m[5 + size] = uvx_crc_8(buff_tx_m2m, 5 + size); // CRC over the 4 bytes before it and the data
 	
-	if(comm_m2m.TX_Ready == 1)
-	{
-		comm_m2m.TX_Ready = 0; // Reset TX ready flag
-		uvx_uart_send(comm_m2m.p_hal_uart, buff_tx_m2m, 6);
-	}
-	
-	return UVX_M2M_OK; // Return success
+	return m2m_submit(6U + size);
 }
 
 UVX_COMM_M2M_STATE uvx_comm_m2m_send_error(uint8_t data) 
@@ -107,19 +103,25 @@ UVX_COMM_M2M_STATE uvx_comm_m2m_send_error(uint8_t data)
 	buff_tx_m2m[4] = 0x00;                 // Payload size LSB (0 for send error request)
 	buff_tx_m2m[5] = uvx_crc_8(buff_tx_m2m, 5);   // CRC over the 5 bytes before it
 
-	if(comm_m2m.TX_Ready == 1)
-	{
-		comm_m2m.TX_Ready = 0; // Reset TX ready flag
-		uvx_uart_send(comm_m2m.p_hal_uart, buff_tx_m2m, 6);
-	}
-
-	return UVX_M2M_OK; // Return success
+	return m2m_submit(6);
 }
 
 
 
 UVX_COMM_M2M_STATE uvx_comm_m2m_process_rx(uint8_t byte_rx)
 {
+	/* Keep a completed frame immutable until the main loop consumes it. */
+	if(comm_m2m.RX_Ready) return UVX_M2M_BUSY;
+	if(comm_m2m.buff_rx_cnt >= comm_m2m.buff_size_rx)
+	{
+		comm_m2m.buff_rx_cnt = 0;
+		comm_m2m.size_frame = 0;
+		comm_m2m.size_payload = 0;
+	}
+	if(comm_m2m.buff_rx_cnt == 0 && byte_rx != UVX_START_BYTE)
+	{
+		return UVX_M2M_ERROR;
+	}
 	comm_m2m.p_buff_rx[comm_m2m.buff_rx_cnt] = byte_rx; // Store the received byte in the RX buffer
 
 	if (((buff_rx_m2m[0]) == UVX_START_BYTE)  && (comm_m2m.RX_Ready == false)) // Check if the first byte is the start byte and RX is not ready
@@ -140,6 +142,13 @@ UVX_COMM_M2M_STATE uvx_comm_m2m_process_rx(uint8_t byte_rx)
 		if (comm_m2m.buff_rx_cnt == 5) 
 		{
 			comm_m2m.size_payload = ((uint16_t)buff_rx_m2m[3] << 8) | buff_rx_m2m[4];
+			if(comm_m2m.size_payload > comm_m2m.buff_size_rx - 6U)
+			{
+				comm_m2m.buff_rx_cnt = 0;
+				comm_m2m.size_payload = 0;
+				comm_m2m.size_frame = 0;
+				return UVX_M2M_ERROR;
+			}
 			comm_m2m.size_frame = 6 + comm_m2m.size_payload - 1; // 6 = header(5) + CRC(1)
 		}
 

@@ -7,7 +7,9 @@
 #include "stm32l4xx_hal.h"
 #include "uvx_gpio.h"
 
-#define UVX_UART_MAX_DMA_ERRORS 10 // Maximum number of consecutive DMA errors before resetting the UART
+/* Largest supported wire frame; each UART owns a separate DMA snapshot. */
+#define UVX_UART_TX_BUFFER_SIZE 400U
+#define UVX_UART_TX_TIMEOUT_MARGIN_MS 20U
 
 typedef enum
 {
@@ -47,13 +49,19 @@ typedef struct UVX_UART_HAL
     uint32_t error_dma_cnt; // DMA error counter
     uint32_t error_cnt; // DMA error counter
 
+    /* Written by the main-loop sender and the UART transfer-complete callback.
+     * Keep this out of the configuration bitfield (no shared byte RMW). */
+    volatile uint8_t tx_ready;
+    uint32_t tx_start_ms;
+    uint32_t tx_timeout_ms;
+    uint8_t tx_dma_buffer[UVX_UART_TX_BUFFER_SIZE];
+
     uint8_t uart_interrupt_rx 	: 1; // Flag to indicate if RX interrupt is enabled
     uint8_t uart_interrupt_tx 	: 1; // Flag to indicate if TX interrupt is enabled
     uint8_t dma_rx_enabled 	    : 1; // Flag to indicate if DMA is enabled
     uint8_t dma_tx_enabled 	    : 1; // Flag to indicate if DMA is enabled
     uint8_t dma_interrupt_rx 	: 1; // Flag to indicate if RX DMA interrupt is enabled
     uint8_t dma_interrupt_tx 	: 1; // Flag to indicate if TX DMA interrupt is enabled
-    uint8_t tx_ready 		    : 1; //
     uint8_t rx_ready 		    : 1; //
 
 }UVX_UART_HAL;
@@ -224,6 +232,8 @@ typedef struct UVX_UART
 
 UVX_UART_STATE uvx_uart_init(UVX_UART* uart, uint8_t* p_buff_tx, uint8_t* p_buff_rx);
 UVX_UART_STATE uvx_uart_send(UVX_UART_HAL* p_uart, uint8_t *data, uint16_t size);
+/* Main-loop only: recover a stalled TX after its elapsed-time deadline. */
+UVX_UART_STATE uvx_uart_service_tx(UVX_UART_HAL* p_uart);
 
 //=====================================OLD============================================
 

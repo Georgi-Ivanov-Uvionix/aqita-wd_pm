@@ -50,6 +50,31 @@ uint8_t buff_rx_m2jmb[BUFF_SIZE_RX_M2JMB];
 UVX_COMM_M2JMB comm_m2jmb; // M2JMB communication structure
 UVX_COMM_M2JMB_STATE_MACHINE comm_m2jmb_state;
 
+/* DMA owns a private UART snapshot, not buff_tx_m2jmb. All builders run in
+ * the main loop; a busy result leaves the pending ACK state available to retry. */
+static UVX_COMM_M2JMB_STATE m2jmb_submit(uint16_t size)
+{
+	UVX_UART_STATE result;
+	comm_m2jmb.TX_Ready = 0;
+	result = uvx_uart_send(comm_m2jmb.p_hal_uart, buff_tx_m2jmb, size);
+	if(result == UVX_UART_OK)
+	{
+		comm_m2jmb.error_count_tx = 0;
+		return UVX_M2JMB_OK;
+	}
+	if(result == UVX_UART_BUSY)
+	{
+		return UVX_M2JMB_BUSY;
+	}
+	comm_m2jmb.error_count_tx++;
+	if(comm_m2jmb.error_count_tx >= MAX_ERROR_COUNT_TX)
+	{
+		comm_m2jmb.error_count_tx = 0;
+		comm_m2jmb.error_no_response_tx++;
+	}
+	return (result == UVX_UART_TIMEOUT) ? UVX_M2JMB_TIMEOUT : UVX_M2JMB_ERROR;
+}
+
 UVX_COMM_M2JMB_STATE uvx_comm_m2jmb_init(UVX_UART* uart) 
 {
 	comm_m2jmb.p_buff_tx_start = buff_tx_m2jmb; // Set the start pointer for the TX buffer
@@ -90,8 +115,7 @@ UVX_COMM_M2JMB_STATE uvx_comm_m2jmb_read(UVX_M2JMB_CMD_BYTE cmd_byte)
     buff_tx_m2jmb[5] = 0x00;                 // Payload size LSB (0 for read request)
     buff_tx_m2jmb[6] = uvx_crc_8(buff_tx_m2jmb, 6);   // CRC over the 7 bytes before it
     
-	uvx_uart_send(comm_m2jmb.p_hal_uart, buff_tx_m2jmb, 7); // Send the command over UART
-	return UVX_M2JMB_OK; // Return success
+	return m2jmb_submit(7);
 }  
 
 UVX_COMM_M2JMB_STATE uvx_comm_m2jmb_write(uint8_t data) 
@@ -105,8 +129,7 @@ UVX_COMM_M2JMB_STATE uvx_comm_m2jmb_write(uint8_t data)
 	buff_tx_m2jmb[6] = 0x00;                 // Payload size LSB (0 for write request)
 	buff_tx_m2jmb[7] = uvx_crc_8(buff_tx_m2jmb, 7);   // CRC over the 8 bytes before it
 	
-	uvx_uart_send(comm_m2jmb.p_hal_uart, buff_tx_m2jmb, 8); // Send the command over UART
-	return UVX_M2JMB_OK; // Return success
+	return m2jmb_submit(8);
 }
 
 UVX_COMM_M2JMB_STATE uvx_comm_m2jmb_send(uint8_t cmd, uint8_t* data, uint16_t size) 
@@ -115,10 +138,23 @@ UVX_COMM_M2JMB_STATE uvx_comm_m2jmb_send(uint8_t cmd, uint8_t* data, uint16_t si
 	uint16_t total_size = 0;
 	uint16_t crc_16 = 0;
 	uint8_t header_size_offset = 0;
+	if(cmd == CMD_SEND_DATA_ESC)
+	{
+		/* 81 bytes of header/field list and two CRC bytes surround the data. */
+		if(data == NULL || size == 0 || size > sizeof(buff_tx_m2jmb) - 83U)
+		{
+			return UVX_M2JMB_ERROR;
+		}
+		if(comm_m2jmb_state.state_current == M2JMB_MODE_SEND_FC_ON_ACK ||
+		   comm_m2jmb_state.state_current == M2JMB_MODE_SEND_FC_OFF_ACK)
+		{
+			return UVX_M2JMB_BUSY; // Commands take priority over optional telemetry.
+		}
+	}
+
 	buff_tx_m2jmb[0] = UVX_START_BYTE;       // Start byte
 	buff_tx_m2jmb[1] = UVX_START_BYTE;       // Start byte
 	buff_tx_m2jmb[2] = UVX_START_BYTE;       // Start byte
-	
 
 	switch (cmd)
 	{
@@ -225,8 +261,7 @@ UVX_COMM_M2JMB_STATE uvx_comm_m2jmb_send(uint8_t cmd, uint8_t* data, uint16_t si
 			buff_tx_m2jmb[total_size + 5] = (uint8_t)(crc_16 >> 8); 				// CRC LSB
 			buff_tx_m2jmb[total_size + 6] = (uint8_t)crc_16; 	// CRC MSB
 
-			comm_m2jmb.TX_Ready = 0; // Clear the TX ready flag before sending
-			uvx_uart_send(comm_m2jmb.p_hal_uart, buff_tx_m2jmb, total_size + 7);			
+			return m2jmb_submit(total_size + 7);
 			
 		break;
 
@@ -239,7 +274,7 @@ UVX_COMM_M2JMB_STATE uvx_comm_m2jmb_send(uint8_t cmd, uint8_t* data, uint16_t si
 			crc_16 = uvx_crc_16(&buff_tx_m2jmb[5], total_size); // CRC over the 4 bytes before it and the data
 			buff_tx_m2jmb[6] = (uint8_t)(crc_16 >> 8); 				// CRC LSB
 			buff_tx_m2jmb[7] = (uint8_t)crc_16; 	// CRC MSB
-			uvx_uart_send(comm_m2jmb.p_hal_uart, buff_tx_m2jmb, 8); // Send the command over UART
+			return m2jmb_submit(8);
 		break;
 
 		case CMD_PWR_ON_FC_ACK:
@@ -251,17 +286,7 @@ UVX_COMM_M2JMB_STATE uvx_comm_m2jmb_send(uint8_t cmd, uint8_t* data, uint16_t si
 			crc_16 = uvx_crc_16(&buff_tx_m2jmb[5], total_size); // CRC over the 4 bytes before it and the data
 			buff_tx_m2jmb[7] = (uint8_t)(crc_16 >> 8); 				// CRC LSB
 			buff_tx_m2jmb[8] = (uint8_t)crc_16; 	// CRC MSB
-			if(uvx_uart_send(comm_m2jmb.p_hal_uart, buff_tx_m2jmb, 9) != UVX_UART_OK) // Send the command over UART
-			{
-				comm_m2jmb.error_count_tx++;
-				if(comm_m2jmb.error_count_tx >= MAX_ERROR_COUNT_TX)
-				{
-					comm_m2jmb.error_count_tx = 0; // Reset error count after reaching the maximum
-					comm_m2jmb.p_hal_uart->tx_ready = true; // Reset UART TX ready flag to allow new transmissions
-					comm_m2jmb.error_no_response_tx++; // Increment the no response error count
-				}
-				return UVX_M2JMB_ERROR;
-			}
+			return m2jmb_submit(9);
 		break;
 
 		case CMD_PWR_OFF_FC_ACK:
@@ -273,17 +298,7 @@ UVX_COMM_M2JMB_STATE uvx_comm_m2jmb_send(uint8_t cmd, uint8_t* data, uint16_t si
 			crc_16 = uvx_crc_16(&buff_tx_m2jmb[5], total_size); // CRC over the 4 bytes before it and the data
 			buff_tx_m2jmb[7] = (uint8_t)(crc_16 >> 8); 				// CRC LSB
 			buff_tx_m2jmb[8] = (uint8_t)crc_16; 	// CRC MSB
-			if(uvx_uart_send(comm_m2jmb.p_hal_uart, buff_tx_m2jmb, 9) != UVX_UART_OK) // Send the command over UART
-			{
-				comm_m2jmb.error_count_tx++;
-				if(comm_m2jmb.error_count_tx >= MAX_ERROR_COUNT_TX)
-				{
-					comm_m2jmb.error_count_tx = 0; // Reset error count after reaching the maximum
-					comm_m2jmb.p_hal_uart->tx_ready = true; // Reset UART TX ready flag to allow new transmissions
-					comm_m2jmb.error_no_response_tx++; // Increment the no response error count
-				}				
-				return UVX_M2JMB_ERROR;
-			}
+			return m2jmb_submit(9);
 		break;
 
 		default:
@@ -302,8 +317,7 @@ UVX_COMM_M2JMB_STATE uvx_comm_m2jmb_send_error(uint8_t data)
 	buff_tx_m2jmb[4] = 0x00;                 // Payload size LSB (0 for send error request)
 	buff_tx_m2jmb[5] = uvx_crc_8(buff_tx_m2jmb, 5);   // CRC over the 5 bytes before it
 
-	uvx_uart_send(comm_m2jmb.p_hal_uart, buff_tx_m2jmb, 6);
-	return UVX_M2JMB_OK; // Return success
+	return m2jmb_submit(6);
 }
 
 UVX_COMM_M2JMB_STATE uvx_comm_m2jmb_process_rx(uint8_t byte_rx)

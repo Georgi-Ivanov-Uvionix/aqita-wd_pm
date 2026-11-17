@@ -2,6 +2,7 @@
 /* Define to prevent recursive inclusion -------------------------------------*/
 #include "uvx_uart.h"
 #include <stdlib.h>
+#include <string.h>
 
 static UVX_UART_STATE uvx_uart_hal_init(UVX_UART_HAL* hal_uart)
 {
@@ -193,48 +194,98 @@ UVX_UART_STATE uvx_uart_init(UVX_UART* uart, uint8_t* p_buff_tx, uint8_t* p_buff
     return res;
 }
 
-UVX_UART_STATE uvx_uart_send(UVX_UART_HAL* p_uart, uint8_t *data, uint16_t size) 
+UVX_UART_STATE uvx_uart_service_tx(UVX_UART_HAL* p_uart)
 {
-	#if defined(STM32L4xx_HAL_H)
-		// Check if the UART handle is initialized
-		if (p_uart != NULL && p_uart->huart.Instance != NULL)
-		{
-            if(p_uart->tx_ready)
-            {
-                p_uart->tx_ready = 0; // Clear the TX ready flag before sending
-                //HAL_UART_Transmit(&comm_m2m.p_hal_uart->huart, data, size, HAL_MAX_DELAY);
-                if(HAL_UART_Transmit_DMA(&p_uart->huart, data, size) != HAL_OK)
-                {
-                    p_uart->error_dma_cnt++;                
-                    if(p_uart->error_dma_cnt > UVX_UART_MAX_DMA_ERRORS) // If there are too many consecutive DMA errors, reset the UART
-                    {
-                        HAL_UART_AbortTransmit(&p_uart->huart);
-                        p_uart->error_dma_cnt = 0; // Reset error counter after aborting transmission
-                    }
-                    return UVX_UART_ERROR; // Return error if transmission fails
-                }
-            }
-            else
-            {
-                p_uart->error_dma_cnt++;                
-                if(p_uart->error_dma_cnt > UVX_UART_MAX_DMA_ERRORS) // If there are too many consecutive DMA errors, reset the UART
-                {
-                    p_uart->tx_ready = true; // Set TX ready flag to true before aborting transmission
-                    HAL_UART_AbortTransmit(&p_uart->huart);
-                    p_uart->error_dma_cnt = 0; // Reset error counter after aborting transmission
-                    p_uart->error_cnt++; // Increment total error counter
-                }
-                return UVX_UART_BUSY; // Return busy if the UART is not ready for transmission
-            }
-		}
-		else
-		{
-			return UVX_UART_INIT_ERROR; // Return error if the UART handle is not initialized
-		}
+    if (p_uart == NULL || p_uart->huart.Instance == NULL)
+    {
+        return UVX_UART_INIT_ERROR;
+    }
+    if (p_uart->tx_ready)
+    {
+        return UVX_UART_OK;
+    }
+    /* Unsigned subtraction also works across the HAL tick wrap. Busy is normal
+     * backpressure, not an error counter or a reason to abort a healthy frame. */
+    if ((uint32_t)(HAL_GetTick() - p_uart->tx_start_ms) < p_uart->tx_timeout_ms)
+    {
+        return UVX_UART_BUSY;
+    }
+    /* Called only from the main loop, with interrupts enabled. Completion may
+     * occur here, but no other main-loop send can start during recovery. */
+    if (!p_uart->tx_ready)
+    {
+        if (HAL_UART_AbortTransmit(&p_uart->huart) != HAL_OK)
+        {
+            p_uart->tx_start_ms = HAL_GetTick();
+            p_uart->error_dma_cnt++;
+            return UVX_UART_ERROR;
+        }
+        p_uart->error_cnt++;
+        p_uart->tx_ready = 1;
+        return UVX_UART_TIMEOUT;
+    }
+    return UVX_UART_OK;
+}
 
-	#else
-		#error "Unsupported STM32 series"
-	#endif
+/* Call from the main loop, not an ISR. Builders may reuse their staging buffers
+ * after this returns: DMA reads only this UART's private, immutable snapshot. */
+UVX_UART_STATE uvx_uart_send(UVX_UART_HAL* p_uart, uint8_t *data, uint16_t size)
+{
+    HAL_StatusTypeDef status;
+    UVX_UART_STATE ready;
+    uint32_t primask;
 
-	return UVX_UART_OK; // Return success
+    if (p_uart == NULL || p_uart->huart.Instance == NULL ||
+        p_uart->huart.hdmatx == NULL || p_uart->huart.Init.BaudRate == 0U)
+    {
+        return UVX_UART_INIT_ERROR;
+    }
+    if (data == NULL || size == 0U || size > sizeof(p_uart->tx_dma_buffer))
+    {
+        return UVX_UART_INIT_ERROR_TX_BUFF_SIZE;
+    }
+    ready = uvx_uart_service_tx(p_uart);
+    if (ready != UVX_UART_OK)
+    {
+        return ready;
+    }
+
+    /* Claim the snapshot before touching it. All send/service callers run in
+     * the main loop; RX interrupts do not access this private TX storage. */
+    primask = __get_PRIMASK();
+    __disable_irq();
+    if (!p_uart->tx_ready || p_uart->huart.gState != HAL_UART_STATE_READY)
+    {
+        __set_PRIMASK(primask);
+        return UVX_UART_BUSY;
+    }
+    p_uart->tx_ready = 0;
+    __set_PRIMASK(primask);
+    /* Keep RX interrupts enabled during the copy, particularly at 921600 baud. */
+    memcpy(p_uart->tx_dma_buffer, data, size);
+    p_uart->tx_start_ms = HAL_GetTick();
+    /* Both configured UARTs use 8N1: ten wire bits per byte. */
+    p_uart->tx_timeout_ms = ((uint32_t)size * 10000U +
+        p_uart->huart.Init.BaudRate - 1U) / p_uart->huart.Init.BaudRate +
+        UVX_UART_TX_TIMEOUT_MARGIN_MS;
+    /* Do not let a completion callback race the handling of HAL's result. */
+    __disable_irq();
+    status = HAL_UART_Transmit_DMA(&p_uart->huart, p_uart->tx_dma_buffer, size);
+    if (status == HAL_OK)
+    {
+        p_uart->error_dma_cnt = 0;
+    }
+    else
+    {
+        /* No new transfer was accepted. Never force the HAL state to ready. */
+        p_uart->tx_ready = (p_uart->huart.gState == HAL_UART_STATE_READY);
+        if (status != HAL_BUSY)
+        {
+            p_uart->error_dma_cnt++;
+            p_uart->error_cnt++;
+        }
+    }
+    __set_PRIMASK(primask);
+    return (status == HAL_OK) ? UVX_UART_OK :
+           ((status == HAL_BUSY) ? UVX_UART_BUSY : UVX_UART_ERROR);
 }
