@@ -295,7 +295,7 @@ static void uvx_dock_led_color_process(void)
     uint32_t cell_mv = 0U;
     uint16_t target = 0U;
     uint8_t leds = 0U;
-    uint8_t mode = 0U; /* Solid red, flashing red, flashing blue, charging blend */
+    uint8_t mode = 0U; /* Red, flashing red, flashing blue, charging blend, purple */
     UVX_I2C_STATE state;
 
     if(!dock_charger_status.led_ready || dock_supply_io.pending ||
@@ -311,11 +311,15 @@ static void uvx_dock_led_color_process(void)
     if(dock_charger_status.voltage_detected && dock_supply_requested)
     {
         mode = dock_voltage_adjusting ? 2U : 1U;
+        if(dock_voltage_adjusting && dock_charger_status.voltage_ready)
+        {
+            mode = 4U; /* Voltage matched; waiting for charging to start. */
+        }
     }
     if(drone_status.pwr_fet && dock_supply_requested &&
        dock_charger_status.regulation_state == UVX_DOCK_CHARGER_REGULATION_CONTROL_CURRENT)
     {
-        mode = 3U;
+        mode = (dock_charger_status.current_ma > UVX_DOCK_CHARGER_CURRENT_TOLERANCE_MA) ? 3U : 4U;
         if(cell_mv >= 4200U) target = 510U;
         else if(cell_mv > 2500U) target = (uint16_t)((cell_mv - 2500U) * 510U / 1700U);
     }
@@ -328,7 +332,11 @@ static void uvx_dock_led_color_process(void)
     {
         dock_led_hue = dock_led_red_acc = dock_led_green_acc = 0U;
         dock_led_color_tick = now;
-        if(mode == 0U || ((uint32_t)(now - dock_led_mode_tick) /
+        if(mode == 4U)
+        {
+            leds = UVX_DOCK_LED_RED | UVX_DOCK_LED_BLUE;
+        }
+        else if(mode == 0U || ((uint32_t)(now - dock_led_mode_tick) /
                           UVX_DOCK_LED_FLASH_HALF_PERIOD_MS) % 2U == 0U)
         {
             leds = (mode == 2U) ? UVX_DOCK_LED_BLUE : UVX_DOCK_LED_RED;
@@ -1094,10 +1102,10 @@ UVX_DOCK_CHARGER_RESULT uvx_dock_charger_process(void)
                     dock_voltage_adjusting = 1U;
                     result = uvx_dock_charger_regulate_voltage();
                 }
-                if(dock_charger_state.state_current == UVX_DOCK_CHARGER_STATE_ACTIVE)
-                {
-                    uvx_dock_led_color_process();
-                }
+                /* Regulation only schedules the next transaction. Update the LED
+                 * now, including the voltage-ready transition to WRITE_CURRENT;
+                 * the pending LED write is drained before that transaction. */
+                uvx_dock_led_color_process();
                 return result;
 
             case UVX_DOCK_CHARGER_STATE_ERROR:
