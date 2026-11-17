@@ -723,13 +723,13 @@ UVX_I2C_STATE uvx_i2c_unlock(UVX_I2C_HAL* p_i2c, uint32_t* p_locker)
 
 UVX_I2C_STATE uvx_i2c_check_response(UVX_I2C_HAL* p_i2c, uint32_t* p_locker)
 {
-    p_i2c->last_mem_write_error = HAL_I2C_GetError(&p_i2c->hi2c);
-    p_i2c->last_mem_write_state = HAL_I2C_GetState(&p_i2c->hi2c);
-
     if((p_i2c == NULL) || (p_locker == NULL) || (p_i2c->hi2c.Instance == NULL))
     {
         return UVX_I2C_ERROR;
     }
+
+    p_i2c->last_mem_write_error = HAL_I2C_GetError(&p_i2c->hi2c);
+    p_i2c->last_mem_write_state = HAL_I2C_GetState(&p_i2c->hi2c);
 
     if(p_i2c->p_lock_owner == NULL)
     {
@@ -756,10 +756,8 @@ UVX_I2C_STATE uvx_i2c_check_response(UVX_I2C_HAL* p_i2c, uint32_t* p_locker)
         return UVX_I2C_LOCK_ERROR;
     }
 
-    if(p_i2c->STOP_Detected)
-    {
-        return UVX_I2C_STOP_DETECTED;
-    }
+    /* STOP also accompanies NACK and can precede HAL's final RX processing.
+     * Only READY with no error is a completed, valid transaction. */
     /* HAL retains acknowledgement failure after clearing NACKF. Wait until
      * its error cleanup completes before allowing the caller to retry. */
     if((p_i2c->last_mem_write_state == HAL_I2C_STATE_READY) &&
@@ -776,7 +774,7 @@ UVX_I2C_STATE uvx_i2c_check_response(UVX_I2C_HAL* p_i2c, uint32_t* p_locker)
     }
 
     /* A NACK or bus error can also end with STOP; it is not a valid response. */
-    if((p_i2c->last_mem_write_error != HAL_I2C_ERROR_NONE) && (p_i2c->last_mem_write_error != HAL_I2C_ERROR_TIMEOUT))
+    if(p_i2c->last_mem_write_error != HAL_I2C_ERROR_NONE)
     {
         return UVX_I2C_ERROR;
     }

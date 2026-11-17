@@ -36,6 +36,20 @@ static uint32_t bps_rest_start_ms;
 static uint32_t bps_rest_read_sequence[BQ_DEVICES];
 
 static void batt_rotate_fet_bps(void);
+static bool fc_prepare_priority;
+static bool fc_prepare_read_failed;
+static bool fc_prepare_verified;
+volatile UVX_FC_PREPARE_TIMING fc_prepare_timing;
+static bool fc_prepare_timing_active;
+static uint32_t fc_prepare_last_service_ms;
+
+/* Retain temperature feedback as well as the registers needed by FET control. */
+static bool batt_fc_prepare_register(UVX_BQ_REGISTERS reg)
+{
+	return reg == TEMPERATURE || reg == DA_STATUS2 ||
+	       reg == OPERATION_STATUS || reg == MANUFACTURING_STATUS ||
+	       reg == GPIO_READ || reg == END_REGISTER;
+}
 
 static UVX_COMM_BQ_STATE batt_mode_init_bypass(UVX_COMM_BQ *p_comm_bq);
 static UVX_COMM_BQ_STATE batt_mode_read_BQ(UVX_COMM_BQ *p_comm_bq);
@@ -47,6 +61,53 @@ static UVX_COMM_BQ_STATE batt_check_response(UVX_COMM_BQ *p_comm_bq);
 
 void UVX_APP_Batt(void)
 {
+	uint32_t i;
+	bool pending = false;
+	bool preparing = drone_status.prepare_fc &&
+		comm_m2jmb_state.state_current == M2JMB_MODE_SEND_FC_ON_ACK;
+	uint32_t now = HAL_GetTick();
+	bool battery_owns_bus = false;
+
+	if(preparing)
+	{
+		if(!fc_prepare_timing_active)
+		{
+			fc_prepare_timing = (UVX_FC_PREPARE_TIMING){0};
+			fc_prepare_last_service_ms = now;
+		}
+		fc_prepare_timing.elapsed_ms = now - drone_status.time_start_prepare_fc;
+		if(now - fc_prepare_last_service_ms > fc_prepare_timing.max_service_gap_ms)
+			fc_prepare_timing.max_service_gap_ms = now - fc_prepare_last_service_ms;
+		fc_prepare_last_service_ms = now;
+	}
+	fc_prepare_timing_active = preparing;
+
+	for(i = 0; i < BQ_DEVICES; i++)
+	{
+		pending = pending || comm_bq[i].RX_Pending;
+		battery_owns_bus = battery_owns_bus ||
+			i2c_bq.hal_i2c.p_lock_owner == (uint32_t*)&comm_bq[i];
+	}
+	/* Leave the dock's completion to the dock scheduler. Starting a BQ
+	 * operation here would create a pending response for someone else's bus. */
+	if(i2c_bq.hal_i2c.p_lock_owner != NULL && !battery_owns_bus)
+	{
+		if(preparing) fc_prepare_timing.bus_wait_calls++;
+		uvx_batt_read_pack_v();
+		return;
+	}
+	/* Let the normal owner finish its current transaction before redirecting
+	 * the scheduler. Initialization must finish before using runtime registers. */
+	if(!pending && batt_data.init && preparing != fc_prepare_priority)
+	{
+		fc_prepare_priority = preparing;
+		fc_prepare_read_failed = false;
+		fc_prepare_verified = false;
+		p_app_comm_bq = comm_bq;
+		p_app_bq_data = bq_data;
+		for(i = 0; i < BQ_DEVICES; i++) comm_bq[i].batt_reg_cnt = 0;
+		batt_state.state_current = BATT_MODE_READ_BQ;
+	}
 	switch(batt_state.state_current)
 	{
 		case BATT_MODE_INIT:
@@ -159,6 +220,12 @@ void UVX_APP_Batt(void)
 
 		case BATT_MODE_READ_BQ:
 			bq_state = batt_mode_read_BQ(p_app_comm_bq);
+			if(fc_prepare_priority && bq_state != UVX_BQ_OK &&
+			   bq_state != UVX_BQ_REG_END && bq_state != UVX_BQ_ERROR_BUSY)
+			{
+				fc_prepare_read_failed = true;
+				fc_prepare_timing.read_errors++;
+			}
 
 			if(bq_state == UVX_BQ_REG_END)
 			{
@@ -170,6 +237,18 @@ void UVX_APP_Batt(void)
 				{
 					p_app_comm_bq = comm_bq;
 					batt_state.state_current = BATT_MODE_CHECK_STATUS_FET_EN;
+					if(fc_prepare_priority)
+					{
+						fc_prepare_timing.status_sweeps++;
+						if(fc_prepare_timing.status_sweeps == 1U)
+							fc_prepare_timing.first_sweep_ms = HAL_GetTick() - drone_status.time_start_prepare_fc;
+						/* Only a complete, successful status sweep may release
+						 * preparation. Command writes alone are not confirmation. */
+						fc_prepare_verified = !fc_prepare_read_failed;
+						batt_rotate_fet_bps();
+						fc_prepare_verified = false;
+						fc_prepare_read_failed = false;
+					}
 				}
 			}
 			else if(bq_state == UVX_BQ_TIMEOUT)
@@ -414,6 +493,13 @@ void UVX_APP_Batt(void)
 		break;
 		
 		case BATT_MODE_READ_CHECK_PACK_V:
+			if(fc_prepare_priority)
+			{
+				/* FET write completions also increment the shared cursor.
+				 * Start every verification sweep at its first register. */
+				for(i = 0; i < BQ_DEVICES; i++) comm_bq[i].batt_reg_cnt = 0;
+				fc_prepare_read_failed = false;
+			}
 			batt_data.init = true;
 			batt_state.state_current = BATT_MODE_READ_BQ;
 			if((led_strip_state.state_current < LED_STRIP_MODE_BATTERY_LEVEL))
@@ -578,6 +664,7 @@ static UVX_COMM_BQ_STATE batt_mode_init_bypass(UVX_COMM_BQ *p_comm_bq)
 
 static UVX_COMM_BQ_STATE batt_mode_read_BQ(UVX_COMM_BQ *p_comm_bq)
 {
+	UVX_COMM_BQ_STATE result;
 	if(p_comm_bq == NULL)
 	{
 		return UVX_BQ_ERROR;
@@ -585,18 +672,30 @@ static UVX_COMM_BQ_STATE batt_mode_read_BQ(UVX_COMM_BQ *p_comm_bq)
 
 	if(!p_comm_bq->RX_Pending)
 	{
-		if(uvx_comm_bq_read_list(p_comm_bq, p_comm_bq->batt_reg_cnt) == UVX_BQ_REG_END)
+		if(fc_prepare_priority)
+		{
+			while(!batt_fc_prepare_register(
+				p_comm_bq->p_register_list[p_comm_bq->batt_reg_cnt].reg_addr))
+			{
+				p_comm_bq->batt_reg_cnt++;
+			}
+		}
+		result = uvx_comm_bq_read_list(p_comm_bq, p_comm_bq->batt_reg_cnt);
+		if(result == UVX_BQ_REG_END)
 		{
 			p_comm_bq->batt_reg_cnt = 0;
 			uvx_batt_parse_data();
-			if(p_comm_bq->ID > 0U && p_comm_bq->ID <= BQ_DEVICES)
+			if(!fc_prepare_priority && p_comm_bq->ID > 0U && p_comm_bq->ID <= BQ_DEVICES)
 			{
 				bps_read_sequence[p_comm_bq->ID - 1U]++;
 			}
 			return UVX_BQ_REG_END;
 		}
 
-		p_comm_bq->RX_Pending = 1; // Set RX pending flag to indicate that a read operation is in progress
+		/* A rejected start owns no response. In particular, never wait on
+		 * the dock's lock as though it belonged to this battery pack. */
+		if(result != UVX_BQ_OK) return result;
+		p_comm_bq->RX_Pending = 1;
 	}
 	else
 	{
@@ -742,8 +841,13 @@ static void batt_rotate_fet_bps(void)
 			}
 		}
 		
-		if(i == BQ_DEVICES)
+		if(i == BQ_DEVICES && (!drone_status.prepare_fc || fc_prepare_verified))
 		{
+			if(drone_status.prepare_fc)
+			{
+				fc_prepare_timing.ready_ms = HAL_GetTick() - drone_status.time_start_prepare_fc;
+				fc_prepare_timing.elapsed_ms = fc_prepare_timing.ready_ms;
+			}
 			drone_status.prepare_fc = false;
 		}
 
@@ -1251,6 +1355,7 @@ static UVX_COMM_BQ_STATE batt_check_response(UVX_COMM_BQ *p_comm_bq)
 		p_comm_bq->cnt_no_response = 0;
 		p_comm_bq->RX_Pending = 0;
 		p_comm_bq->BQ_RX_Ready = 1;
+		p_comm_bq->BQ_TX_Ready = 1;
 		return UVX_BQ_OK;
 	}
 	else

@@ -91,6 +91,7 @@ static uint32_t dock_led_tick, dock_led_color_tick;
 static uint8_t dock_voltage_adjusting;
 static uint8_t dock_led_mode;
 static uint32_t dock_led_mode_tick;
+#define UVX_DOCK_I2C_TIMEOUT_MS 50U
 static void uvx_dock_charger_change_state(UVX_DOCK_CHARGER_STATE state_next)
 {
     if(state_next == UVX_DOCK_CHARGER_STATE_ERROR)
@@ -117,11 +118,19 @@ static void uvx_dock_charger_change_state(UVX_DOCK_CHARGER_STATE state_next)
 
 static UVX_I2C_STATE uvx_dock_charger_lock_i2c(void)
 {
+    /* Complete existing dock transfers, but give the next bus slot to FC
+     * preparation. Every dock start (including LED setup) comes through here. */
+    if(drone_status.prepare_fc &&
+       comm_m2jmb_state.state_current == M2JMB_MODE_SEND_FC_ON_ACK)
+    {
+        return UVX_I2C_BUSY;
+    }
     UVX_I2C_STATE state = uvx_i2c_lock(&dock_charger_status.i2c->hal_i2c, (uint32_t*)&dock_charger_status);
 
     if(state == UVX_I2C_OK)
     {
         dock_charger_status.owns_i2c_lock = 1U;
+        dock_charger_status.i2c_lock_tick = HAL_GetTick();
     }
 
     return state;
@@ -136,6 +145,52 @@ static void uvx_dock_charger_unlock_i2c(void)
             dock_charger_status.owns_i2c_lock = 0U;
         }
     }
+}
+
+/* Dock transfers use interrupts, not DMA. On a deadline, stop the peripheral
+ * before releasing its buffer/lock. A missing STOP cannot be repaired by an
+ * interrupt-based abort alone (the bundled HAL also rejects abort in MEM mode).
+ * No GPIO bus-clear pulses: a slave holding SDA low remains a hardware fault. */
+static UVX_I2C_STATE uvx_dock_charger_recover_i2c(void)
+{
+    UVX_I2C_HAL *i2c = &dock_charger_status.i2c->hal_i2c;
+    uint32_t primask;
+    uint32_t filters;
+    uint32_t timeout;
+    HAL_StatusTypeDef result;
+
+    if(i2c->hi2c.Instance != I2C1 ||
+       i2c->p_lock_owner != (uint32_t*)&dock_charger_status)
+        return UVX_I2C_ERROR;
+
+    primask = __get_PRIMASK();
+    __disable_irq();
+    dock_charger_status.i2c_timeout_isr = i2c->hi2c.Instance->ISR;
+    dock_charger_status.i2c_timeout_hal_state = i2c->hi2c.State;
+    filters = i2c->hi2c.Instance->CR1 & (I2C_CR1_ANFOFF | I2C_CR1_DNF);
+    timeout = i2c->hi2c.Instance->TIMEOUTR;
+    __HAL_RCC_I2C1_FORCE_RESET();
+    __HAL_RCC_I2C1_RELEASE_RESET();
+    HAL_NVIC_ClearPendingIRQ(I2C1_EV_IRQn);
+    HAL_NVIC_ClearPendingIRQ(I2C1_ER_IRQn);
+    i2c->hi2c.State = HAL_I2C_STATE_RESET;
+    i2c->hi2c.XferISR = NULL;
+    i2c->hi2c.pBuffPtr = NULL;
+    i2c->hi2c.XferCount = 0U;
+    i2c->hi2c.XferSize = 0U;
+    result = HAL_I2C_Init(&i2c->hi2c);
+    if(result == HAL_OK)
+    {
+        __HAL_I2C_DISABLE(&i2c->hi2c);
+        MODIFY_REG(i2c->hi2c.Instance->CR1, I2C_CR1_ANFOFF | I2C_CR1_DNF, filters);
+        i2c->hi2c.Instance->TIMEOUTR = timeout;
+        __HAL_I2C_ENABLE(&i2c->hi2c);
+        i2c->STOP_Detected = 0U;
+        i2c->i2c_err_timeout_lock = 0U;
+        uvx_dock_charger_unlock_i2c();
+    }
+    __set_PRIMASK(primask);
+    return result == HAL_OK ? UVX_I2C_OK : UVX_I2C_ERROR;
 }
 
 /* Shared non-blocking read/modify/write engine. Each caller owns its state.
@@ -473,6 +528,8 @@ UVX_DOCK_CHARGER_RESULT uvx_dock_charger_init(UVX_I2C *i2c, const UVX_DOCK_CHARG
     dock_charger_status.current_code = dock_charger_status.config.current_code_at_min;
     dock_charger_status.voltage_code = config->voltage_code_at_min;
     dock_charger_status.owns_i2c_lock = 0U;
+    dock_charger_status.i2c_lock_tick = 0U;
+    dock_charger_status.i2c_timeout_count = 0U;
     dock_charger_status.voltage_detected = 0U;
     dock_charger_status.voltage_ready = 0U;
     dock_charger_status.current_ready = 0U;
@@ -789,6 +846,22 @@ UVX_DOCK_CHARGER_RESULT uvx_dock_charger_process(void)
     if(dock_charger_status.i2c == NULL)
     {
         return UVX_DOCK_CHARGER_NOT_INITIALIZED;
+    }
+
+    /* Check before LED/setup dispatch so no state can hide a stalled owner. */
+    if(dock_charger_status.owns_i2c_lock &&
+       (uint32_t)(HAL_GetTick() - dock_charger_status.i2c_lock_tick) >= UVX_DOCK_I2C_TIMEOUT_MS &&
+       uvx_dock_charger_transfer_state(&dock_charger_status.i2c->hal_i2c) == UVX_I2C_BUSY)
+    {
+        dock_charger_status.i2c_timeout_count++;
+        if(uvx_dock_charger_recover_i2c() != UVX_I2C_OK)
+        {
+            dock_charger_status.i2c_lock_tick = HAL_GetTick();
+            return UVX_DOCK_CHARGER_ERROR_I2C;
+        }
+        dock_led_pending = 0U;
+        uvx_dock_charger_change_state(UVX_DOCK_CHARGER_STATE_ERROR);
+        return UVX_DOCK_CHARGER_ERROR_I2C;
     }
 
     /* Drain the persistent LED buffer before any other dock transaction. */

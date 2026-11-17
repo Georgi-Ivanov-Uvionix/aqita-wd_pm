@@ -2440,132 +2440,23 @@ void HAL_I2C_ErrorCallback(I2C_HandleTypeDef *hi2c)
 	}
 }
 
+void HAL_I2C_MemTxCpltCallback(I2C_HandleTypeDef *hi2c)
+{
+    if(hi2c == &i2c_bq.hal_i2c.hi2c)
+        i2c_bq.hal_i2c.I2C_TX_Ready = 1;
+}
+
+void HAL_I2C_MasterTxCpltCallback(I2C_HandleTypeDef *hi2c)
+{
+    if(hi2c == &i2c_bq.hal_i2c.hi2c)
+        i2c_bq.hal_i2c.I2C_TX_Ready = 1;
+}
+
 void I2C1_EV_IRQHandler(void)
 {
-	uint32_t i2c_state = 0;
-	/* Preserve STOP detection before HAL acknowledges the hardware flag. */
-	if((i2c_bq.hal_i2c.hi2c.Instance->ISR & I2C_ISR_STOPF) != 0U)
-	{
-		i2c_bq.hal_i2c.STOP_Detected = 1U;
-	}
-	HAL_I2C_EV_IRQHandler(&i2c_bq.hal_i2c.hi2c);
-
-	if( ( i2c_bq.hal_i2c.hi2c.Instance->ISR & I2C_ISR_TXE ) && 
-	  (!( i2c_bq.hal_i2c.hi2c.Instance->ISR & I2C_ISR_RXNE )) && 
-	  (!( i2c_bq.hal_i2c.hi2c.Instance->ISR & I2C_ISR_NACKF )) )
-	{		
-		if( i2c_bq.hal_i2c.hi2c.Instance->ISR & I2C_ISR_STOPF )
-		{
-			i2c_bq.hal_i2c.hi2c.Instance->ICR = I2C_ICR_STOPCF;
-		}
-		
-		if(!( i2c_bq.hal_i2c.hi2c.Instance->ISR & I2C_ISR_BUSY ))
-		{
-			// if(comm_bq_1.RX_Ready == 0)
-			// {
-			// 	comm_bq_1.RX_Ready = 1;
-			// }
-
-			// if(comm_bq_2.RX_Ready == 0)
-			// {
-			// 	comm_bq_2.RX_Ready = 1;
-			// }
-
-			if(i2c_bq.hal_i2c.I2C_TX_Ready == 0)
-			{
-				i2c_bq.hal_i2c.I2C_TX_Ready = 1;
-			}
-
-			// if(comm_bq_1.I2C_TX_Ready == 0)
-			// {
-			// 	comm_bq_1.I2C_TX_Ready = 1;
-			// }	
-
-			// if(comm_bq_2.I2C_TX_Ready == 0)
-			// {
-			// 	comm_bq_2.I2C_TX_Ready = 1;
-			// }			
-		}
-
-	}
-	else if( ( i2c_bq.hal_i2c.hi2c.Instance->ISR & I2C_ISR_TXE ) && 
-	  		 (!( i2c_bq.hal_i2c.hi2c.Instance->ISR & I2C_ISR_STOPF )) )
-	{
-		// if(comm_bq_1.TX_Ready == 0)
-		// {
-		// 	comm_bq_1.TX_Ready = 1;
-		// }	
-
-		// if(comm_bq_2.TX_Ready == 0)
-		// {
-		// 	comm_bq_2.TX_Ready = 1;
-		// }		
-
-		if(i2c_bq.hal_i2c.I2C_TX_Ready == 0)
-		{
-			i2c_bq.hal_i2c.I2C_TX_Ready = 1;
-		}
-	}
-	else
-	{
-		// if(comm_bq_1.TX_Ready == 0)
-		// {
-		// 	comm_bq_1.TX_Ready = 0;
-		// }	
-
-		// if(comm_bq_2.TX_Ready == 0)
-		// {
-		// 	comm_bq_2.TX_Ready = 1;
-		// }
-		if(i2c_bq.hal_i2c.I2C_TX_Ready == 0)
-		{
-			i2c_bq.hal_i2c.I2C_TX_Ready = 1;
-		}
-
-	}
-
-	if( i2c_bq.hal_i2c.hi2c.Instance->ISR & I2C_ISR_NACKF )
-	{
-		i2c_bq.hal_i2c.hi2c.Instance->ICR = I2C_ICR_NACKCF;
-	}
-
-	if( i2c_bq.hal_i2c.hi2c.Instance->ISR & I2C_ISR_STOPF )
-	{
-		i2c_bq.hal_i2c.hi2c.Instance->ICR = I2C_ICR_STOPCF;
-	}	
-
-	if( i2c_bq.hal_i2c.hi2c.Instance->ISR & I2C_ISR_BUSY )
-	{
-		i2c_bq.cnt_error_busy++;
-		if(i2c_bq.cnt_error_busy >= 1000000)
-		{
-			i2c_state = i2c_bq.hal_i2c.hi2c.Instance->CR1;
-			i2c_bq.hal_i2c.hi2c.Instance->CR1 &= ~I2C_CR1_PE;
-			i2c_bq.cnt_error_busy = 0;			
-			
-			if(comm_bq_1.BQ_RX_Ready == 0)
-			{
-				comm_bq_1.BQ_RX_Ready = 1;
-			}
-
-			if(comm_bq_2.BQ_RX_Ready == 0)
-			{
-				comm_bq_2.BQ_RX_Ready = 1;
-			}
-
-			if(comm_bq_3.BQ_RX_Ready == 0)
-			{
-				comm_bq_3.BQ_RX_Ready = 1;
-			}
-
-			i2c_bq.hal_i2c.hi2c.Instance->CR1 = i2c_state;
-		}
-	}
-	else
-	{
-		i2c_bq.cnt_error_busy = 0;
-	}
-
+    /* HAL owns RXNE, NACK and STOP. A flag arriving after HAL's snapshot
+     * must remain pending for the next IRQ, otherwise BUSY_RX never ends. */
+    HAL_I2C_EV_IRQHandler(&i2c_bq.hal_i2c.hi2c);
 }
 
 void I2C1_ER_IRQHandler(void)

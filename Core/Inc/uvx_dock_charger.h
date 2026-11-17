@@ -80,6 +80,10 @@ typedef struct
     uint32_t voltage_ramp_tick;
     uint32_t current_ramp_tick;
     uint32_t supply_enable_tick;
+    uint32_t i2c_lock_tick;
+    uint32_t i2c_timeout_count;
+    uint32_t i2c_timeout_isr;
+    uint32_t i2c_timeout_hal_state;
     int32_t current_before_step_ma;
     uint8_t current_stall_count; /* Consecutive PC increases with little response */
     uint8_t current_step_pending;

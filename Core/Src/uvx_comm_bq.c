@@ -159,6 +159,7 @@ UVX_COMM_BQ_STATE uvx_comm_bq_change_list(UVX_COMM_BQ* p_comm_bq, UVX_BQ_REGISTE
 
 UVX_COMM_BQ_STATE uvx_comm_bq_read_list(UVX_COMM_BQ* p_comm_bq, uint16_t reg_index) 
 {    
+	UVX_I2C_STATE result;
 	if(p_comm_bq->BQ_RX_Ready == 1)
 	{					
 		if(p_comm_bq->p_register_list[reg_index].reg_addr == END_REGISTER)
@@ -171,16 +172,22 @@ UVX_COMM_BQ_STATE uvx_comm_bq_read_list(UVX_COMM_BQ* p_comm_bq, uint16_t reg_ind
 			p_comm_bq->BQ_RX_Ready = 1; // Reset TX ready flag	
 		}		
 		
-		p_comm_bq->BQ_RX_Ready = 0; // Reset TX ready flag			
+		if(uvx_i2c_lock(p_comm_bq->p_hal_i2c, (uint32_t*)p_comm_bq) != UVX_I2C_OK)
+		{
+			return UVX_BQ_ERROR_BUSY;
+		}
+		p_comm_bq->BQ_RX_Ready = 0;
 
-		uvx_i2c_lock(p_comm_bq->p_hal_i2c, (uint32_t*)p_comm_bq); // Lock the I2C bus for this communication instance
-
-		if(uvx_i2c_read_mem(p_comm_bq->p_hal_i2c, p_comm_bq->addr_i2c,
+		result = uvx_i2c_read_mem(p_comm_bq->p_hal_i2c, p_comm_bq->addr_i2c,
 			p_comm_bq->p_register_list[reg_index].reg_addr, 1,
 			p_comm_bq->p_register_list[reg_index].p_data,
-			p_comm_bq->p_register_list[reg_index].size_data) != UVX_I2C_OK)
+			p_comm_bq->p_register_list[reg_index].size_data);
+		if(result != UVX_I2C_OK)
 		{
-			//p_comm_bq->BQ_RX_Ready = 1;
+			p_comm_bq->BQ_RX_Ready = 1;
+			uvx_i2c_unlock(p_comm_bq->p_hal_i2c, (uint32_t*)p_comm_bq);
+			if(result == UVX_I2C_BUSY || result == UVX_I2C_LOCKED)
+				return UVX_BQ_ERROR_BUSY;
 			return UVX_BQ_ERROR;
 		}					
 	}
