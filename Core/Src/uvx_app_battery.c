@@ -391,8 +391,9 @@ void UVX_APP_Batt(void)
 
 		case BATT_MODE_CHECK_STATUS_FET_DSG:
 			bq_state = batt_mode_check_fet_dsg(p_app_bq_data);
-			
-			if(bq_state == UVX_BQ_OK)
+			/* Wait only for this pack's accepted transaction. A rejected start
+			 * is retried next sweep, allowing other packs and readings to run. */
+			if(bq_state != UVX_BQ_ERROR_BUSY || !p_app_bq_data->p_comm_bq->RX_Pending)
 			{
 				if(p_app_bq_data < &bq_data[BQ_DEVICES - 1])
 				{
@@ -404,45 +405,13 @@ void UVX_APP_Batt(void)
 					batt_state.state_current = BATT_MODE_CHECK_STATUS_FET_CHG;
 				}
 			}
-			else if(bq_state == UVX_BQ_TIMEOUT)
-			{
-				if(p_app_bq_data < &bq_data[BQ_DEVICES - 1])
-				{
-					p_app_bq_data++;
-				}
-				else
-				{
-					p_app_bq_data = bq_data;
-				}
-			}
-			else if(bq_state == UVX_BQ_ERROR_NACK)
-			{
-				p_app_comm_bq = p_app_bq_data->p_comm_bq;
-				p_app_comm_bq->RX_Pending = 0;
-				p_app_comm_bq->cnt_nack++;
-				p_app_comm_bq->No_response = 1;	
-				
-				if(p_app_bq_data < &bq_data[BQ_DEVICES - 1])
-				{
-					p_app_bq_data++;
-				}
-				else
-				{
-					p_app_bq_data = bq_data;
-				}
-
-				if(HAL_GetTick() - p_app_comm_bq->time_stamp > 50)
-				{
-					p_app_comm_bq->time_stamp = HAL_GetTick();
-					uvx_gpio_toggle_pin(GPIO_OUTPUT_PWR_LED);
-				}
-			}			
 		break;
 
 		case BATT_MODE_CHECK_STATUS_FET_CHG:
 			bq_state = batt_mode_check_fet_chg(p_app_bq_data);
-			
-			if(bq_state == UVX_BQ_OK)
+			/* Wait only for this pack's accepted transaction. A rejected start
+			 * is retried next sweep, allowing other packs and readings to run. */
+			if(bq_state != UVX_BQ_ERROR_BUSY || !p_app_bq_data->p_comm_bq->RX_Pending)
 			{
 				if(p_app_bq_data < &bq_data[BQ_DEVICES - 1])
 				{
@@ -452,42 +421,8 @@ void UVX_APP_Batt(void)
 				{
 					p_app_bq_data = bq_data;
 					batt_state.state_current = BATT_MODE_CHECK_STATUS;
-					uvx_gpio_set_pin(GPIO_OUTPUT_BLUE_LED, GPIO_PIN_RESET);
 				}
 			}
-			else if(bq_state == UVX_BQ_TIMEOUT)
-			{
-				if(p_app_bq_data < &bq_data[BQ_DEVICES - 1])
-				{
-					p_app_bq_data++;
-				}
-				else
-				{
-					p_app_bq_data = bq_data;
-				}
-			}
-			else if(bq_state == UVX_BQ_ERROR_NACK)
-			{
-				p_app_comm_bq = p_app_bq_data->p_comm_bq;
-				p_app_comm_bq->RX_Pending = 0;
-				p_app_comm_bq->cnt_nack++;
-				p_app_comm_bq->No_response = 1;	
-				
-				if(p_app_bq_data < &bq_data[BQ_DEVICES - 1])
-				{
-					p_app_bq_data++;
-				}
-				else
-				{
-					p_app_bq_data = bq_data;
-				}
-
-				if(HAL_GetTick() - p_app_comm_bq->time_stamp > 50)
-				{
-					p_app_comm_bq->time_stamp = HAL_GetTick();
-					uvx_gpio_toggle_pin(GPIO_OUTPUT_PWR_LED);
-				}
-			}			
 		break;		
 
 		case BATT_MODE_CHECK_STATUS:
@@ -1267,56 +1202,56 @@ static UVX_COMM_BQ_STATE batt_mode_check_fet_bps(UVX_BQ_DATA *p_bq_data)
 
 static UVX_COMM_BQ_STATE batt_mode_check_fet_dsg(UVX_BQ_DATA *p_bq_data)
 {
-	UVX_COMM_BQ *p_comm_bq = p_bq_data->p_comm_bq;
-
-	if((p_bq_data == NULL) || (p_comm_bq == NULL))
+	UVX_COMM_BQ_STATE result;
+	UVX_COMM_BQ *p_comm_bq;
+	if(p_bq_data == NULL || p_bq_data->p_comm_bq == NULL)
 	{
 		return UVX_BQ_ERROR;
 	}
-
-	if(!p_comm_bq->RX_Pending)
-	{
-		if(p_bq_data->FET_DSG_STAT != p_bq_data->FET_DSG_STAT_NEW)
-		{
-			uvx_comm_bq_discharge_fet(p_bq_data, p_bq_data->FET_DSG_STAT_NEW);
-			p_comm_bq->RX_Pending = 1; // Set RX pending flag to indicate that a read operation is in progress
-			return UVX_BQ_ERROR_BUSY;
-		}		
-
-		return UVX_BQ_OK;
-	}
-	else
+	p_comm_bq = p_bq_data->p_comm_bq;
+	if(p_comm_bq->RX_Pending)
 	{
 		return batt_check_response(p_comm_bq);
-	}	
+	}
+	if(p_bq_data->FET_DSG_STAT == p_bq_data->FET_DSG_STAT_NEW)
+	{
+		return UVX_BQ_OK;
+	}
+	result = uvx_comm_bq_write_mba_register(p_comm_bq, BQ_MA_DSG_FET_TOGGLE, NULL, 0);
+	if(result != UVX_BQ_OK)
+	{
+		return result;
+	}
+	/* Only an accepted write owns a response. Readback refreshes FET status. */
+	p_comm_bq->RX_Pending = 1;
+	return UVX_BQ_ERROR_BUSY;
 }
 
 static UVX_COMM_BQ_STATE batt_mode_check_fet_chg(UVX_BQ_DATA *p_bq_data)
 {
-	UVX_COMM_BQ_STATE state;
-	UVX_COMM_BQ *p_comm_bq = p_bq_data->p_comm_bq;
-
-	if((p_bq_data == NULL) || (p_comm_bq == NULL))
+	UVX_COMM_BQ_STATE result;
+	UVX_COMM_BQ *p_comm_bq;
+	if(p_bq_data == NULL || p_bq_data->p_comm_bq == NULL)
 	{
 		return UVX_BQ_ERROR;
 	}
-
-	if(!p_comm_bq->RX_Pending)
+	p_comm_bq = p_bq_data->p_comm_bq;
+	if(p_comm_bq->RX_Pending)
 	{
-		if((p_bq_data->FET_CHG_STAT) != (p_bq_data->FET_CHG_STAT_NEW))
-		{
-			uvx_comm_bq_charge_fet(p_bq_data, p_bq_data->FET_CHG_STAT_NEW);
-			p_comm_bq->RX_Pending = 1; // Set RX pending flag to indicate that a read operation is in progress
-			return UVX_BQ_ERROR_BUSY;
-		}
-
+		return batt_check_response(p_comm_bq);
+	}
+	if(p_bq_data->FET_CHG_STAT == p_bq_data->FET_CHG_STAT_NEW)
+	{
 		return UVX_BQ_OK;
 	}
-	else
+	result = uvx_comm_bq_write_mba_register(p_comm_bq, BQ_MA_CHG_FET_TOGGLE, NULL, 0);
+	if(result != UVX_BQ_OK)
 	{
-		state = batt_check_response(p_comm_bq);
-		return state;
-	}	
+		return result;
+	}
+	/* Only an accepted write owns a response. Readback refreshes FET status. */
+	p_comm_bq->RX_Pending = 1;
+	return UVX_BQ_ERROR_BUSY;
 }
 
 /* Process one pending response. The caller remains busy until its operation
