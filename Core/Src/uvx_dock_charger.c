@@ -29,6 +29,8 @@
 #define UVX_DOCK_CHARGER_RAMP_INTERVAL_MS           200U
 #define UVX_DOCK_CHARGER_BATTERY_OFFSET_MV          1000U
 #define UVX_DOCK_CHARGER_CURRENT_INTERVAL_MS        2000U
+#define UVX_DOCK_CHARGER_CV_CELL_MV                 4200
+#define UVX_DOCK_CHARGER_CV_HYSTERESIS_MV            10
 #define UVX_DOCK_CHARGER_CURRENT_TOLERANCE_MA       100
 #define UVX_DOCK_CHARGER_CURRENT_RESPONSE_MA        50
 #define UVX_DOCK_CHARGER_CURRENT_STALL_STEPS        2U
@@ -113,6 +115,8 @@ static void uvx_dock_charger_change_state(UVX_DOCK_CHARGER_STATE state_next)
         dock_charger_status.voltage_detected = 0U;
         dock_charger_status.voltage_ready = 0U;
         dock_charger_status.current_ready = 0U;
+        dock_charger_status.cv_active = 0U;
+        dock_charger_status.balance_required = 0U;
         dock_charger_status.current_stall_count = 0U;
         dock_charger_status.current_step_pending = 0U;
         dock_charger_status.regulation_state = UVX_DOCK_CHARGER_REGULATION_MATCH_VOLTAGE;
@@ -672,6 +676,8 @@ UVX_DOCK_CHARGER_RESULT uvx_dock_charger_init(UVX_I2C *i2c, const UVX_DOCK_CHARG
 
     dock_charger_status.i2c = i2c;
     dock_charger_status.config = *config;
+    dock_charger_status.cv_active = 0U;
+    dock_charger_status.balance_required = 0U;
     dock_charger_status.target_current_ma = config->current_min_ma;
     dock_charger_status.target_voltage_mv = uvx_dock_charger_battery_target_mv();
     dock_charger_status.current_code = dock_charger_status.config.current_code_at_min;
@@ -801,6 +807,7 @@ UVX_DOCK_CHARGER_RESULT uvx_dock_charger_set_voltage(uint32_t voltage_mv)
 /* Adjust the PC wiper slowly from measured battery current (positive = charging). */
 static UVX_DOCK_CHARGER_RESULT uvx_dock_charger_regulate_current(void)
 {
+    uint32_t pack;
     uint32_t now = HAL_GetTick();
     uint32_t voltage_limit_mv = dock_charger_status.config.voltage_max_mv;
     uint32_t voltage_step_mv =
@@ -820,13 +827,37 @@ static UVX_DOCK_CHARGER_RESULT uvx_dock_charger_regulate_current(void)
     }
 
     if(!drone_status.pwr_fet || batt_data.tc || batt_data.BPS_Passive ||
+       batt_data.voltage_max_cell <= 0 || batt_data.cells_count != BATT_EXPECTED_CELLS ||
        drone_status.pwr_fc || comm_bq_1.No_response ||
        comm_bq_2.No_response || comm_bq_3.No_response)
     {
         UVX_APP_PWR_FET(0U);
         dock_charger_status.current_ready = 0U;
+        dock_charger_status.cv_active = 0U;
         dock_charger_status.regulation_state = UVX_DOCK_CHARGER_REGULATION_MATCH_VOLTAGE;
         return UVX_DOCK_CHARGER_BUSY;
+    }
+
+    /* Refresh flags while charging; bypass keeps its separately latched targets.
+     * Compare pack averages for balancing, but the highest individual cell
+     * controls taper so an average cannot hide a cell above the CV target. */
+    uvx_batt_find_highest_average_pack_voltage();
+    dock_charger_status.balance_required = 0U;
+    for(pack = 0U; pack < BQ_DEVICES; pack++)
+    {
+        if(bq_data[pack].bps_need_discharge)
+        {
+            dock_charger_status.balance_required = 1U;
+        }
+    }
+
+    if(dock_charger_status.balance_required)
+    {
+        dock_charger_status.cv_active = 0U;
+    }
+    else if(batt_data.voltage_max_cell >= UVX_DOCK_CHARGER_CV_CELL_MV - UVX_DOCK_CHARGER_CV_HYSTERESIS_MV)
+    {
+        dock_charger_status.cv_active = 1U;
     }
 
     /* Temperature fields contain tenths of Celsius, stored in uint16_t.
@@ -846,6 +877,7 @@ static UVX_DOCK_CHARGER_RESULT uvx_dock_charger_regulate_current(void)
 
     dock_charger_status.current_ready =
         !dock_charger_status.temperature_limited &&
+        !dock_charger_status.cv_active &&
         (error_ma >= -UVX_DOCK_CHARGER_CURRENT_TOLERANCE_MA) &&
         (error_ma <= UVX_DOCK_CHARGER_CURRENT_TOLERANCE_MA);
     if((uint32_t)(now - dock_charger_status.current_ramp_tick) >=
@@ -889,6 +921,33 @@ static UVX_DOCK_CHARGER_RESULT uvx_dock_charger_regulate_current(void)
                 return UVX_DOCK_CHARGER_BUSY;
             }
             /* At code zero, keep polling the dock without increasing either wiper. */
+            uvx_dock_charger_change_state(UVX_DOCK_CHARGER_STATE_READ_VOLTAGE);
+            return UVX_DOCK_CHARGER_BUSY;
+        }
+        if(dock_charger_status.cv_active && batt_data.voltage_max_cell >= UVX_DOCK_CHARGER_CV_CELL_MV - UVX_DOCK_CHARGER_CV_HYSTERESIS_MV)
+        {
+            /* Do not chase the full current target while holding 4.2 V/cell.
+             * Above target, reduce one wiper step per settled 2-second interval.
+             * At minimum PC, lower PV if current limiting cannot reduce voltage. */
+            dock_charger_status.current_stall_count = 0U;
+            dock_charger_status.current_step_pending = 0U;
+            if(batt_data.voltage_max_cell > UVX_DOCK_CHARGER_CV_CELL_MV ||
+               error_ma < -UVX_DOCK_CHARGER_CURRENT_TOLERANCE_MA)
+            {
+                if(dock_charger_status.current_code > 0U)
+                {
+                    dock_charger_status.current_code--;
+                    uvx_dock_charger_change_state(UVX_DOCK_CHARGER_STATE_WRITE_CURRENT);
+                    return UVX_DOCK_CHARGER_BUSY;
+                }
+                if(dock_charger_status.voltage_code > dock_charger_status.config.voltage_code_at_min)
+                {
+                    dock_charger_status.voltage_code--;
+                    dock_charger_status.target_voltage_mv = dock_charger_status.voltage_mv;
+                    uvx_dock_charger_change_state(UVX_DOCK_CHARGER_STATE_WRITE_VOLTAGE);
+                    return UVX_DOCK_CHARGER_BUSY;
+                }
+            }
             uvx_dock_charger_change_state(UVX_DOCK_CHARGER_STATE_READ_VOLTAGE);
             return UVX_DOCK_CHARGER_BUSY;
         }

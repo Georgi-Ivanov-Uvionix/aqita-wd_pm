@@ -100,6 +100,8 @@ typedef struct
     int32_t current_before_step_ma;
     uint8_t current_stall_count; /* Consecutive PC increases with little response */
     uint8_t current_step_pending;
+    uint8_t cv_active; /* Balanced packs: taper using highest-cell feedback */
+    uint8_t balance_required; /* Any pack average exceeds the lowest by >10 mV */
     uint32_t led_cell_mv; /* Average cell voltage used for the charging color */
     uint8_t led_red;      /* Requested brightness, 0..255 */
     uint8_t led_green;    /* Blue indicates voltage adjustment; white stays off */
