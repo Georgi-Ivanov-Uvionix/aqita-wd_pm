@@ -33,7 +33,7 @@
 #define UVX_DOCK_CHARGER_CURRENT_RESPONSE_MA        50
 #define UVX_DOCK_CHARGER_CURRENT_STALL_STEPS        2U
 #define UVX_DOCK_CHARGER_TEMP_REDUCE_DECIC          490
-#define UVX_DOCK_CHARGER_TEMP_RESUME_DECIC          480
+#define UVX_DOCK_CHARGER_TEMP_RESUME_DECIC          485
 
 /* TPL0401x-10 wiper register: TI datasheet SLIS144B, section 9.6.2. */
 static UVX_I2C_STATE uvx_tpl0401x_10_init(UVX_I2C *i2c)

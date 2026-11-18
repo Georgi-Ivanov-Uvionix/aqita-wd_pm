@@ -33,6 +33,9 @@ static uint16_t bps_qmax_time[BQ_DEVICES];
 static bool bps_discharge_selected[BQ_DEVICES];
 static uint32_t bps_read_sequence[BQ_DEVICES];
 static uint32_t bps_rest_start_ms;
+/* Inhibit branches reset bps_state; they must not erase an owed rest period. */
+static uint8_t bps_rest_required;
+static uint8_t bps_rest_timer_started;
 static uint32_t bps_rest_read_sequence[BQ_DEVICES];
 
 static void batt_rotate_fet_bps(void);
@@ -858,16 +861,26 @@ static void batt_rotate_fet_bps(void)
 		return;
 	}
 
-	// A detected dock must never select or retain a bypass pack.
-	// The normal FET state machine applies these OFF requests to the hardware.
-	if((dock_charger_status.voltage_detected && drone_status.pwr_fet) ||
-	   (batt_data.voltage_min_cell < BATT_BPS_MIN_CELL_VOLTAGE_MV))
+	// Prepare the battery path before the charger enables its input FET.
+	// Low cell voltage inhibits bypass, not dock charging preparation.
+	if((dock_charger_status.voltage_detected && drone_status.pwr_fet) || (batt_data.voltage_min_cell < BATT_BPS_MIN_CELL_VOLTAGE_MV))
 	{
 		for(i = 0; i < BQ_DEVICES; i++)
 		{
 			bq_data[i].FET_BPS_EN = false;
 			bq_data[i].FET_BPS_STAT_NEW = false;
 			bps_discharge_selected[i] = false;
+			// Startup initializes these requests OFF. Do not leave them latched
+			// OFF merely because balancing is inhibited below 2.7 V.
+			// The normal bypass -> DSG -> CHG sequence applies the requests.
+			if(dock_charger_status.voltage_detected &&
+			   batt_data.voltage_min_cell != 0U &&
+			   !batt_data.batt_max_temp && !batt_data.tc &&
+			   bq_data[i].p_comm_bq != NULL && !bq_data[i].p_comm_bq->No_response)
+			{
+				bq_data[i].FET_CHG_STAT_NEW = true;
+				bq_data[i].FET_DSG_STAT_NEW = true;
+			}
 		}
 		bps_active_pack = BQ_DEVICES;
 		bps_next_pack = 0;
@@ -919,6 +932,11 @@ static void batt_rotate_fet_bps(void)
 		}
 	}
 
+	// An interrupted bypass must also finish OFF/rest/reassessment before reuse.
+	if(bps_state == BPS_IDLE && bps_rest_required)
+	{
+		bps_state = BPS_WAIT_OFF;
+	}
 	switch(bps_state)
 	{
 		case BPS_IDLE:
@@ -985,6 +1003,8 @@ static void batt_rotate_fet_bps(void)
 					bq_data[pack].bypass_time_start_ms = now;
 					bq_data[pack].bypass_time_ms = 0U;
 					bq_data[pack].FET_BPS_EN = true;
+					bps_rest_required = 1U;
+					bps_rest_timer_started = 0U;
 					bps_state = BPS_WAIT_ON;
 					break;
 				}
@@ -1040,7 +1060,11 @@ static void batt_rotate_fet_bps(void)
 			}
 			bps_active_pack = BQ_DEVICES;
 			bps_discharge_pack = BQ_DEVICES;
-			bps_rest_start_ms = now;
+			if(!bps_rest_timer_started)
+			{
+				bps_rest_start_ms = now;
+				bps_rest_timer_started = 1U;
+			}
 			bps_state = BPS_REST;
 			break;
 
@@ -1066,6 +1090,8 @@ static void batt_rotate_fet_bps(void)
 				}
 			}
 			uvx_batt_find_highest_average_pack_voltage();
+			bps_rest_required = 0U;
+			bps_rest_timer_started = 0U;
 			bps_state = BPS_IDLE;
 			break;
 

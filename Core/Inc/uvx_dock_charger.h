@@ -5,7 +5,7 @@
 #include "uvx_i2c.h"
 
 #define DOCK_CHARGER_CURRENT_MIN_MA              500U
-#define DOCK_CHARGER_CURRENT_TARGET_MA          10000U
+#define DOCK_CHARGER_CURRENT_TARGET_MA          20000U
 #define DOCK_CHARGER_CURRENT_MAX_MA             15500U
 #define DOCK_CHARGER_VOLTAGE_MIN_MV              5670U
 #define DOCK_CHARGER_VOLTAGE_MAX_MV             40490U
