@@ -97,6 +97,12 @@ typedef struct
     uint32_t i2c_timeout_count;
     uint32_t i2c_timeout_isr;
     uint32_t i2c_timeout_hal_state;
+    uint32_t error_count;
+    uint32_t last_error_state; /* Charger state before entering ERROR */
+    uint32_t last_error_hal_state;
+    uint32_t last_error_hal_code;
+    uint32_t last_error_isr;
+    uint32_t last_voltage_read_result; /* uvx_i2c_read_mem start result */
     int32_t current_before_step_ma;
     uint8_t current_stall_count; /* Consecutive PC increases with little response */
     uint8_t current_step_pending;

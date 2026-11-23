@@ -104,6 +104,15 @@ static void uvx_dock_charger_change_state(UVX_DOCK_CHARGER_STATE state_next)
 {
     if(state_next == UVX_DOCK_CHARGER_STATE_ERROR)
     {
+        /* Retain the failure before retries replace HAL's state/error flags. */
+        dock_charger_status.error_count++;
+        dock_charger_status.last_error_state = dock_charger_state.state_current;
+        if(dock_charger_status.i2c != NULL)
+        {
+            dock_charger_status.last_error_hal_state = HAL_I2C_GetState(&dock_charger_status.i2c->hal_i2c.hi2c);
+            dock_charger_status.last_error_hal_code = HAL_I2C_GetError(&dock_charger_status.i2c->hal_i2c.hi2c);
+            dock_charger_status.last_error_isr = dock_charger_status.i2c->hal_i2c.hi2c.Instance->ISR;
+        }
         dock_voltage_adjusting = 0U;
         dock_charger_status.supply_enabled = 0U;
         dock_charger_status.supply_ready = 0U;
@@ -1301,6 +1310,7 @@ UVX_DOCK_CHARGER_RESULT uvx_dock_charger_process(void)
                 }
 
                 i2c_state = uvx_tpl0401x_10_read(dock_charger_status.i2c, UVX_DOCK_CHARGER_VOLTAGE_I2C_ADDRESS, &dock_charger_status.voltage_readback_code);
+                dock_charger_status.last_voltage_read_result = i2c_state;
 
                 if(i2c_state == UVX_I2C_OK)
                 {
