@@ -125,6 +125,10 @@ uint8_t g_Time_For_No_Pressed_Buttton = 0;
 uint8_t g_Error_LED = 0;
 volatile uint8_t g_Sleep = 0;
 volatile uint8_t g_Exit_Sleep_Request = 0;
+static uint32_t dock_sleep_probe_tick;
+static uint8_t dock_sleep_probe_active;
+#define DOCK_SLEEP_POLL_MS 1000U
+#define DOCK_SLEEP_PROBE_MS 250U
 volatile uint8_t g_Button_EXTI_Request = 0;
 uint8_t g_Toggle_Count = 0;
 uint8_t g_Test = 0;
@@ -478,6 +482,11 @@ void UVX_APP(void)
 			/* Keep ADC feedback and dock regulation running while the pot responds. */
 			if(dock_charger_status.voltage_detected)
 			{
+				dock_sleep_probe_active = 0U;
+				if(batt_state.state_current == BATT_MODE_STOP)
+				{
+					batt_state.state_current = BATT_MODE_READ_BQ;
+				}
 				timer_app_drone.Timeout = APP_TIMEOUT_BEFORE_SLEEP;
 				timer_app_drone.Enable = true;
 				drone_state.state_current = DRONE_IDLE;
@@ -1865,6 +1874,12 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
 	/* Prevent unused argument(s) compilation warning */
 	UNUSED(htim);
+	/* TIM7 is a wake timer in low-power sleep, not a millisecond app tick. */
+	if(g_Sleep && htim == &uvx_timer_hal.htim)
+	{
+		g_Exit_Sleep_Request = 1;
+		return;
+	}
 	if(drone_state.state_current == DRONE_SLEEP)
 	{
 		uvx_app_pwr_led(1);
@@ -2183,11 +2198,22 @@ void Set_Timers_After_Sleep(void)
 
 void enter_LPSleep( void )
 {
+	uint32_t timer_clock;
 	/* Guard every caller before disabling ADC, clocks, or the system tick. */
 	if(dock_charger_status.voltage_detected)
 	{
 		return;
 	}
+	if(dock_sleep_probe_active && (uint32_t)(HAL_GetTick() - dock_sleep_probe_tick) < DOCK_SLEEP_PROBE_MS)
+	{
+		return;
+	}
+	/* Never suspend the CPU/clock in the middle of a dock transaction. */
+	if(dock_charger_status.owns_i2c_lock)
+	{
+		return;
+	}
+	dock_sleep_probe_active = 0U;
 
 	if (!g_Sleep)//G? pin config before enter sleep
 	{
@@ -2214,7 +2240,20 @@ void enter_LPSleep( void )
 		RCC->APB1ENR1 |= RCC_APB1ENR1_PWREN;
 		HAL_StatusTypeDef HAL_FLASHEx_EnableRunPowerDown();
 		
+		HAL_TIM_Base_Stop_IT(&uvx_timer_hal.htim);
 		Config_SysClk_MSI_131();
+		/* APB1 timers run at PCLK1, doubled when the APB prescaler is used. */
+		timer_clock = HAL_RCC_GetPCLK1Freq();
+		if((RCC->CFGR & RCC_CFGR_PPRE1) != 0U)
+		{
+			timer_clock *= 2U;
+		}
+		__HAL_TIM_SET_PRESCALER(&uvx_timer_hal.htim, timer_clock / 1000U - 1U);
+		__HAL_TIM_SET_AUTORELOAD(&uvx_timer_hal.htim, DOCK_SLEEP_POLL_MS - 1U);
+		uvx_timer_hal.htim.Instance->EGR = TIM_EGR_UG;
+		__HAL_TIM_SET_COUNTER(&uvx_timer_hal.htim, 0U);
+		__HAL_TIM_CLEAR_FLAG(&uvx_timer_hal.htim, TIM_FLAG_UPDATE);
+		HAL_TIM_Base_Start_IT(&uvx_timer_hal.htim);
 		sys_CLK = HAL_RCC_GetSysClockFreq() ;
 		HAL_SuspendTick();
 		HAL_PWREx_EnableLowPowerRunMode();
@@ -2230,6 +2269,7 @@ void exit_Sleep(void)
 {
 	if (g_Sleep)//G? pin config at exit sleep
 	{
+		HAL_TIM_Base_Stop_IT(&uvx_timer_hal.htim);
 		HAL_PWREx_DisableLowPowerRunMode();
 		Config_SysClk_HSE();
 		HAL_RstTick();
@@ -2246,7 +2286,15 @@ void exit_Sleep(void)
 		ADC1->CR &= ~ADC_CR_DEEPPWD;
 		ADC1->CR |= ADC_CR_ADVREGEN;
 		Set_Timers_After_Sleep();
+		__HAL_TIM_SET_PRESCALER(&uvx_timer_hal.htim, uvx_timer_hal.htim.Init.Prescaler);
+		__HAL_TIM_SET_AUTORELOAD(&uvx_timer_hal.htim, uvx_timer_hal.htim.Init.Period);
+		uvx_timer_hal.htim.Instance->EGR = TIM_EGR_UG;
+		__HAL_TIM_SET_COUNTER(&uvx_timer_hal.htim, 0U);
+		__HAL_TIM_CLEAR_FLAG(&uvx_timer_hal.htim, TIM_FLAG_UPDATE);
 		g_Sleep = 0;
+		dock_sleep_probe_tick = HAL_GetTick();
+		dock_sleep_probe_active = 1U;
+		HAL_TIM_Base_Start_IT(&uvx_timer_hal.htim);
 		comm_m2m_state.state_current = M2M_MODE_IDLE;
 		uvx_gpio_set_pin(GPIO_OUTPUT_JMB_PERIPHERIAL_EN, GPIO_PIN_RESET);
 	}
