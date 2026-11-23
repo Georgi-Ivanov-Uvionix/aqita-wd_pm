@@ -270,7 +270,6 @@ UVX_BATT_STATE uvx_batt_parse_data(void)
 	batt_data.cell_voltage_8  = bq_data_3.cell_voltage_2 - (bq_data_3.current * CELL_8_INTERCONNECT_RESISTANCE)/1000;
 	batt_data.cell_voltage_9  = bq_data_3.cell_voltage_3 - (bq_data_3.current * CELL_9_INTERCONNECT_RESISTANCE)/1000;
 	batt_data.cell_voltage_10 = 0U;
-	uvx_batt_update_pack_cell_delta();
 
 	//convert to little endian 
 	batt_data.payload.cell_voltage_1 = uvx_comm_bq_swap_u16_value(batt_data.cell_voltage_1);
@@ -538,7 +537,6 @@ UVX_BATT_STATE uvx_batt_parse_data(void)
 
 	//uvx_batt_find_highest_average_pack_voltage();
 
-	batt_data.voltage_delta_cell = (int16_t)uvx_batt_max_u16_3(bq_data_1.voltage_delta_cell, bq_data_2.voltage_delta_cell, bq_data_3.voltage_delta_cell);
 	batt_data.voltage_diff_pack = (int16_t)( uvx_batt_max_u16_3(bq_data_1.voltage_per_cell, bq_data_2.voltage_per_cell, bq_data_3.voltage_per_cell) -
 											 uvx_batt_min_u16_3(bq_data_1.voltage_per_cell, bq_data_2.voltage_per_cell, bq_data_3.voltage_per_cell));
 
@@ -633,13 +631,13 @@ UVX_BATT_STATE uvx_batt_search_cell_diff(void)
 	uint16_t *p_cell = (uint16_t *)&batt_data.cell_voltage_1;
 	uint16_t min_cell = 0xFFFFU;
 	uint16_t max_cell = 0U;
-	uint16_t min_bq[2] = {0xFFFFU, 0xFFFFU};
-	uint16_t max_bq[2] = {0U, 0U};
-	uint16_t delta_bq[2] = {0U, 0U};
 	uint16_t cell_voltage = 0U;
 	uint8_t i;
-	uint8_t bq;
 	uint8_t valid_cells = 0;
+
+	/* One definition for cell spread: max spread within each physical 3-cell
+	 * pack. Never mix cells from different packs into this measurement. */
+	uvx_batt_update_pack_cell_delta();
 
 	for(i = 0; i < BATT_CELLS_MAX; i++)
 	{
@@ -648,16 +646,6 @@ UVX_BATT_STATE uvx_batt_search_cell_diff(void)
 		if(cell_voltage > BATT_CELL_DETECT_THRESHOLD_MV)
 		{
 			valid_cells++;
-			// Cells 1-5 belong to BQ L; cells 6-10 belong to BQ H.
-			bq = (i < (BATT_CELLS_MAX / 2U)) ? 0U : 1U;
-			if(cell_voltage < min_bq[bq])
-			{
-				min_bq[bq] = cell_voltage;
-			}
-			if(cell_voltage > max_bq[bq])
-			{
-				max_bq[bq] = cell_voltage;
-			}
 
 			if(cell_voltage < min_cell)
 			{
@@ -681,13 +669,7 @@ UVX_BATT_STATE uvx_batt_search_cell_diff(void)
 
 	batt_data.voltage_min_cell = (int16_t)min_cell;
 	batt_data.voltage_max_cell = (int16_t)max_cell;
-	{
-		if(max_bq[bq] > 0U)
-		{
-			delta_bq[bq] = max_bq[bq] - min_bq[bq];
-		}
-	}
-	batt_data.voltage_delta_cell = (int16_t)((delta_bq[0] > delta_bq[1]) ? delta_bq[0] : delta_bq[1]);
+	batt_data.voltage_delta_cell = (int16_t)uvx_batt_max_u16_3(bq_data_1.voltage_delta_cell, bq_data_2.voltage_delta_cell, bq_data_3.voltage_delta_cell);
 	batt_data.payload.adc_pack_v = uvx_comm_bq_swap_u16_value(batt_data.adc_pack_v);
 	
 
