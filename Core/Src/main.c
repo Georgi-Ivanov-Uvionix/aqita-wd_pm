@@ -568,9 +568,27 @@ void Process_Sleep_Exit_Request(void)
 
 void Process_Button_EXTI_Request(void)
 {
-	if(g_Button_EXTI_Request)
+	static uint8_t button_candidate = 0U;
+	static uint8_t button_pressed = 0U;
+	static uint32_t button_change_tick;
+	uint8_t pressed = uvx_gpio_read_pin(GPIO_INPUT_EXTI8_DRONE_START) == GPIO_PIN_RESET;
+	uint32_t now = HAL_GetTick();
+
+	/* EXTI wakes the CPU; sample the pin while awake as well. Accept one
+	 * event per debounced physical press, including a missed interrupt edge. */
+	g_Button_EXTI_Request = 0U;
+	if(pressed != button_candidate)
 	{
-		g_Button_EXTI_Request = 0;
+		button_candidate = pressed;
+		button_change_tick = now;
+	}
+	if(button_candidate == button_pressed || (uint32_t)(now - button_change_tick) < 20U)
+	{
+		return;
+	}
+	button_pressed = button_candidate;
+	if(button_pressed)
+	{
 		uvx_app_led_strip_enable(GPIO_PIN_SET);
 		drone_status.btn_state = true;
 		if((drone_state.state_current != DRONE_CHECK_BUTTON_PRESS_ONCE)
