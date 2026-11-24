@@ -127,6 +127,8 @@ volatile uint8_t g_Sleep = 0;
 volatile uint8_t g_Exit_Sleep_Request = 0;
 static uint32_t dock_sleep_probe_tick;
 static uint8_t dock_sleep_probe_active;
+static uint32_t app_timer_run_prescaler;
+static uint32_t app_timer_run_period;
 #define DOCK_SLEEP_POLL_MS 1000U
 #define DOCK_SLEEP_PROBE_MS 250U
 volatile uint8_t g_Button_EXTI_Request = 0;
@@ -2259,6 +2261,10 @@ void enter_LPSleep( void )
 		HAL_StatusTypeDef HAL_FLASHEx_EnableRunPowerDown();
 		
 		HAL_TIM_Base_Stop_IT(&uvx_timer_hal.htim);
+		/* SET_AUTORELOAD also overwrites Init.Period. Preserve the run
+		 * settings separately before installing the one-second wake period. */
+		app_timer_run_prescaler = uvx_timer_hal.htim.Instance->PSC;
+		app_timer_run_period = uvx_timer_hal.htim.Instance->ARR;
 		Config_SysClk_MSI_131();
 		/* APB1 timers run at PCLK1, doubled when the APB prescaler is used. */
 		timer_clock = HAL_RCC_GetPCLK1Freq();
@@ -2304,8 +2310,8 @@ void exit_Sleep(void)
 		ADC1->CR &= ~ADC_CR_DEEPPWD;
 		ADC1->CR |= ADC_CR_ADVREGEN;
 		Set_Timers_After_Sleep();
-		__HAL_TIM_SET_PRESCALER(&uvx_timer_hal.htim, uvx_timer_hal.htim.Init.Prescaler);
-		__HAL_TIM_SET_AUTORELOAD(&uvx_timer_hal.htim, uvx_timer_hal.htim.Init.Period);
+		__HAL_TIM_SET_PRESCALER(&uvx_timer_hal.htim, app_timer_run_prescaler);
+		__HAL_TIM_SET_AUTORELOAD(&uvx_timer_hal.htim, app_timer_run_period);
 		uvx_timer_hal.htim.Instance->EGR = TIM_EGR_UG;
 		__HAL_TIM_SET_COUNTER(&uvx_timer_hal.htim, 0U);
 		__HAL_TIM_CLEAR_FLAG(&uvx_timer_hal.htim, TIM_FLAG_UPDATE);
