@@ -103,6 +103,8 @@ typedef struct
     uint32_t last_error_hal_code;
     uint32_t last_error_isr;
     uint32_t last_voltage_read_result; /* uvx_i2c_read_mem start result */
+    uint8_t standalone_active; /* Valid external charger without I2C control */
+    uint8_t dock_seen; /* Latched until external input is removed */
     int32_t current_before_step_ma;
     uint8_t current_stall_count; /* Consecutive PC increases with little response */
     uint8_t current_step_pending;
