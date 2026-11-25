@@ -113,6 +113,17 @@ static void uvx_dock_charger_change_state(UVX_DOCK_CHARGER_STATE state_next)
             dock_charger_status.last_error_hal_code = HAL_I2C_GetError(&dock_charger_status.i2c->hal_i2c.hi2c);
             dock_charger_status.last_error_isr = dock_charger_status.i2c->hal_i2c.hi2c.Instance->ISR;
         }
+        /* Only a missing device during initial detection selects a regular
+         * charger. A known dock losing communication must remain fail-off. */
+        if((dock_charger_state.state_current == UVX_DOCK_CHARGER_STATE_READ_VOLTAGE ||
+            dock_charger_state.state_current == UVX_DOCK_CHARGER_STATE_WAIT_VOLTAGE_READ) &&
+           dock_charger_status.last_error_hal_code == HAL_I2C_ERROR_AF &&
+           !dock_charger_status.dock_seen && batt_data.adc_pack_v_stable_high &&
+           batt_data.adc_pack_v > batt_data.pwr_min_voltage &&
+           batt_data.adc_pack_v < batt_data.pwr_max_voltage)
+        {
+            dock_charger_status.standalone_active = 1U;
+        }
         dock_voltage_adjusting = 0U;
         dock_charger_status.supply_enabled = 0U;
         dock_charger_status.supply_ready = 0U;
@@ -685,6 +696,8 @@ UVX_DOCK_CHARGER_RESULT uvx_dock_charger_init(UVX_I2C *i2c, const UVX_DOCK_CHARG
 
     dock_charger_status.i2c = i2c;
     dock_charger_status.config = *config;
+    dock_charger_status.standalone_active = 0U;
+    dock_charger_status.dock_seen = 0U;
     dock_charger_status.cv_active = 0U;
     dock_charger_status.balance_required = 0U;
     dock_charger_status.target_current_ma = config->current_min_ma;
@@ -1092,6 +1105,35 @@ UVX_DOCK_CHARGER_RESULT uvx_dock_charger_process(void)
         return result;
     }
 
+    if(batt_data.adc_pack_v_stable_low)
+    {
+        dock_charger_status.dock_seen = 0U;
+        if(dock_charger_status.standalone_active)
+        {
+            UVX_APP_PWR_FET(0U);
+            dock_charger_status.standalone_active = 0U;
+            uvx_dock_charger_change_state(UVX_DOCK_CHARGER_STATE_READ_VOLTAGE);
+        }
+    }
+    if(dock_charger_status.standalone_active)
+    {
+        /* The external charger supplies CC/CV regulation. Do not issue dock
+         * transactions or let their expected NACKs repeatedly toggle the FET. */
+        uint8_t enable = dock_supply_requested && batt_data.init &&
+            batt_data.adc_pack_v_stable_high &&
+            batt_data.adc_pack_v > batt_data.pwr_min_voltage &&
+            batt_data.adc_pack_v < batt_data.pwr_max_voltage &&
+            batt_data.batt_voltage != 0U && batt_data.cells_count == BATT_EXPECTED_CELLS &&
+            !batt_data.tc && !batt_data.batt_max_temp && !batt_data.BPS_Passive &&
+            !drone_status.pwr_fc && !drone_status.prepare_fc &&
+            !comm_bq_1.No_response && !comm_bq_2.No_response && !comm_bq_3.No_response;
+        if(enable != drone_status.pwr_fet)
+        {
+            UVX_APP_PWR_FET(enable);
+        }
+        return enable ? UVX_DOCK_CHARGER_OK : UVX_DOCK_CHARGER_BUSY;
+    }
+
     /* Drain the persistent LED buffer before any other dock transaction. */
     if(dock_led_pending)
     {
@@ -1342,6 +1384,7 @@ UVX_DOCK_CHARGER_RESULT uvx_dock_charger_process(void)
                         dock_charger_status.regulation_state = UVX_DOCK_CHARGER_REGULATION_MATCH_VOLTAGE;
                         dock_charger_status.voltage_code = dock_charger_status.config.voltage_code_at_min;
                         dock_charger_status.voltage_detected = 1U;
+                        dock_charger_status.dock_seen = 1U;
                         dock_charger_status.voltage_ramp_tick = HAL_GetTick();
                         uvx_dock_charger_change_state(UVX_DOCK_CHARGER_STATE_WRITE_VOLTAGE);
                         return UVX_DOCK_CHARGER_BUSY;

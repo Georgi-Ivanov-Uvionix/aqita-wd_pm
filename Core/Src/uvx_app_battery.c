@@ -724,7 +724,8 @@ static void batt_rotate_fet_bps(void)
 
 	if((batt_data.tc))
 	{
-		if( ((bq_data_1.FET_CHG_STAT) && (bq_data_1.FET_DSG_STAT)) ||
+		if( dock_charger_status.standalone_active ||
+		    ((bq_data_1.FET_CHG_STAT) && (bq_data_1.FET_DSG_STAT)) ||
 		    ((bq_data_2.FET_CHG_STAT) && (bq_data_2.FET_DSG_STAT)) ||
 		    ((bq_data_3.FET_CHG_STAT) && (bq_data_3.FET_DSG_STAT)) )
 		{
