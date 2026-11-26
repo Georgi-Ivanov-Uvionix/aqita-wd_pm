@@ -177,10 +177,75 @@ static void uvx_dock_charger_unlock_i2c(void)
     }
 }
 
+/* Bounded delay also works with interrupts masked during peripheral recovery. */
+static void uvx_dock_bus_clear_delay(void)
+{
+    volatile uint32_t cycles = SystemCoreClock / 100000U + 1U;
+    while(cycles-- != 0U)
+    {
+        __NOP();
+    }
+}
+
+static void uvx_dock_clear_bus(void)
+{
+    GPIO_InitTypeDef gpio = {0};
+    uint32_t pulse;
+    uint32_t wait;
+    /* This recovery is for the configured I2C1 pins PB8=SCL, PB9=SDA. */
+    if(dock_charger_status.i2c->gpio_scl.Port != 'B' || dock_charger_status.i2c->gpio_scl.Pin != 8U ||
+       dock_charger_status.i2c->gpio_sda.Port != 'B' || dock_charger_status.i2c->gpio_sda.Pin != 9U)
+    {
+        return;
+    }
+    __HAL_RCC_GPIOB_CLK_ENABLE();
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8 | GPIO_PIN_9, GPIO_PIN_SET);
+    gpio.Pin = GPIO_PIN_8 | GPIO_PIN_9;
+    gpio.Mode = GPIO_MODE_OUTPUT_OD;
+    gpio.Pull = GPIO_PULLUP;
+    gpio.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+    HAL_GPIO_Init(GPIOB, &gpio);
+    for(pulse = 0U; pulse <= 9U; pulse++)
+    {
+        /* SET releases an open-drain line. Respect a slave holding SCL low. */
+        for(wait = 0U; wait < 10U; wait++)
+        {
+            uvx_dock_bus_clear_delay();
+            if(HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_8) == GPIO_PIN_SET)
+            {
+                break;
+            }
+        }
+        if(HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_8) == GPIO_PIN_RESET)
+        {
+            break;
+        }
+        if(HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_9) == GPIO_PIN_SET || pulse == 9U)
+        {
+            /* STOP: assert SDA with SCL low, release SCL, then release SDA. */
+            HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_RESET);
+            HAL_GPIO_WritePin(GPIOB, GPIO_PIN_9, GPIO_PIN_RESET);
+            uvx_dock_bus_clear_delay();
+            HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_SET);
+            uvx_dock_bus_clear_delay();
+            HAL_GPIO_WritePin(GPIOB, GPIO_PIN_9, GPIO_PIN_SET);
+            uvx_dock_bus_clear_delay();
+            break;
+        }
+        HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_RESET);
+        uvx_dock_bus_clear_delay();
+        HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_SET);
+    }
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8 | GPIO_PIN_9, GPIO_PIN_SET);
+    gpio.Mode = GPIO_MODE_AF_OD;
+    gpio.Alternate = GPIO_AF4_I2C1;
+    HAL_GPIO_Init(GPIOB, &gpio);
+}
+
 /* Dock transfers use interrupts, not DMA. On a deadline, stop the peripheral
  * before releasing its buffer/lock. A missing STOP cannot be repaired by an
  * interrupt-based abort alone (the bundled HAL also rejects abort in MEM mode).
- * No GPIO bus-clear pulses: a slave holding SDA low remains a hardware fault. */
+ * Release an interrupted slave transaction before restoring the peripheral. */
 static UVX_I2C_STATE uvx_dock_charger_recover_i2c(void)
 {
     UVX_I2C_HAL *i2c = &dock_charger_status.i2c->hal_i2c;
@@ -190,8 +255,10 @@ static UVX_I2C_STATE uvx_dock_charger_recover_i2c(void)
     HAL_StatusTypeDef result;
 
     if(i2c->hi2c.Instance != I2C1 ||
-       i2c->p_lock_owner != (uint32_t*)&dock_charger_status)
+       (i2c->p_lock_owner != NULL && i2c->p_lock_owner != (uint32_t*)&dock_charger_status))
+    {
         return UVX_I2C_ERROR;
+    }
 
     primask = __get_PRIMASK();
     __disable_irq();
@@ -201,6 +268,7 @@ static UVX_I2C_STATE uvx_dock_charger_recover_i2c(void)
     timeout = i2c->hi2c.Instance->TIMEOUTR;
     __HAL_RCC_I2C1_FORCE_RESET();
     __HAL_RCC_I2C1_RELEASE_RESET();
+    uvx_dock_clear_bus();
     HAL_NVIC_ClearPendingIRQ(I2C1_EV_IRQn);
     HAL_NVIC_ClearPendingIRQ(I2C1_ER_IRQn);
     i2c->hi2c.State = HAL_I2C_STATE_RESET;
@@ -208,6 +276,7 @@ static UVX_I2C_STATE uvx_dock_charger_recover_i2c(void)
     i2c->hi2c.pBuffPtr = NULL;
     i2c->hi2c.XferCount = 0U;
     i2c->hi2c.XferSize = 0U;
+    i2c->hi2c.Lock = HAL_UNLOCKED;
     result = HAL_I2C_Init(&i2c->hi2c);
     if(result == HAL_OK)
     {
@@ -218,6 +287,12 @@ static UVX_I2C_STATE uvx_dock_charger_recover_i2c(void)
         i2c->STOP_Detected = 0U;
         i2c->i2c_err_timeout_lock = 0U;
         uvx_dock_charger_unlock_i2c();
+        /* Failed starts may already have released the software owner. */
+        i2c->p_lock_owner = NULL;
+        i2c->p_locker = NULL;
+        i2c->I2C_RX_Ready = 1U;
+        i2c->I2C_TX_Ready = 1U;
+        dock_charger_status.owns_i2c_lock = 0U;
     }
     __set_PRIMASK(primask);
     return result == HAL_OK ? UVX_I2C_OK : UVX_I2C_ERROR;
@@ -1084,6 +1159,7 @@ UVX_DOCK_CHARGER_RESULT uvx_dock_charger_process(void)
        uvx_dock_charger_transfer_state(&dock_charger_status.i2c->hal_i2c) == UVX_I2C_BUSY)
     {
         dock_charger_status.i2c_timeout_count++;
+        UVX_APP_PWR_FET(0U);
         if(uvx_dock_charger_recover_i2c() != UVX_I2C_OK)
         {
             dock_charger_status.i2c_lock_tick = HAL_GetTick();
@@ -1143,6 +1219,29 @@ UVX_DOCK_CHARGER_RESULT uvx_dock_charger_process(void)
         dock_led_pending = 0U;
         if(i2c_state == UVX_I2C_OK) dock_gpio_output = dock_led_data;
         else dock_charger_status.led_ready = 0U;
+    }
+
+    /* Recover failed starts as well as timed-out transfers. Do this before
+     * optional LED setup can keep returning BUSY and hide the ERROR state. */
+    if(dock_charger_state.state_current == UVX_DOCK_CHARGER_STATE_ERROR)
+    {
+        UVX_APP_PWR_FET(0U);
+        if((uint32_t)(HAL_GetTick() - dock_charger_status.voltage_ramp_tick) < UVX_DOCK_CHARGER_RAMP_INTERVAL_MS)
+        {
+            return UVX_DOCK_CHARGER_ERROR;
+        }
+        if(dock_charger_status.i2c->hal_i2c.p_lock_owner != NULL &&
+           dock_charger_status.i2c->hal_i2c.p_lock_owner != (uint32_t*)&dock_charger_status)
+        {
+            return UVX_DOCK_CHARGER_BUSY;
+        }
+        dock_charger_status.voltage_ramp_tick = HAL_GetTick();
+        if(uvx_dock_charger_recover_i2c() != UVX_I2C_OK)
+        {
+            return UVX_DOCK_CHARGER_ERROR_I2C;
+        }
+        uvx_dock_charger_change_state(UVX_DOCK_CHARGER_STATE_READ_VOLTAGE);
+        return UVX_DOCK_CHARGER_BUSY;
     }
 
     /* Initialize red even before battery data or voltage-pot detection is ready.
